@@ -185,8 +185,10 @@ export function resolveSuite(specifier, { root = ROOT, existsSync = fs.existsSyn
     throw new VisualCaptureError('ARGS_INVALID', 'A suite ID or path is required');
   }
   const isExplicit = path.isAbsolute(specifier) || specifier.includes('/') || specifier.includes('\\') || specifier.endsWith('.json');
+  // Accept Windows-style separators everywhere so the same suite path works on macOS and Linux.
+  const portable = path.sep === '/' ? specifier.replace(/\\/g, '/') : specifier;
   const suitePath = isExplicit
-    ? path.resolve(root, specifier)
+    ? path.resolve(root, portable)
     : path.join(root, 'tools', 'visual-capture', 'suites', `${specifier}.json`);
   if (!existsSync(suitePath)) {
     throw new VisualCaptureError('SUITE_NOT_FOUND', `Suite not found: ${specifier}`, {
