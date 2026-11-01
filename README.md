@@ -6,8 +6,8 @@ with any launch monitor that speaks the **GSPro Open Connect** protocol — incl
 
 - **Real courses** from OpenStreetMap (fairways, greens, bunkers, water, trees, hole routings)
 - **Real terrain** from AWS Terrain Tiles open elevation data — slopes affect flight, bounce, roll, and putts
-- **Real physics** — drag + Magnus lift flight model calibrated against tour launch-monitor numbers,
-  spin-axis draws/fades, backspin zip-back on greens, gravity-fed breaks on slopes
+- **Real physics** — drag + Magnus lift flight model from published aero fits (Ferguson, McNally &
+  McPhee 2022), the same model as the OpenFlight launch monitor so carries match, spin-axis draws/fades, backspin zip-back on greens, gravity-fed breaks on slopes
 - **Full round play** — 18 holes, scorecard with a round-complete summary, pick up to bail on a hole, water/OB penalties, gimmes, cup capture
 - Desktop app (Electron) — no browser needed; a tablet/phone on the same network can mirror via the built-in web server (set `BIRDIE_HOST=0.0.0.0` to allow LAN access — localhost-only by default)
 
@@ -110,7 +110,8 @@ node tools/test-load.js "Course name"   # test course download/parse
 
 - Visuals are "good indie sim" tier, not premium-sim grade: flat-shaded splat terrain, low-poly trees.
   Next: grass textures, normal maps, better tree models, bunker depth.
-- Driver apex runs ~15% high vs tour averages (carries are calibrated within ~3%).
+- The flight model is fit to measured shots, not tuned to PGA Tour averages: vs those, carries sit
+  within ~5% (driver 279 vs 275 yd, 7-iron 163 vs 172) and apex within ~5 ft (`npm run calibrate`).
 - Pin positions come from OSM hole lines (one per green; double greens use the mapped point).
 - No wind UI yet (the physics supports it).
 
