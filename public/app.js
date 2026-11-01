@@ -3,13 +3,33 @@ import { GolfScene } from './render/scene.js';
 import { loadHdBundle } from './render/hd-bundle.js';
 import { buildHdAckEvidence, validateHdPolicy, waitForCaptureReady } from './render/capture-readiness.js';
 import { toPar, forwardLabel, verdict } from './scoring.mjs';
+import { FlightView } from './flight-view.js';
+import { parseQualitySetting, nextQualitySetting, qualityLabel } from './render/quality.js';
 
 const $ = (id) => document.getElementById(id);
-const scene = new GolfScene($('scene'));
 // Readiness nonce handed only to the loopback Electron primary client (absent on LAN mirrors).
 const query = new URLSearchParams(location.search);
 const primaryNonce = query.get('primaryNonce') || '';
 const visualCaptureEnabled = query.get('visualCapture') === '1';
+// Graphics quality: ?gfx=auto|high|low overrides the saved choice (Auto by default).
+// Visual-capture runs pin High and never auto-downshift, so frames stay comparable.
+const GFX_KEY = 'open-birdie.graphics';
+const readGfx = () => { try { return localStorage.getItem(GFX_KEY); } catch { return null; } };
+let gfxSetting = parseQualitySetting(query.get('gfx') || (visualCaptureEnabled ? 'high' : readGfx()) || 'auto');
+const scene = new GolfScene($('scene'), { quality: gfxSetting, autoQuality: !visualCaptureEnabled });
+const flightView = new FlightView($('flightview'));
+function showGfx(q) {
+  const b = $('btn-gfx');
+  b.textContent = `Graphics: ${qualityLabel(q.setting, q.level)}`;
+  b.title = `Graphics quality (${q.reason}) — click to cycle Auto / High / Low`;
+}
+scene.onQualityChange = showGfx;
+showGfx(scene.quality);
+$('btn-gfx').onclick = () => {
+  gfxSetting = nextQualitySetting(gfxSetting);
+  try { localStorage.setItem(GFX_KEY, gfxSetting); } catch { /* private mode */ }
+  scene.setQuality(gfxSetting);
+};
 window.__birdie = { scene, get state() { return state; } };
 
 let state = null;
@@ -68,7 +88,8 @@ function applyState(s) {
   if (scene.geo) {
     if (key !== lastHoleKey) {
       lastHoleKey = key;
-      scene.setHole({ pin: s.pin, tee: s.tee }, { x: s.ball.x, y: s.ball.y }, s.aimDeg);
+      flightView.newHole(key);
+      scene.setHole({ pin: s.pin, tee: s.tee, ref: s.holeRef ?? s.hole }, { x: s.ball.x, y: s.ball.y }, s.aimDeg);
     } else if (!animating) {
       scene.setBall(s.ball);
       scene.setAim(s.aimDeg);
@@ -210,11 +231,13 @@ es.addEventListener('shot', (e) => {
   const shot = JSON.parse(e.data);
   showShotData(shot);
   animating = true;
+  flightView.startShot(shot);
   scene.playShot(shot.sim.points, shot.sim.flightTime, () => {
     animating = false;
+    flightView.finish();
     if (pendingState) { applyState(pendingState); pendingState = null; }
     shotToast(shot);
-  });
+  }, { onProgress: (t) => flightView.setTime(t), isPutt: !!shot.sim.isPutt });
 });
 
 function setVal(id, num, unit) {

@@ -37,6 +37,7 @@
   <button id="btn-course" class="btn">Course</button>
   <button id="btn-score" class="btn">Scorecard</button>
   <button id="btn-free" class="btn" title="Free course-creator camera (C)">Free look</button>
+  <button id="btn-gfx" class="btn" title="Graphics quality — click to cycle Auto / High / Low">Graphics</button>
 </header>
 
 <div id="freecam-hint" class="hidden"><b>WASD</b> move · <b>drag</b> look · <b>wheel</b> zoom · <b>Q/E</b> height · <b>C</b> exit</div>
@@ -60,6 +61,11 @@
     <div class="dcard"><span class="dlabel">APEX</span><b id="sd-apex" class="dval">–</b></div>
   </div>
 </aside>
+
+<section id="flightview" class="hidden" aria-label="Shot side view">
+  <div class="fv-head"><span class="fv-title" data-fv="title">SIDE VIEW</span><span class="fv-stat" data-fv="stat"></span></div>
+  <svg role="img" aria-label="Side view of the current shot: height in feet against distance in yards"></svg>
+</section>
 
 <footer id="bottombar">
   <div id="clubs"></div>

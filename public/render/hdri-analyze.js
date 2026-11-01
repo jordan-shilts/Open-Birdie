@@ -44,3 +44,22 @@ export function horizonColorFromEquirect(data, width, height) {
   const enc = (c) => Math.min(255, Math.round(Math.pow(c / (1 + c), 1 / 2.2) * 255));
   return (enc(r) << 16) | (enc(g) << 8) | enc(b);
 }
+
+// Linear (scene-referred) average of the sky just ABOVE the horizon (~1-10 deg up),
+// as {r,g,b}. Fog / horizon haze use this directly so they meet the rendered sky
+// exactly after tone mapping (the sRGB/Reinhard hex above is a display-space guess).
+export function horizonLinearFromEquirect(data, width, height) {
+  const y0 = Math.floor(height * 0.445), y1 = Math.ceil(height * 0.494);
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let y = y0; y < y1; y++) {
+    for (let x = 0; x < width; x += 2) {
+      const i = (y * width + x) * 4;
+      const R = data[i], G = data[i + 1], B = data[i + 2];
+      // skip the sun disc so one blazing texel can't tint the whole haze
+      if (0.2126 * R + 0.7152 * G + 0.0722 * B > 40) continue;
+      r += R; g += G; b += B; n++;
+    }
+  }
+  return n ? { r: r / n, g: g / n, b: b / n } : { r: 0.6, g: 0.7, b: 0.8 };
+}
+

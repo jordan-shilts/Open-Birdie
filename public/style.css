@@ -126,6 +126,35 @@ body {
 .dcard .dunit { display: block; font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.6px; margin-top: 1px; }
 .dcard-row.hero .dval { font-size: 32px; }
 
+/* ---------- side-view flight panel (top-right) ---------- */
+/* A dark "broadcast screen" variant of the frosted panels so the amber trace reads. */
+#flightview {
+  position: fixed; right: 16px; top: 74px; z-index: 10; width: 360px;
+  background: rgba(13, 21, 16, 0.74); border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 12px;
+  padding: 9px 11px 6px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+  color: #f2f1ec;
+}
+.fv-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 2px 2px; }
+.fv-title { font-size: 11px; font-weight: 800; letter-spacing: 0.6px; color: rgba(242, 241, 236, 0.86); }
+.fv-stat { font-family: "Bahnschrift", "DIN Alternate", system-ui, sans-serif; font-size: 12px; font-weight: 700; color: #ffd400; letter-spacing: 0.3px; }
+#flightview svg { display: block; width: 100%; height: auto; overflow: visible; }
+#flightview text { font-family: "Bahnschrift", "DIN Alternate", "Inter", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.fv-gl { stroke: rgba(242, 241, 236, 0.08); stroke-width: 1; }
+.fv-gl.fv-base { stroke: rgba(242, 241, 236, 0.34); }
+.fv-tick { fill: rgba(242, 241, 236, 0.50); font-size: 9.5px; }
+.fv-unit { fill: rgba(242, 241, 236, 0.38); font-size: 9px; letter-spacing: 0.5px; }
+.fv-ghost { fill: none; stroke: rgba(242, 241, 236, 0.20); stroke-width: 1.2; stroke-linejoin: round; }
+.fv-area { fill: rgba(255, 212, 0, 0.13); }
+.fv-line { fill: none; stroke: #ffd400; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 3px rgba(255, 196, 0, 0.55)); }
+.fv-ball { fill: #ffffff; stroke: #0b0b0c; stroke-width: 1; }
+.fv-apex-dot { fill: #ffd400; }
+.fv-apex-drop { stroke: rgba(255, 212, 0, 0.45); stroke-width: 1; stroke-dasharray: 2 3; }
+.fv-apex-text, .fv-land-text { fill: #ffd400; font-size: 10.5px; font-weight: 700; paint-order: stroke; stroke: rgba(13, 21, 16, 0.85); stroke-width: 3px; }
+.fv-land { fill: #ffffff; stroke: #0b0b0c; stroke-width: 0.8; }
+.fv-land-text { fill: #ffffff; }
+@media (max-height: 640px) { #flightview { width: 300px; } }
+@media (max-width: 430px) { #flightview { left: 12px; right: 12px; width: auto; top: 64px; } }
+
 /* ---------- bottom bar ---------- */
 #bottombar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
@@ -176,6 +205,17 @@ body {
   border-left: 5px solid transparent; border-right: 5px solid transparent;
   border-top: 6px solid #ffffff;
 }
+
+/* shot callouts (apex height / carry) projected from the 3D shot markers */
+.shot-label {
+  position: absolute; top: 0; left: 0; white-space: nowrap; will-change: transform, opacity;
+  background: rgba(13, 21, 16, 0.78); color: #ffd400; border: 1px solid rgba(255, 212, 0, 0.35);
+  font-family: "Bahnschrift", "DIN Alternate", system-ui, sans-serif; font-variant-numeric: tabular-nums;
+  font-size: 13px; font-weight: 700; padding: 3px 9px; border-radius: 6px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.28);
+}
+.shot-label span { font-size: 9px; letter-spacing: 1.1px; color: rgba(242, 241, 236, 0.72); margin-right: 3px; }
+.shot-label.land { color: #ffffff; border-color: rgba(255, 255, 255, 0.35); }
 
 /* ---------- hole minimap (bottom-right) ---------- */
 #minimap {
