@@ -17,7 +17,9 @@ export const QUALITY_SETTINGS = Object.freeze(['auto', 'high', 'low']);
 export const QUALITY_PRESETS = Object.freeze({
   high: Object.freeze({
     level: 'high',
-    pixelRatioCap: 2,       // retina where available
+    pixelRatioCap: 2,       // retina where available ...
+    maxPixels: 2.2e6,       // ... but never more than ~1080p worth of pixels per frame
+    aoScale: 0.5,           // GTAO buffers at half resolution (AO is low-frequency)
     shadowMapSize: 4096,
     shadowRadius: 3,        // PCF kernel scale -> soft penumbra
     gtao: true,             // ambient occlusion pass
@@ -26,14 +28,16 @@ export const QUALITY_PRESETS = Object.freeze({
     waterFoam: true,
     treeDensity: 1.0,       // woods fill spacing multiplier (1 = dense)
     treeCap: 9000,          // instanced trees across the course
-    treeNearM: 420,         // trees nearer than this draw the full leaf-card LOD
-    grassScale: 1.0,        // fescue / foreground-grass instance budgets
+    treeNearM: 200,         // trees nearer than this draw the full leaf-card LOD
+    grassScale: 0.5,        // fescue / foreground-grass instance budgets (55k tufts was ~4.5 ms at 1080p)
     foregroundGrass: true,
     flowers: true,
   }),
   low: Object.freeze({
     level: 'low',
     pixelRatioCap: 1,
+    maxPixels: 1.3e6,       // ~1520x855 internal, upscaled + SMAA on a 1080p window
+    aoScale: 0.5,
     shadowMapSize: 2048,
     shadowRadius: 1.5,
     gtao: false,
@@ -43,7 +47,7 @@ export const QUALITY_PRESETS = Object.freeze({
     treeDensity: 0.55,
     treeCap: 2600,
     treeNearM: 110,
-    grassScale: 0.3,
+    grassScale: 0.25,
     foregroundGrass: false,
     flowers: false,
   }),
@@ -111,3 +115,14 @@ export function nextQualitySetting(setting) {
   const i = QUALITY_SETTINGS.indexOf(parseQualitySetting(setting));
   return QUALITY_SETTINGS[(i + 1) % QUALITY_SETTINGS.length];
 }
+
+// Render pixel ratio under a pixel budget: the device ratio, capped by the preset,
+// then lowered so width*height*ratio^2 stays under maxPixels. A retina laptop at a
+// 1512x982 window would otherwise shade ~3 MP per pass; High holds ~1080p, Low less.
+export function renderPixelRatio({ dpr = 1, width = 0, height = 0, cap = 2, maxPixels = Infinity } = {}) {
+  let pr = Math.min(Number.isFinite(dpr) && dpr > 0 ? dpr : 1, cap);
+  const px = width * height;
+  if (px > 0 && Number.isFinite(maxPixels) && maxPixels > 0) pr = Math.min(pr, Math.sqrt(maxPixels / px));
+  return Math.max(0.5, Math.round(pr * 100) / 100);
+}
+

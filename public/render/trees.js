@@ -484,10 +484,12 @@ export class TreeField {
         for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 2, uv.getY(i) * 3);
       }
       const n = list.length;
-      const mk = (g, m, depth) => {
+      // only the near LOD casts: mid/far trees sit outside the hole-fitted shadow
+      // frustum anyway, and instanced meshes aren't light-frustum culled
+      const mk = (g, m, depth, cast = true) => {
         const im = new THREE.InstancedMesh(g, m, 0);   // shared per-LOD buffers assigned below
         im.frustumCulled = false;
-        im.castShadow = true;
+        im.castShadow = cast;
         im.receiveShadow = true;
         if (depth) im.customDepthMaterial = depth;
         this.group.add(im);
@@ -496,8 +498,8 @@ export class TreeField {
       };
       const lods = [
         [mk(geo.trunkNear, trunkMat, depthSolid), mk(geo.core, coreMat, depthSolid), mk(geo.cards, cardMat, depthCards)],
-        [mk(geo.trunkMid, trunkMat, depthSolid), mk(geo.blobMid, blobMat, depthSolid)],
-        [mk(geo.blobFar, blobMat, depthSolid)],
+        [mk(geo.trunkMid, trunkMat, depthSolid, false), mk(geo.blobMid, blobMat, depthSolid, false)],
+        [mk(geo.blobFar, blobMat, depthSolid, false)],
       ];
       this._disposables.push(depthCards, depthSolid);
       // one shared instance buffer per LOD (uploaded once for all its parts)

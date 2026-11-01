@@ -420,8 +420,10 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
             firstCut = clamp(near4, 0.0, 1.0) * roughK;
             // tussocks: clumpy value at ~0.7 m, faded out before it can alias
             float clumpFade = 1.0 - smoothstep(18.0, 55.0, viewD);
-            float tuft = smoothstep(0.30, 0.78, tFbm(vec2(wx, wy) * 1.45 + 4.1));
-            grass *= 1.0 + (0.30 * tuft - 0.12) * roughK * (1.0 - firstCut) * clumpFade;
+            if (clumpFade > 0.0 && roughK > 0.0) {   // coherent branch: skip the fbm far out
+              float tuft = smoothstep(0.30, 0.78, tFbm(vec2(wx, wy) * 1.45 + 4.1));
+              grass *= 1.0 + (0.30 * tuft - 0.12) * roughK * (1.0 - firstCut) * clumpFade;
+            }
             #endif
             float straw = smoothstep(0.50, 0.80, tFbm(vec2(wy, wx) * 0.065 + 21.0));
             float macroR = tFbm(vec2(wx, wy) * 0.0075 + 9.0) - 0.47;
@@ -429,7 +431,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
             vec3 dryTint = mix(vec3(1.20, 1.08, 0.70), vec3(1.06, 1.03, 0.92), uCourseDry);
             float roughOnly = roughK * (1.0 - firstCut);
             grass *= mix(vec3(1.0), dryTint, straw * 0.55 * roughOnly);           // straw / olive patches
-            grass *= 1.0 + (0.26 * macroR + 0.14 * macroR2) * roughK;             // broad drift, to the horizon
+            grass *= 1.0 + (0.34 * macroR + 0.18 * macroR2) * roughK;             // broad drift, to the horizon
             grass *= mix(1.0, 0.86, roughOnly);                                   // rough sits darker than the cut
             grass *= mix(1.0, 1.06, firstCut);                                    // first cut: a step lighter, cleaner
             // wet banks: darker, cooler, lusher grass within ~2 m of water
@@ -503,11 +505,14 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           // the 22 m sheen rolls, so turf reads as an undulating surface, not a flat sheet.
           // Distance-faded past ~18 m (no shimmer); modulates DIFFUSE only (roughness floor 0.9
           // kills the specular sparkle that would otherwise glitter without TAA).
-          float me = 0.35, mh0 = tFbm(vec2(snwx, snwy) * 0.55);
-          float mhx = tFbm((vec2(snwx, snwy) + vec2(me, 0.0)) * 0.55);
-          float mhy = tFbm((vec2(snwx, snwy) + vec2(0.0, me)) * 0.55);
-          vec3 mTilt = (viewMatrix * vec4(-(mhx - mh0) / me, 0.0, -(mhy - mh0) / me, 0.0)).xyz;
-          normal = normalize(normal + mTilt * (0.18 * (1.0 - smoothstep(18.0, 55.0, length(vViewPosition)))));
+          float mFade = 1.0 - smoothstep(18.0, 55.0, length(vViewPosition));
+          if (mFade > 0.0) {   // coherent branch: three fbm evaluations only where they show
+            float me = 0.35, mh0 = tFbm(vec2(snwx, snwy) * 0.55);
+            float mhx = tFbm((vec2(snwx, snwy) + vec2(me, 0.0)) * 0.55);
+            float mhy = tFbm((vec2(snwx, snwy) + vec2(0.0, me)) * 0.55);
+            vec3 mTilt = (viewMatrix * vec4(-(mhx - mh0) / me, 0.0, -(mhy - mh0) / me, 0.0)).xyz;
+            normal = normalize(normal + mTilt * (0.18 * mFade));
+          }
         }`);
   };
   mat.customProgramCacheKey = () => `turf-grain-v38-smoothing${macro ? '-macro' : ''}${hq ? '' : '-lq'}`; // v38: rough/tee/bank/lip pass

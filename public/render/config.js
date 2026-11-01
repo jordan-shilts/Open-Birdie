@@ -37,7 +37,7 @@ export const RENDER_CONFIG = {
   foliageTrees: true, // trees on (trees3d picks the renderer)
   trees3d: true,      // instanced 3D trees, near/mid/far LODs, woods filled (trees.js); false = legacy cards (tree-cards.js)
   treeDensity: 1.0,   // woods fill density (quality.js scales it; 1 = ~7.5 m pitch)
-  treeNearM: 420,     // full leaf-card LOD inside this camera distance (quality.js scales it)
+  treeNearM: 200,     // full leaf-card LOD inside this camera distance (quality.js scales it)
   grounding: true,    // contact-shadow decal blobs under trees (see grounding.js)
   pineStraw: true,    // warm pine-straw litter mat under on-course trees (see vegetation.js)
   flowers: true,      // azalea-style flowering bushes clustered at the tree lines

@@ -58,7 +58,7 @@ export class PostFX {
       gtao.output = GTAOPass.OUTPUT.Default;
       gtao.updateGtaoMaterial({
         radius: 1.6, distanceExponent: 2.0, thickness: 1.0,
-        scale: 1.4, samples: 16, distanceFallOff: 1.0, screenSpaceRadius: false,
+        scale: 1.4, samples: 12, distanceFallOff: 1.0, screenSpaceRadius: false,
       });
       gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 16 });
       // GTAO's normal/depth pre-pass renders the scene with ONE override material,
@@ -79,6 +79,11 @@ export class PostFX {
           }
         });
       };
+      // AO buffers at a fraction of the frame (quality.js aoScale): the pre-pass,
+      // the GTAO march and the denoise all scale with pixels; the blend upsamples.
+      this.aoScale = 1;
+      const gtaoSetSize = gtao.setSize.bind(gtao);
+      gtao.setSize = (w, h) => gtaoSetSize(Math.max(1, Math.round(w * this.aoScale)), Math.max(1, Math.round(h * this.aoScale)));
       this.composer.addPass(gtao);
       this.gtao = gtao;
     }
@@ -104,7 +109,8 @@ export class PostFX {
   }
 
   // Graphics quality (quality.js): toggle the optional passes live.
-  setQuality({ gtao = true, bloom = true } = {}) {
+  setQuality({ gtao = true, bloom = true, aoScale = 1 } = {}) {
+    this.aoScale = aoScale;
     if (this.gtao) this.gtao.enabled = !!gtao;
     if (this.bloom) this.bloom.enabled = !!bloom;
   }

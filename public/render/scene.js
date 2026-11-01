@@ -24,9 +24,10 @@ import { repairGridEdges } from './grid-repair.js';
 import { RENDER_CONFIG } from './config.js';
 import { isPlayFraming, ballReadScale, pinReadScale } from './framing.js';
 import { ShotTracer, makeGlow, makeLandingRing, makeBallShadow, makeDropLine } from './shot-fx.js';
+import { makePin, makeTeeMarkers } from './pin-flag.js';
 import { flightMarkers } from './flight-profile.js';
 import { flightCameraPlan, flightCameraAt } from './flight-camera.js';
-import { resolveQuality, autoDownshiftVerdict } from './quality.js';
+import { resolveQuality, autoDownshiftVerdict, renderPixelRatio } from './quality.js';
 import { COLORS, DRY_PALETTE, courseDryFor, blendPalette } from './course-character.js';
 import { paintSurfaceMask, RAW_SURFACE_COLORS } from './surface-mask.js';
 import { smoothClassmapTexture } from './classmap-smoothing.js';
@@ -100,7 +101,9 @@ export class GolfScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // PCF with a per-light radius (quality.js shadowRadius) is the soft-shadow path
+    // in current three; PCFSoftShadowMap is deprecated and silently mapped to it.
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = RENDER_CONFIG.toneMappingExposure;
     container.appendChild(this.renderer.domElement);
@@ -123,8 +126,14 @@ export class GolfScene {
     this.ball.castShadow = true;
     this.scene.add(this.ball);
 
-    this.pin = this._makePin();
+    // pin + cloth flag (pin-flag.js) and the current hole's tee markers
+    this._pinFlag = makePin();
+    this.pin = this._pinFlag.group;
+    this._flagU = this._pinFlag.uTime;
     this.scene.add(this.pin);
+    this.teeMarkers = makeTeeMarkers();
+    this.teeMarkers.hide();
+    this.scene.add(this.teeMarkers.group);
 
     // shot presentation (shot-fx.js): soft ball contact shadow, in-flight head glow,
     // apex dot + drop line, landing ring. The tracer ribbon is built per shot.
@@ -214,7 +223,6 @@ export class GolfScene {
     this.quality = q;
     const p = q.preset;
     applyContentQuality(p);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, p.pixelRatioCap));
     if (this.sun) {
       const sh = this.sun.shadow;
       if (sh.mapSize.x !== p.shadowMapSize) {
@@ -223,7 +231,7 @@ export class GolfScene {
       }
       sh.radius = p.shadowRadius;
     }
-    this.postfx?.setQuality({ gtao: p.gtao, bloom: p.bloom });
+    this.postfx?.setQuality({ gtao: p.gtao, bloom: p.bloom, aoScale: p.aoScale ?? 1 });
     if (this.container) this.resize();
     this._frameIntervals.length = 0;
     this._qualityHoldUntil = performance.now() + 5000;
@@ -263,6 +271,11 @@ export class GolfScene {
 
   resize() {
     const w = this.container.clientWidth, h = this.container.clientHeight;
+    const p = this.quality?.preset;
+    if (p) {
+      const pr = renderPixelRatio({ dpr: window.devicePixelRatio || 1, width: w, height: h, cap: p.pixelRatioCap, maxPixels: p.maxPixels });
+      if (pr !== this.renderer.getPixelRatio()) this.renderer.setPixelRatio(pr);
+    }
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
@@ -313,45 +326,6 @@ export class GolfScene {
     if (this._skybox) { this.scene.remove(this._skybox); this._skybox.geometry?.dispose(); }
     this._skybox = makeGroundedSkybox(this._equirect, this.bounds);
     this.scene.add(this._skybox);
-  }
-
-  _makePin() {
-    const g = new THREE.Group();
-    const pole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.022, 0.022, 2.3, 8),
-      new THREE.MeshStandardMaterial({ color: 0xf5f2e8, roughness: 0.5 })
-    );
-    pole.position.y = 1.15;
-    pole.castShadow = true;
-    // Waving cloth flag: a subdivided plane anchored at the pole, rippled in the
-    // vertex shader (amplitude grows toward the free edge). The focal point of
-    // every shot, so it shouldn't be a frozen faceted cone.
-    const flagGeo = new THREE.PlaneGeometry(0.7, 0.42, 14, 5);
-    flagGeo.translate(0.35, 0, 0); // left edge at the pole
-    const flagU = { value: 0 };
-    this._flagU = flagU;
-    const flagMat = new THREE.MeshStandardMaterial({ color: 0xd83a3a, roughness: 0.7, side: THREE.DoubleSide });
-    flagMat.onBeforeCompile = (sh) => {
-      sh.uniforms.uTime = flagU;
-      sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nuniform float uTime;')
-        .replace('#include <begin_vertex>', `#include <begin_vertex>
-          float fx = clamp(transformed.x / 0.7, 0.0, 1.0);
-          transformed.z += (sin(fx * 6.0 - uTime * 7.0) * 0.06 + sin(fx * 3.0 - uTime * 4.3) * 0.035) * fx;
-          transformed.y += sin(fx * 5.0 - uTime * 6.0) * 0.02 * fx;`);
-    };
-    flagMat.customProgramCacheKey = () => 'pin-flag';
-    const flag = new THREE.Mesh(flagGeo, flagMat);
-    flag.position.set(0, 2.08, 0);
-    flag.castShadow = true;
-    const cup = new THREE.Mesh(
-      new THREE.CircleGeometry(0.12, 16),
-      new THREE.MeshBasicMaterial({ color: 0x111111 })
-    );
-    cup.rotation.x = -Math.PI / 2;
-    cup.position.y = 0.02;
-    g.add(pole, flag, cup);
-    return g;
   }
 
   // ---------- terrain sampling (client copy of bilinear grid) ----------
@@ -1289,6 +1263,9 @@ export class GolfScene {
     this.pinSim = { x: hole.pin[0], y: hole.pin[1] };
     const pz = this.hAt(this.pinSim.x, this.pinSim.y);
     this.pin.position.copy(V(this.pinSim.x, this.pinSim.y, pz));
+    if (hole.ref != null) this._pinFlag.setLabel(hole.ref);
+    if (hole.tee) this.teeMarkers.place(hole.tee, aimDeg, (x, y) => this.hAt(x, y), V);
+    else this.teeMarkers.hide();
     this.setBall(ballPos);
     this.aimDeg = aimDeg;
     this.orbit = { yaw: 0, dist: 14, height: 4.6 };

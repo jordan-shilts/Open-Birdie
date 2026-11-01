@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   QUALITY_PRESETS, parseQualitySetting, initialAutoLevel, resolveQuality,
-  autoDownshiftVerdict, qualityLabel, nextQualitySetting,
+  autoDownshiftVerdict, qualityLabel, nextQualitySetting, renderPixelRatio,
 } from '../public/render/quality.js';
 
 test('parseQualitySetting accepts the three settings and defaults to auto', () => {
@@ -73,4 +73,20 @@ test('HUD label and cycle order', () => {
   assert.equal(nextQualitySetting('high'), 'low');
   assert.equal(nextQualitySetting('low'), 'auto');
   assert.equal(nextQualitySetting('bogus'), 'high');
+});
+
+test('render pixel ratio honours the device, the cap, and the pixel budget', () => {
+  const H = QUALITY_PRESETS.high, L = QUALITY_PRESETS.low;
+  // 1080p window on a 1x display: full resolution on High
+  assert.equal(renderPixelRatio({ dpr: 1, width: 1920, height: 1080, cap: H.pixelRatioCap, maxPixels: H.maxPixels }), 1);
+  // retina laptop window (1512x982 @2x): held to ~1080p worth of pixels, not 3 MP
+  const pr = renderPixelRatio({ dpr: 2, width: 1512, height: 982, cap: H.pixelRatioCap, maxPixels: H.maxPixels });
+  assert.ok(pr > 1 && pr < 1.3, String(pr));
+  assert.ok(1512 * 982 * pr * pr <= H.maxPixels * 1.01);
+  // small window on retina keeps the full 2x
+  assert.equal(renderPixelRatio({ dpr: 2, width: 800, height: 500, cap: H.pixelRatioCap, maxPixels: H.maxPixels }), 2);
+  // Low renders under 1080p and never below the 0.5 floor
+  assert.ok(renderPixelRatio({ dpr: 1, width: 1920, height: 1080, cap: L.pixelRatioCap, maxPixels: L.maxPixels }) < 1);
+  assert.equal(renderPixelRatio({ dpr: 1, width: 8000, height: 8000, cap: 1, maxPixels: 1e5 }), 0.5);
+  assert.equal(renderPixelRatio({ dpr: NaN, width: 0, height: 0 }), 1);
 });

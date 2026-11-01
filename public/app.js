@@ -89,7 +89,7 @@ function applyState(s) {
     if (key !== lastHoleKey) {
       lastHoleKey = key;
       flightView.newHole(key);
-      scene.setHole({ pin: s.pin, tee: s.tee }, { x: s.ball.x, y: s.ball.y }, s.aimDeg);
+      scene.setHole({ pin: s.pin, tee: s.tee, ref: s.holeRef ?? s.hole }, { x: s.ball.x, y: s.ball.y }, s.aimDeg);
     } else if (!animating) {
       scene.setBall(s.ball);
       scene.setAim(s.aimDeg);
