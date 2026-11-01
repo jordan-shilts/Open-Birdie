@@ -205,8 +205,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/clubs') return json(res, CLUB_FULL);
     if (p === '/api/courses/cached') return json(res, listCached());
     if (p === '/api/search') {
-      const q = url.searchParams.get('q') || '';
-      return json(res, await searchCourses(q + (q.toLowerCase().includes('golf') ? '' : ' golf')));
+      // Raw query: appending " golf" made Nominatim match addresses like
+      // "Golf Place" (St Andrews' starter hut) instead of the course itself.
+      return json(res, await searchCourses(url.searchParams.get('q') || ''));
     }
     if (req.method === 'POST') {
       const body = await readBody(req);

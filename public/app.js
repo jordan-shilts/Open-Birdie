@@ -583,7 +583,7 @@ async function doSearch(q) {
   try {
     const rows = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
     if (rows.error) throw new Error(rows.error);
-    msg.textContent = rows.length ? '' : 'No results — try adding the city or country name.';
+    msg.textContent = rows.length ? '' : 'No golf course found — try the course name plus its town.';
     for (const r of rows) {
       const d = document.createElement('div');
       d.className = 'result';

@@ -14,7 +14,7 @@ const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'birdie-selection-'));
 process.env.BIRDIE_DATA_DIR = dataDir;
 
 const {
-  loadCourse, makeSurfaceLookup, boundaryProblem, overpass, CourseLoadError,
+  searchCourses, loadCourse, makeSurfaceLookup, boundaryProblem, overpass, CourseLoadError,
 } = require('../lib/course');
 const { createCourseActivationManager } = require('../lib/course-activation');
 const { Game } = require('../lib/game');
@@ -274,4 +274,123 @@ test('activation shows a user-facing load refusal but keeps other failures gener
   const generic = await manager.activate({ osmType: 'way', osmId: 2 });
   assert.equal(generic.diagnostic.code, 'ACTIVATION_PREPARE_FAILED');
   assert.doesNotMatch(JSON.stringify(generic), /alice|hunter2|secret/);
+});
+
+// ---------- search ----------
+
+function nominatimRow({ name, category, type, osmType = 'way', osmId, bbox, lat, lon }) {
+  return {
+    display_name: name, category, type, osm_type: osmType, osm_id: osmId,
+    boundingbox: bbox.map(String), lat: String(lat), lon: String(lon),
+  };
+}
+
+const OLD_COURSE = nominatimRow({
+  name: 'Old Course, Old Station Road, Town Centre, St Andrews, Fife, KY16 9XL, United Kingdom',
+  category: 'leisure', type: 'golf_course', osmId: 1019045811,
+  bbox: [56.3464, 56.3612, -2.8277, -2.8020], lat: 56.3536, lon: -2.8151,
+});
+const STARTER_HUT = nominatimRow({
+  name: 'Old Course Starter Hut, Golf Place, Town Centre, St Andrews, Fife, KY16 9JD, United Kingdom',
+  category: 'building', type: 'yes', osmId: 1428245318,
+  bbox: [56.3470, 56.3471, -2.8095, -2.8094], lat: 56.34706, lon: -2.80947,
+});
+const PEBBLE_RESTAURANT = nominatimRow({
+  name: 'Pebble Beach Golf Links, 1700, 17 Mile Drive, Pebble Beach, California, United States',
+  category: 'amenity', type: 'restaurant', osmId: 686560759,
+  bbox: [36.56945, 36.56987, -121.94999, -121.94955], lat: 36.56966, lon: -121.94977,
+});
+const THE_HAY = nominatimRow({
+  name: 'The Hay, 17 Mile Drive, Pebble Beach, California, United States',
+  category: 'leisure', type: 'golf_course', osmId: 1065983050,
+  bbox: [36.57059, 36.57309, -121.95123, -121.94896], lat: 36.5718, lon: -121.9501,
+});
+const PEBBLE_COURSE = nominatimRow({
+  name: 'Pebble Beach Golf Course, Palmero Way, Pebble Beach, California, United States',
+  category: 'leisure', type: 'golf_course', osmType: 'relation', osmId: 3741806,
+  bbox: [36.55765, 36.57087, -121.94995, -121.92892], lat: 36.5642, lon: -121.9394,
+});
+const HAMLET = nominatimRow({
+  name: 'Pebble Beach, Monterey County, California, United States',
+  category: 'place', type: 'hamlet', osmType: 'node', osmId: 150960291,
+  bbox: [36.5598, 36.5998, -121.9662, -121.9262], lat: 36.5798, lon: -121.9462,
+});
+
+// Fake Nominatim: `answer(params)` returns raw rows; every request is recorded.
+function fakeNominatim(answer) {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    const params = Object.fromEntries(new URL(url).searchParams);
+    calls.push(params);
+    return response(answer(params));
+  };
+  return { calls, fetchImpl };
+}
+
+test('St Andrews quick pick: the query is sent as typed and resolves to the golf course', async () => {
+  const nominatim = fakeNominatim((p) => (p.q === 'Old Course St Andrews' ? [OLD_COURSE] : [STARTER_HUT]));
+  const rows = await searchCourses('Old Course St Andrews', { fetchImpl: nominatim.fetchImpl, gapMs: 0 });
+  assert.deepEqual(nominatim.calls.map((p) => p.q), ['Old Course St Andrews']);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].type, 'golf_course');
+  assert.equal(rows[0].osmId, 1019045811);
+});
+
+test('the old " golf" query that hit the starter hut never returns the hut', async () => {
+  const nominatim = fakeNominatim((p) => (
+    p.q === 'Old Course St Andrews golf' ? [STARTER_HUT] : p.q === 'Old Course St Andrews' ? [OLD_COURSE] : []
+  ));
+  const rows = await searchCourses('Old Course St Andrews golf', { fetchImpl: nominatim.fetchImpl, gapMs: 0 });
+  assert.deepEqual(nominatim.calls.map((p) => p.q), ['Old Course St Andrews golf', 'Old Course St Andrews']);
+  assert.deepEqual(rows.map((r) => r.osmId), [1019045811]);
+});
+
+test('a bare place name tries "<name> golf course"', async () => {
+  const nominatim = fakeNominatim((p) => (p.q === 'Pebble Beach' ? [HAMLET] : [PEBBLE_COURSE]));
+  const rows = await searchCourses('Pebble Beach', { fetchImpl: nominatim.fetchImpl, gapMs: 0 });
+  assert.deepEqual(nominatim.calls.map((p) => p.q), ['Pebble Beach', 'Pebble Beach golf course']);
+  assert.deepEqual(rows.map((r) => r.osmId), [3741806]);
+});
+
+test('a golf POI (restaurant/hut) leads to the golf courses around it, enclosing one first', async () => {
+  const nominatim = fakeNominatim((p) => (p.q === '[golf course]' ? [THE_HAY, PEBBLE_COURSE] : [PEBBLE_RESTAURANT]));
+  const rows = await searchCourses('Pebble Beach Golf Links', { fetchImpl: nominatim.fetchImpl, gapMs: 0 });
+  assert.equal(nominatim.calls.length, 2);
+  const nearby = nominatim.calls[1];
+  assert.equal(nearby.bounded, '1');
+  const [x1, y1, x2, y2] = nearby.viewbox.split(',').map(Number);
+  assert.ok(PEBBLE_RESTAURANT.lon > x1 && PEBBLE_RESTAURANT.lon < x2, 'viewbox spans the anchor (lon)');
+  assert.ok(PEBBLE_RESTAURANT.lat < y1 && PEBBLE_RESTAURANT.lat > y2, 'viewbox spans the anchor (lat)');
+  assert.deepEqual(rows.map((r) => r.osmId), [3741806, 1065983050], 'the course whose box holds the anchor leads');
+  assert.ok(rows.every((r) => r.type === 'golf_course'));
+});
+
+test('only golf courses are returned, outlines before pins, duplicate pins dropped', async () => {
+  const pinInside = nominatimRow({
+    name: 'Old Course (pin)', category: 'leisure', type: 'golf_course', osmType: 'node', osmId: 5,
+    bbox: [56.35, 56.35, -2.81, -2.81], lat: 56.35, lon: -2.81,
+  });
+  const loneNode = nominatimRow({
+    name: 'Somewhere Par 3', category: 'leisure', type: 'golf_course', osmType: 'node', osmId: 6,
+    bbox: [50, 50, 1, 1], lat: 50, lon: 1,
+  });
+  const nominatim = fakeNominatim(() => [pinInside, STARTER_HUT, loneNode, OLD_COURSE]);
+  const rows = await searchCourses('Old Course', { fetchImpl: nominatim.fetchImpl, gapMs: 0 });
+  assert.deepEqual(rows.map((r) => `${r.osmType}/${r.osmId}`), ['way/1019045811', 'node/6']);
+});
+
+test('no golf course anywhere returns [] after a bounded number of requests', async () => {
+  const nominatim = fakeNominatim((p) => (p.q === '[golf course]' ? [] : [STARTER_HUT, HAMLET]));
+  assert.deepEqual(await searchCourses('Nowhere Links golf', { fetchImpl: nominatim.fetchImpl, gapMs: 0 }), []);
+  // as typed + stripped variant + nearby lookups around the top 2 hits
+  assert.equal(nominatim.calls.length, 4);
+  assert.deepEqual(await searchCourses('   ', { fetchImpl: nominatim.fetchImpl, gapMs: 0 }), []);
+  assert.equal(nominatim.calls.length, 4, 'an empty query makes no request');
+});
+
+test('search requests are spaced for the Nominatim 1 request/second policy', async () => {
+  const nominatim = fakeNominatim((p) => (p.q === 'Pebble Beach' ? [HAMLET] : [PEBBLE_COURSE]));
+  const t0 = Date.now();
+  await searchCourses('Pebble Beach', { fetchImpl: nominatim.fetchImpl, gapMs: 60 });
+  assert.ok(Date.now() - t0 >= 55);
 });
