@@ -363,7 +363,7 @@ export class GolfScene {
     };
     this._treeWind = this._grassWind = this._waterUpdate = this._waterMeshList = this._terrain = null; // drop stale per-course refs
     this._foamOn = false;
-    this._treeField = null; this._placedTrees = null;
+    this._treeField = null; this._placedTrees = null; this._allTreeSpots = null;
     this._fairwayGrassMesh = this._fairwayGrassWind = this._fairwayGrassCenter = this._fgGeo = this._fgGroup = this._fairwayZoneColorFn = null;
     // HD bundles (one per built hole) each own their textures. hdAssets may be an
     // array, a single legacy bundle, or null — normalize, then free any bundle from
@@ -505,7 +505,7 @@ export class GolfScene {
     // countryside past the course edge (no more floating slab); purely visual
     if (RENDER_CONFIG.groundApron) {
       try {
-        const base = new THREE.Color(this._pal.base);
+        const base = new THREE.Color(this._pal.base).multiplyScalar(0.92); // sits a touch under the lit turf
         const apron = buildGroundApron({ bounds: b, hAt: (x, y) => this.hAt(x, y), baseColor: base });
         group.add(apron.mesh);
         this._apronBase = apron.baseHeight;
@@ -945,6 +945,7 @@ export class GolfScene {
       for (const h of this._horizonSpots(geo, this.bounds)) spots.push({ ...h, species: speciesAt(h.x, h.y, this._courseDry || 0, 7) });
     }
     if (!spots.length) return;
+    this._allTreeSpots = spots;   // every drawn tree (incl. the horizon band) — camera avoidance
     const hAt = (x, y) => this.hAt(x, y);
     if (RENDER_CONFIG.trees3d !== false) {
       // instanced 3D trees with near/mid/far LODs (trees.js)
@@ -1393,9 +1394,23 @@ export class GolfScene {
     // Camera: a smooth follow (flight-camera.js) that starts exactly at the address
     // camera and glides to a landing-area vantage during the descent.
     const c = this.camera.position;
+    const trees = this._allTreeSpots || this._placedTrees || [];
+    const landAt = flightMarkers(points, ft).landing || points[points.length - 1];
+    // a landing vantage is clear when no tree crown (~6 m + margin) sits on it or
+    // across the first 70% of its sight line to the landing spot
+    const isClear = (x, y) => {
+      const dx = landAt.x - x, dy = landAt.y - y, L2 = dx * dx + dy * dy || 1;
+      for (const t of trees) {
+        const r = 9 * (t.s || 1);
+        if (Math.hypot(t.x - x, t.y - y) < r) return false;
+        const u = Math.max(0, Math.min(0.7, ((t.x - x) * dx + (t.y - y) * dy) / L2));
+        if (Math.hypot(t.x - (x + dx * u), t.y - (y + dy * u)) < r * 0.75) return false;
+      }
+      return true;
+    };
     this.anim.plan = flightCameraPlan(points, {
       startCam: { x: c.x, y: -c.z, z: c.y }, flightTime: ft, isPutt,
-      groundAt: (x, y) => this.hAt(x, y),
+      groundAt: (x, y) => this.hAt(x, y), isClear,
     });
     this.camMode = 'static';
     // Tracer ribbon over the AIR phase (to first contact), plus apex/landing markers.
@@ -1487,14 +1502,17 @@ export class GolfScene {
       this.headGlow.userData.uniforms.uPxWorld.value = pxWorld;
     }
     if (fx) {
-      const apexOn = !!(fx.apex && head >= fx.apex.t);
+      // callouts belong to the replay: once the camera is back at address they'd sit
+      // on top of the ball, so they fade with the replay while the tracer lingers
+      const calloutA = (!this.anim && this.camMode === 'idle') ? 0 : alpha;
+      const apexOn = !!(fx.apex && head >= fx.apex.t) && calloutA > 0;
       this.apexGlow.visible = this.dropLine.visible = apexOn;
       if (apexOn) {
         this.apexGlow.userData.uniforms.uPxWorld.value = pxWorld;
         this.apexGlow.userData.uniforms.uAlpha.value = alpha;
         this.dropLine.material.opacity = 0.55 * alpha;
       }
-      const landOn = !!(fx.land && head >= fx.land.t);
+      const landOn = !!(fx.land && head >= fx.land.t) && calloutA > 0;
       this.landRing.visible = landOn;
       if (landOn) {
         const d = this.camera.position.distanceTo(fx.land.p);
@@ -1503,8 +1521,8 @@ export class GolfScene {
         this.landRing.userData.uniforms.uTime.value = frameTime;
         this.landRing.userData.uniforms.uAlpha.value = alpha * 0.9;
       }
-      this._placeLabel(this.shotLabels.apex, apexOn ? fx.apex.p : null, alpha, -18);
-      this._placeLabel(this.shotLabels.land, landOn ? fx.land.p : null, alpha, -14);
+      this._placeLabel(this.shotLabels.apex, apexOn ? fx.apex.p : null, calloutA, -18);
+      this._placeLabel(this.shotLabels.land, landOn ? fx.land.p : null, calloutA, -14);
     }
     this._updateBallShadow();
   }

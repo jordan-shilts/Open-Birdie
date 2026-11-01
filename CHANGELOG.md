@@ -5,6 +5,14 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Graphics upgrade (branch `feat/graphics-upgrade`)** — instanced 3D trees with near/mid/far LODs, wind
+  and filled woods (`trees.js`, `tree-placement.js`); a rough / first-cut / tee / wet-bank / sun-aware
+  bunker-lip ground pass (`turf.js`); a countryside apron + horizon haze and an aerial-perspective fog curve
+  so the course no longer floats in a sky sphere (`horizon.js`, `atmosphere.js`); a glowing shot tracer
+  with apex/landing callouts, a ball contact shadow and a follow camera (`shot-fx.js`, `flight-camera.js`);
+  a HUD **side-view flight panel** with ghost lines of earlier shots on the hole (`flight-view.js`); a cloth
+  flag with the hole number and tee markers (`pin-flag.js`); and a **Graphics: Auto / High / Low** setting
+  with a 1080p pixel budget and an auto-downshift on slow machines (`quality.js`). No new downloaded assets.
 - **Auto-fetch the course aerial on load (turnkey for any US course)** — the ground photo now downloads
   automatically during course load (like the 1 m terrain already does), so a freshly loaded US course
   renders real imagery over its 1 m relief with zero manual steps. Runtime path uses a single USGS NAIPPlus

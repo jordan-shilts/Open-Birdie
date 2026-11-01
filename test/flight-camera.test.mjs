@@ -81,3 +81,14 @@ test('putts and short chips keep the camera still', () => {
   const plan = flightCameraPlan(chip, { startCam, groundAt: flat, flightTime: 2 });
   assert.equal(plan.moves, false);
 });
+
+test('landing vantage steps around trees', () => {
+  const pts = drive();
+  const free = flightCameraPlan(pts, { startCam, groundAt: flat, flightTime: 4 });
+  // a tree right on the preferred vantage: the camera must pick another spot
+  const tree = { x: free.end.x, y: free.end.y };
+  const isClear = (x, y) => Math.hypot(x - tree.x, y - tree.y) > 8;
+  const plan = flightCameraPlan(pts, { startCam, groundAt: flat, flightTime: 4, isClear });
+  assert.ok(Math.hypot(plan.end.x - tree.x, plan.end.y - tree.y) > 8);
+  assert.ok(plan.end.y < plan.land.y);                    // still behind the landing spot
+});

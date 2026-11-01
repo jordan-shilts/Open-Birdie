@@ -15,8 +15,9 @@ const lerp = (a, b, f) => a + (b - a) * f;
 export const CAM_CLEARANCE_M = 2.0;   // never closer than this above the ground
 
 // points: sim trajectory; startCam: {x,y,z} where the camera is now (sim frame);
-// groundAt(x,y) -> terrain height; flightTime: s at first ground contact.
-export function flightCameraPlan(points, { startCam, groundAt = () => 0, flightTime = null, isPutt = false } = {}) {
+// groundAt(x,y) -> terrain height; flightTime: s at first ground contact;
+// isClear(x,y) -> false where the landing vantage would sit inside a tree.
+export function flightCameraPlan(points, { startCam, groundAt = () => 0, flightTime = null, isPutt = false, isClear = () => true } = {}) {
   const p0 = points[0];
   const last = points[points.length - 1];
   const { apex, landing } = flightMarkers(points, flightTime);
@@ -35,10 +36,20 @@ export function flightCameraPlan(points, { startCam, groundAt = () => 0, flightT
     const off = (last.x - p0.x) * rx + (last.y - p0.y) * ry;
     const side = off > 0 ? -1 : 1;
     const back = clamp(carry * 0.30, 22, 70);
-    const lateral = clamp(carry * 0.11, 6, 24) * side;
+    const lateral = clamp(carry * 0.11, 6, 24);
     const lift = clamp(carry * 0.085, 6, 20);
-    const ex = land.x - ux * back + rx * lateral;
-    const ey = land.y - uy * back + ry * lateral;
+    // preferred vantage first, then the other side, then further back / straight behind
+    const candidates = [
+      [back, lateral * side], [back, -lateral * side], [back * 1.35, lateral * side * 0.5],
+      [back * 1.35, -lateral * side * 0.5], [back * 0.7, 0],
+    ];
+    let pick = candidates[0];
+    for (const c of candidates) {
+      const cx = land.x - ux * c[0] + rx * c[1], cy = land.y - uy * c[0] + ry * c[1];
+      if (isClear(cx, cy)) { pick = c; break; }
+    }
+    const ex = land.x - ux * pick[0] + rx * pick[1];
+    const ey = land.y - uy * pick[0] + ry * pick[1];
     end = { x: ex, y: ey, z: Math.max(groundAt(ex, ey), land.z) + lift };
   }
   return {

@@ -44,6 +44,14 @@ regenerable, too large for history). None of this data is committed to the repo.
   `branches_diff` is the bark. Used the same card technique for a feathery deciduous
   canopy (rounded), mixed ~30% into the conifer stand for an Augusta-style mixed tree line.
 
+## 3D trees (2026-11 graphics upgrade) — no new files
+- The instanced 3D trees (`public/render/trees.js`) draw their leaf-cluster and
+  needle-spray atlases **procedurally on a canvas at load** (no downloaded imagery),
+  with coverage-preserving alpha mipmaps (`public/render/alpha-mips.js`). Trunks reuse
+  the CC0 `public/assets/trees/bark_diff.jpg` above. The Poly Haven foliage atlases stay
+  for the legacy card-tree renderer (`RENDER_CONFIG.trees3d = false`).
+- Flag, pole, tee-marker and tracer textures are also canvas-generated at runtime.
+
 ## Turf textures (Tier 2)
 - `public/assets/turf/grass_{color,normal,rough}.jpg` — "Grass 004" by ambientCG (CC0).
   Source: https://ambientcg.com/view?id=Grass004
