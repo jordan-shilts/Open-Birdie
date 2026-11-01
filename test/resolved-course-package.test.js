@@ -294,10 +294,12 @@ test('runtime asset bytes are read and hashed once without retention in the prep
   const artDir = tempRoot();
   const { assetPath, bytes, pack, sha256 } = pngPackAt(artDir);
   publishRuntimePack(artDir, pack);
+  // The loader reads through real paths, which differ from tmpdir() on macOS (/var -> /private/var).
+  const assetTargets = new Set([path.resolve(assetPath), fs.realpathSync(assetPath)]);
   const originalReadFileSync = fs.readFileSync;
   let assetReads = 0;
   fs.readFileSync = function countedRead(filePath, ...args) {
-    if (path.resolve(filePath) === path.resolve(assetPath)) assetReads += 1;
+    if (assetTargets.has(path.resolve(filePath))) assetReads += 1;
     return originalReadFileSync.call(this, filePath, ...args);
   };
   let candidate;

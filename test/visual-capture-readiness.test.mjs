@@ -242,15 +242,18 @@ test('loading tracker chains existing callbacks and balances successful and fail
 });
 
 test('two independent visible vegetation texture builds have identical command checksums', () => {
+  // Math.sin/cos/pow can differ in the last bit between V8 versions and CPUs, so the
+  // golden checksum is taken over values rounded to 1e-6 px, far below a visible change.
+  const canonical = (key, value) => (typeof value === 'number' ? Math.round(value * 1e6) / 1e6 : value);
   const checksum = (kind) => crypto.createHash('sha256')
-    .update(JSON.stringify(vegetationTextureCommands(kind)))
+    .update(JSON.stringify(vegetationTextureCommands(kind), canonical))
     .digest('hex');
   const first = { straw: checksum('straw'), flower: checksum('flower') };
   const second = { straw: checksum('straw'), flower: checksum('flower') };
   assert.deepEqual(first, second);
   assert.deepEqual(first, {
-    straw: '51671f90011740256e0bc98e160c3cefe2ee247545400cd02ec3d4135f87ee3d',
-    flower: '0242e67094b71635e28c3cbf2009ae62438cee3f498a2c32e82f7bcce6e3e0d0',
+    straw: 'b5fccb97231dbc62f09ce837f3fa854446751489641d825a8e60e7a243f7d96c',
+    flower: 'cb9c0d6299022d6e8d9bb69d295870bde329381fcebfe35602d3a09d8b2b27c1',
   });
 });
 
