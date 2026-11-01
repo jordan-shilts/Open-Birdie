@@ -604,7 +604,7 @@ async function pickCourse(body) {
   msg.innerHTML = '<span class="loading-spin"></span>Downloading course + terrain from open data… 10–90 s on first load.';
   try {
     const r = await (await fetch('/api/load-course', { method: 'POST', body: JSON.stringify(body) })).json();
-    if (r.error) throw new Error(r.error);
+    if (r.error) throw new Error([r.error, r.diagnostic && r.diagnostic.recovery].filter(Boolean).join(' '));
     msg.textContent = '';
     // course SSE event closes the modal & loads geometry
   } catch (err) {

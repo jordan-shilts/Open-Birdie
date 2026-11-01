@@ -13,7 +13,10 @@ const path = require('node:path');
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'birdie-selection-'));
 process.env.BIRDIE_DATA_DIR = dataDir;
 
-const { makeSurfaceLookup, boundaryProblem, overpass, CourseLoadError } = require('../lib/course');
+const {
+  loadCourse, makeSurfaceLookup, boundaryProblem, overpass, CourseLoadError,
+} = require('../lib/course');
+const { createCourseActivationManager } = require('../lib/course-activation');
 const { Game } = require('../lib/game');
 
 function response(body, status = 200) {
@@ -210,4 +213,65 @@ test('the mirror that answered last is tried first next time', async () => {
   seen.length = 0;
   await overpass('q2', { ...fast, endpoints, fetchImpl });
   assert.deepEqual(seen, [endpoints[1]]);
+});
+
+// ---------- refusing a non-golf-course feature ----------
+
+test('loading the starter hut is refused with a clear message and nothing is cached', async (t) => {
+  const posts = [];
+  t.mock.method(globalThis, 'fetch', async (url, init = {}) => {
+    posts.push(decodeURIComponent(String(init.body || '')));
+    return response({
+      elements: [{
+        type: 'way', id: 1428245318,
+        tags: { building: 'yes', name: 'Old Course Starter Hut' },
+        geometry: [
+          { lat: 56.34706, lon: -2.80950 }, { lat: 56.34706, lon: -2.80946 },
+          { lat: 56.34703, lon: -2.80946 }, { lat: 56.34703, lon: -2.80950 },
+          { lat: 56.34706, lon: -2.80950 },
+        ],
+      }],
+    });
+  });
+  const request = {
+    name: 'Old Course Starter Hut, Golf Place, Town Centre, St Andrews',
+    osmType: 'way', osmId: 1428245318,
+    bbox: [56.3470, 56.3471, -2.8095, -2.8094],
+  };
+  await assert.rejects(loadCourse(request), (err) => {
+    assert.ok(err instanceof CourseLoadError);
+    assert.equal(err.code, 'COURSE_NOT_GOLF_COURSE');
+    assert.equal(err.userFacing, true);
+    assert.match(err.message, /"Old Course Starter Hut"/);
+    assert.match(err.message, /building=yes/);
+    assert.match(err.message, /not as a golf course/);
+    assert.match(err.recovery, /golf course/);
+    return true;
+  });
+  assert.equal(posts.length, 1, 'no surface/hole download after the refusal');
+  const cached = fs.existsSync(path.join(dataDir, 'courses'))
+    ? fs.readdirSync(path.join(dataDir, 'courses')) : [];
+  assert.deepEqual(cached, []);
+});
+
+test('activation shows a user-facing load refusal but keeps other failures generic', async () => {
+  const manager = createCourseActivationManager({
+    acquireCourse: async (request) => {
+      if (request.osmId === 1) {
+        throw new CourseLoadError('COURSE_NOT_GOLF_COURSE', '"Old Course Starter Hut" is not a golf course.',
+          'Search again and pick a result marked "golf course".');
+      }
+      throw new Error('C:\\Users\\alice\\secret?token=hunter2');
+    },
+    prepareCandidate: async () => { throw new Error('unreachable'); },
+    commitPreparedActivation: () => { throw new Error('unreachable'); },
+  });
+  const refused = await manager.activate({ osmType: 'way', osmId: 1 });
+  assert.equal(refused.status, 'failed');
+  assert.equal(refused.diagnostic.code, 'COURSE_NOT_GOLF_COURSE');
+  assert.match(refused.diagnostic.message, /Starter Hut/);
+  assert.match(refused.diagnostic.recovery, /golf course/);
+  const generic = await manager.activate({ osmType: 'way', osmId: 2 });
+  assert.equal(generic.diagnostic.code, 'ACTIVATION_PREPARE_FAILED');
+  assert.doesNotMatch(JSON.stringify(generic), /alice|hunter2|secret/);
 });
