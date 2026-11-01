@@ -519,7 +519,7 @@ for (const [label, key] of CLUBS) {
     document.querySelectorAll('#clubs .club').forEach((x) => x.classList.remove('active'));
     b.classList.add('active');
     $('lie-club').textContent = label.toUpperCase();
-    fetch('/api/club', { method: 'POST', body: JSON.stringify({ club: label.toUpperCase() }) });
+    fetch('/api/club', { method: 'POST', body: JSON.stringify({ club: key }) });
     const p = clubPresets[key];
     if (p) setPractice(p.speedMph, p.vla, p.spin);
   };
@@ -583,7 +583,7 @@ async function doSearch(q) {
   try {
     const rows = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
     if (rows.error) throw new Error(rows.error);
-    msg.textContent = rows.length ? '' : 'No results — try adding the city or country name.';
+    msg.textContent = rows.length ? '' : 'No golf course found — try the course name plus its town.';
     for (const r of rows) {
       const d = document.createElement('div');
       d.className = 'result';
@@ -604,7 +604,7 @@ async function pickCourse(body) {
   msg.innerHTML = '<span class="loading-spin"></span>Downloading course + terrain from open data… 10–90 s on first load.';
   try {
     const r = await (await fetch('/api/load-course', { method: 'POST', body: JSON.stringify(body) })).json();
-    if (r.error) throw new Error(r.error);
+    if (r.error) throw new Error([r.error, r.diagnostic && r.diagnostic.recovery].filter(Boolean).join(' '));
     msg.textContent = '';
     // course SSE event closes the modal & loads geometry
   } catch (err) {

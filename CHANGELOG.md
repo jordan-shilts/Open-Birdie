@@ -124,6 +124,18 @@ All notable changes to Open-Birdie are documented here.
 - **No more fescue growing in bunkers** — bunkers map as islands inside a rough polygon, so the
   grass scatter used to sprout tufts in the sand; the scatter now excludes bunker/water areas
   (`scene.js` `_grassSpots`).
+- **Course search returns the golf course, not a building next to it** — the server appended
+  " golf" to every query, so the St Andrews quick pick matched the Old Course Starter Hut on
+  "Golf Place" (and Pebble Beach / Whistling Straits hit a restaurant and a street). The query is
+  now sent as typed, only `leisure=golf_course` results are listed, and a golf POI leads to the
+  courses around it (`lib/course.js` `searchCourses`).
+- **A non-golf-course feature is never loaded as a course** — loading checks the picked feature is
+  `leisure=golf_course` and otherwise refuses with a clear message; the course boundary only
+  defines OB if it is course-sized and holds every tee and pin, so a 3 m hut outline can no longer
+  make every shot out of bounds (`loadCourse`, `makeSurfaceLookup`).
+- **Course load no longer hangs on a busy Overpass mirror** — each mirror request has a timeout,
+  busy answers are retried with backoff, and when every mirror fails the player is told so
+  (`lib/course.js` `overpass`).
 
 ## [0.8.0] - 2026-06-21
 
