@@ -115,6 +115,12 @@ All notable changes to Open-Birdie are documented here.
     height/fade knobs, `grass.js` `buildGrass` `colorAt`/`cameraFade`, `scene.js`).
 
 ### Changed
+- **Ball flight now matches the OpenFlight launch monitor** — the air phase uses OpenFlight's model
+  (Ferguson, McNally & McPhee 2022 Cd/Cl polynomials, 4%/s spin decay, RK4) instead of hand-tuned
+  curves, so the carry shown on the monitor is where the ball lands (within 0.1 yd on flat ground).
+  Drives and 3-woods fly 12–22 ft lower and 3–11 yd shorter; irons fly higher, land steeper (7-iron
+  ~40° → ~46°) and carry 2–15 yd shorter, so they roll a little less. Bounce, roll and putting are
+  unchanged. `test/flight-model.test.js` pins the parity (`lib/physics.js`).
 - **GTAO ambient occlusion + filmic bloom enabled** — contact AO darkens tree bases, bunker
   lips and terrain folds; a restrained bloom lifts the hottest highlights (sun glints on water,
   bright sand) without hazing the sky (`config.gtao`, `postfx.js`).

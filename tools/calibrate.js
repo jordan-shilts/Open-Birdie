@@ -1,6 +1,15 @@
 'use strict';
-// Flight-model calibration against PGA Tour ball-flight averages.
+// Flight-model check against PGA Tour ball-flight averages.
 // Run: npm run calibrate
+//
+// The air phase of lib/physics.js is no longer hand-tuned to these targets. It
+// is OpenFlight's model (src/openflight/ballistics.py): Ferguson, McNally &
+// McPhee (2022, doi:10.5703/1288284317493) Cd/Cl polynomials in Sp = r*omega/v,
+// 4%/s spin decay, RK4 at 500 Hz. That way the carry the launch monitor shows
+// is where the ball lands here; test/flight-model.test.js pins the parity.
+// The tour targets stay as a sanity check, not something to tune toward: the
+// model was fitted to measured shots (GCQuad launch, FlightScope carry/apex),
+// not to these averages, so a few yards / feet of spread is expected.
 const { simulateShot } = require('../lib/physics');
 
 const CASES = [
