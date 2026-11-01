@@ -61,6 +61,24 @@ export class PostFX {
         scale: 1.4, samples: 16, distanceFallOff: 1.0, screenSpaceRadius: false,
       });
       gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 16 });
+      // GTAO's normal/depth pre-pass renders the scene with ONE override material,
+      // which ignores alpha cutouts and transparency: every leaf card, flower bush,
+      // tracer ribbon and haze band became a solid quad in the AO buffers, greying
+      // the sky in card-shaped 'glass shards' around canopies. Keep cutout and
+      // transparent geometry out of the AO pre-pass (it has real shadows anyway).
+      const hideBase = gtao._overrideVisibility.bind(gtao);
+      gtao._overrideVisibility = function overrideVisibility() {
+        hideBase();
+        const cache = this._visibilityCache;
+        this.scene.traverse((o) => {
+          if (!o.visible) return;
+          const m = o.material;
+          if (o.userData?.noAO || (m && !Array.isArray(m) && (m.transparent || m.alphaTest > 0))) {
+            o.visible = false;
+            cache.push(o);
+          }
+        });
+      };
       this.composer.addPass(gtao);
       this.gtao = gtao;
     }

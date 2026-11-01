@@ -9,7 +9,8 @@ export const RENDER_CONFIG = {
   toneMappingExposure: 0.6,
   environmentIntensity: 1.0,
   sunIntensity: 2.0,
-  fogDensity: 0.00019, // FogExp2 to the horizon colour — soft aerial recession, no hard far edge
+  fogDensity: 0.00035, // aerial-perspective fog (atmosphere.js curve: linear + quadratic) to the HDRI horizon
+  groundApron: true,   // countryside ring past the course edge + horizon haze band (horizon.js)
   skyboxHeight: 30, // GroundedSkybox projection height (world meters); tuned in Task 7
   // Sun direction: null = auto-estimate from the HDRI's brightest texel.
   // Set BOTH (degrees) to override when the estimate is wrong on a diffuse HDRI (D2).
@@ -33,7 +34,10 @@ export const RENDER_CONFIG = {
                                // shapes) instead of watercolour mush. Luma-lean tint keeps ghosts out.
   macroTintBlurPx: 2,          // canvas blur applied when downsampling the tint copy
   // Tier 1
-  foliageTrees: true, // card-foliage conifers (see tree-cards.js)
+  foliageTrees: true, // trees on (trees3d picks the renderer)
+  trees3d: true,      // instanced 3D trees, near/mid/far LODs, woods filled (trees.js); false = legacy cards (tree-cards.js)
+  treeDensity: 1.0,   // woods fill density (quality.js scales it; 1 = ~7.5 m pitch)
+  treeNearM: 420,     // full leaf-card LOD inside this camera distance (quality.js scales it)
   grounding: true,    // contact-shadow decal blobs under trees (see grounding.js)
   pineStraw: true,    // warm pine-straw litter mat under on-course trees (see vegetation.js)
   flowers: true,      // azalea-style flowering bushes clustered at the tree lines
@@ -41,7 +45,7 @@ export const RENDER_CONFIG = {
   props: true,        // course props — bunker rakes (see props.js)
   windStrength: 0.5,  // canopy sway amount
   treeScale: 1.0,     // base scale on the 12m reference card-tree (~12m trees)
-  treeCap: 450,      // max instanced trees (perf); explicit trees prioritized
+  treeCap: 9000,     // max instanced trees (quality.js sets it); explicit + woods-edge trees prioritized
   horizonTrees: true, // jittered tree band around the course perimeter (distant tree-line)
   buildings: true,    // extrude OSM building footprints (clubhouse + structures) — see scene.js _addBuildings
   // Later tiers / stretch — off until their tier lands

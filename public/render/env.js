@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { GroundedSkybox } from 'three/addons/objects/GroundedSkybox.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { sunSphericalFromEquirect, sunDirectionVec, horizonColorFromEquirect } from './hdri-analyze.js';
+import { sunSphericalFromEquirect, sunDirectionVec, horizonColorFromEquirect, horizonLinearFromEquirect } from './hdri-analyze.js';
 import { RENDER_CONFIG } from './config.js';
 import { ASSETS } from './assets.js';
 
@@ -32,7 +32,9 @@ export async function loadHDRIEnvironment(renderer) {
     : sunSphericalFromEquirect(data, width, height);
   const sunDir = sunVec(sph.azimuth, Math.max(sph.altitude, THREE.MathUtils.degToRad(8))); // floor so shadows read
   const horizonColor = horizonColorFromEquirect(data, width, height);
-  return { envTexture, equirect, sunDir, horizonColor };
+  const hl = horizonLinearFromEquirect(data, width, height);
+  const horizonLinear = new THREE.Color().setRGB(hl.r, hl.g, hl.b, THREE.LinearSRGBColorSpace);
+  return { envTexture, equirect, sunDir, horizonColor, horizonLinear };
 }
 
 // Directional key light. Given an initial aim along sunDir; _fitShadows refines

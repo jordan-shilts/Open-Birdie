@@ -26,7 +26,7 @@ export const QUALITY_PRESETS = Object.freeze({
     waterFoam: true,
     treeDensity: 1.0,       // woods fill spacing multiplier (1 = dense)
     treeCap: 9000,          // instanced trees across the course
-    treeNearM: 150,         // trees nearer than this draw the full leaf-card LOD
+    treeNearM: 420,         // trees nearer than this draw the full leaf-card LOD
     grassScale: 1.0,        // fescue / foreground-grass instance budgets
     foregroundGrass: true,
     flowers: true,
@@ -42,7 +42,7 @@ export const QUALITY_PRESETS = Object.freeze({
     waterFoam: false,
     treeDensity: 0.55,
     treeCap: 2600,
-    treeNearM: 70,
+    treeNearM: 110,
     grassScale: 0.3,
     foregroundGrass: false,
     flowers: false,

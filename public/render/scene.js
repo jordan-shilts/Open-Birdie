@@ -5,7 +5,10 @@ import * as THREE from 'three';
 import { PostFX } from './postfx.js';
 import { loadHDRIEnvironment, makeSun, makeGroundedSkybox, makeFallbackEnv } from './env.js';
 import { makeAerialFog } from './atmosphere.js';
+import { buildGroundApron, buildHorizonHaze } from './horizon.js';
 import { buildCardTrees } from './tree-cards.js';
+import { TreeField } from './trees.js';
+import { placeCourseTrees, speciesAt } from './tree-placement.js';
 import { buildGrounding } from './grounding.js';
 import { buildPineStraw, buildFlowers, vegetationTexturePixelChecksums } from './vegetation.js';
 import { buildRakes } from './props.js';
@@ -17,6 +20,7 @@ import { srgbToLinear, averageLinearColor } from './macro-tint.js';
 import { densifyRing, drapeRing } from './drape.js';
 import { buildHdTerrain, buildCoarseTerrain } from './hd-terrain.js';
 import { makeTerrainSampler } from './terrain-grid.js';
+import { repairGridEdges } from './grid-repair.js';
 import { RENDER_CONFIG } from './config.js';
 import { isPlayFraming, ballReadScale, pinReadScale } from './framing.js';
 import { ShotTracer, makeGlow, makeLandingRing, makeBallShadow, makeDropLine } from './shot-fx.js';
@@ -173,8 +177,6 @@ export class GolfScene {
     this._liveFrame = () => this._frame();
     this._visualCaptureCourseRevision = 0;
     this.shaderCompileStatus = { state: 'waiting-for-course', revision: 0 };
-    this._animationLoopLive = true;
-    this._captureFixedTime = null;
     // Graphics quality (quality.js) — resolved after the renderer + post chain exist.
     this.onQualityChange = null;
     this._autoQuality = autoQuality;
@@ -182,6 +184,8 @@ export class GolfScene {
     this._qualityHoldUntil = 0;
     this._downshifted = false;
     this.setQuality(quality, { rebuild: false });
+    this._animationLoopLive = true;
+    this._captureFixedTime = null;
     this.renderer.setAnimationLoop(this._liveFrame);
   }
 
@@ -278,13 +282,19 @@ export class GolfScene {
 
     // HDRI: image-based lighting + visible sky + ground horizon + sun direction.
     // One source of truth for the sun (this.sunDir) drives the light + _fitShadows.
-    this.envReady = loadHDRIEnvironment(this.renderer).then(({ envTexture, equirect, sunDir, horizonColor }) => {
+    this.envReady = loadHDRIEnvironment(this.renderer).then(({ envTexture, equirect, sunDir, horizonColor, horizonLinear }) => {
       this.scene.environment = envTexture;
       this.scene.environmentIntensity = RENDER_CONFIG.environmentIntensity;
       this.scene.background = equirect;
       this._equirect = equirect;
       this.sunDir.copy(sunDir);
-      if (RENDER_CONFIG.aerialFog) this.scene.fog = makeAerialFog(horizonColor);
+      // fog + horizon haze in the sky's own (linear) radiance so they meet it exactly
+      const fogCol = horizonLinear ? horizonLinear.clone().multiplyScalar(0.92) : new THREE.Color(horizonColor);
+      if (RENDER_CONFIG.aerialFog) this.scene.fog = makeAerialFog(fogCol);
+      if (RENDER_CONFIG.groundApron) {
+        this._haze = buildHorizonHaze({ color: fogCol, baseHeight: this._apronBase ?? 0 });
+        this.scene.add(this._haze.mesh);
+      }
       if (this.bounds) this._placeSkybox();                     // course already loaded
       if (this._activeHole) this._fitShadows(this._activeHole); // re-aim shadows to HDRI sun
       this.environmentStatus = { state: 'ready' };
@@ -379,6 +389,7 @@ export class GolfScene {
     };
     this._treeWind = this._grassWind = this._waterUpdate = this._waterMeshList = this._terrain = null; // drop stale per-course refs
     this._foamOn = false;
+    this._treeField = null; this._placedTrees = null;
     this._fairwayGrassMesh = this._fairwayGrassWind = this._fairwayGrassCenter = this._fgGeo = this._fgGroup = this._fairwayZoneColorFn = null;
     // HD bundles (one per built hole) each own their textures. hdAssets may be an
     // array, a single legacy bundle, or null — normalize, then free any bundle from
@@ -402,7 +413,11 @@ export class GolfScene {
       });
     }
     this.geo = geo;
-    this.elev = geo.elevation || null;
+    // display copy of the elevation grid with any detached (never-filled) border
+    // line repaired — those rendered as a sheer wall / slab rim along the course edge
+    const rep = repairGridEdges(geo.elevation || null);
+    if (rep.repaired.length) console.log(`[render] elevation border repaired: ${rep.repaired.join(', ')}`);
+    this.elev = rep.grid || null;
     // Course character (P1b): one manual dryness scalar (0 lush parkland .. 1 dry
     // links) picks the actual turf palette + drives the turf shader (uCourseDry).
     // Chambers -> tan links; Sawgrass -> unchanged lush green.
@@ -513,6 +528,16 @@ export class GolfScene {
     this._placeSkybox();
     const terrain = this._terrainMesh(b);
     group.add(terrain);
+    // countryside past the course edge (no more floating slab); purely visual
+    if (RENDER_CONFIG.groundApron) {
+      try {
+        const base = new THREE.Color(this._pal.base);
+        const apron = buildGroundApron({ bounds: b, hAt: (x, y) => this.hAt(x, y), baseColor: base });
+        group.add(apron.mesh);
+        this._apronBase = apron.baseHeight;
+        this._haze?.setBase(apron.baseHeight);
+      } catch (e) { console.warn('[render] ground apron skipped:', e && e.message); }
+    }
     this._terrain = terrain; // referenced by the water-foam depth pre-pass
     this._addWater(geo, group);
     this._addTrees(geo, group);
@@ -531,7 +556,7 @@ export class GolfScene {
     }
     // Crisp bunker meshes (sharp sand edges). Same guard — purely visual.
     if (RENDER_CONFIG.crispBunkers) {
-      try { this._addSurfacePatches(group, ['bunker'], makeSandMaterial); }
+      try { this._addSurfacePatches(group, ['bunker'], (bb, an) => makeSandMaterial(bb, an, this._turfInputs?.bunkerMask, this.sunDir)); }
       catch (e) { console.warn('[render] bunker patches skipped:', e && e.message); }
     }
     // Bunker rakes — iconic human-scale prop. Purely visual, so same load guard.
@@ -622,7 +647,10 @@ export class GolfScene {
       b, ['fairway', 'tee', 'green'], { default: '#ff0000', green: '#ffff00' }));
     maskTex.colorSpace = THREE.NoColorSpace;
     maskTex.anisotropy = tex.anisotropy;
-    const bunkerMaskTex = new THREE.CanvasTexture(this._paintMask(b, ['bunker']));
+    // AUX mask (turf.js): R = tee, G = water, B = bunker, softly blurred (~1.8 m) for
+    // the tee cut, wet banks and bunker lips. Additive so overlapping kinds keep channels.
+    const bunkerMaskTex = new THREE.CanvasTexture(this._paintMask(
+      b, ['tee', 'water', 'bunker'], { tee: '#ff0000', water: '#00ff00', bunker: '#0000ff' }, 4, true));
     bunkerMaskTex.colorSpace = THREE.NoColorSpace;
     bunkerMaskTex.anisotropy = tex.anisotropy;
     // P2a raw packed surface membership (additive channels, so overlaps survive):
@@ -640,6 +668,8 @@ export class GolfScene {
       macro: this._macro || this._hdMacros[0] || null,
       courseDry: this._courseDry, // P1b: drives the turf shader (warm-mix, stripes, far-photo)
       surfaceMaskRaw: maskRawTex, // P2a: crisp fwidth edge source (R=mown/G=green/B=bunker)
+      hq: this.quality?.level !== 'low', // Low graphics skips the rough/first-cut taps
+      sunDir: this.sunDir,             // live HDRI sun (bunker-lip shading)
       // P2a: per-surface palette (linear) so the shader can composite the base colour
       // per-fragment with a crisp fwidth mask, overriding the soft splat/tint/collar.
       pal: {
@@ -881,25 +911,29 @@ export class GolfScene {
     return meshes;
   }
 
+  // On-course tree spots (tree-placement.js): explicit OSM trees, then every woods
+  // edge, then the woods interior nearest the holes — under the quality cap. Kept
+  // off mown ground, greens, sand and water. Cached per course load.
   _treeSpots(geo) {
-    const spots = [];
-    const rnd = mulberry32(1234);
-    const CAP = RENDER_CONFIG.treeCap;
-    for (const t of geo.trees || []) { if (spots.length >= CAP) break; spots.push({ x: t[0], y: t[1], s: 0.85 + rnd() * 0.5 }); }
-    for (const w of geo.woods || []) {
-      if (spots.length >= CAP) break;
-      let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
-      for (const [x, y] of w) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
-      for (let gx = minX; gx < maxX; gx += 18) {
-        if (spots.length >= CAP) break;
-        for (let gy = minY; gy < maxY; gy += 18) {
-          if (spots.length >= CAP) break;
-          const x = gx + (rnd() - 0.5) * 12, y = gy + (rnd() - 0.5) * 12;
-          if (pointInPoly(x, y, w)) spots.push({ x, y, s: 0.7 + rnd() * 0.7 });
-        }
-      }
-    }
-    return spots;
+    if (this._placedTrees) return this._placedTrees;
+    const block = (geo.surfaces || [])
+      .filter((s) => ['fairway', 'green', 'tee', 'bunker', 'water'].includes(s.kind) && s.poly && s.poly.length >= 3)
+      .map((s) => {
+        let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+        for (const [x, y] of s.poly) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+        return { poly: s.poly, minX: minX - 2, minY: minY - 2, maxX: maxX + 2, maxY: maxY + 2 };
+      });
+    const blocked = (x, y) => {
+      for (const b of block) if (x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY && pointInPoly(x, y, b.poly)) return true;
+      return false;
+    };
+    this._placedTrees = placeCourseTrees({
+      trees: geo.trees || [], woods: geo.woods || [],
+      holeLines: (geo.holes || []).map((h) => h.line).filter(Boolean),
+      cap: RENDER_CONFIG.treeCap, density: RENDER_CONFIG.treeDensity ?? 1,
+      courseDry: this._courseDry || 0, blocked,
+    });
+    return this._placedTrees;
   }
 
   // A jittered band of trees around the course perimeter -> a hazy distant tree-line
@@ -933,18 +967,28 @@ export class GolfScene {
     if (!RENDER_CONFIG.foliageTrees) return;
     const coreSpots = this._treeSpots(geo); // on-course trees (no horizon band)
     const spots = coreSpots.slice();
-    if (RENDER_CONFIG.horizonTrees) spots.push(...this._horizonSpots(geo, this.bounds));
-    if (!spots.length) return;
-    const { meshes, windUpdate } = buildCardTrees(spots, (x, y) => this.hAt(x, y), V);
-    meshes.forEach((m) => group.add(m));
-    this._treeWind = windUpdate;
-    if (RENDER_CONFIG.grounding) {
-      buildGrounding(spots, (x, y) => this.hAt(x, y), V).meshes.forEach((m) => group.add(m));
+    if (RENDER_CONFIG.horizonTrees) {
+      for (const h of this._horizonSpots(geo, this.bounds)) spots.push({ ...h, species: speciesAt(h.x, h.y, this._courseDry || 0, 7) });
     }
-    // Pine-straw litter under the on-course trees only (the horizon band is too
-    // far to matter and would blow the instance budget).
+    if (!spots.length) return;
+    const hAt = (x, y) => this.hAt(x, y);
+    if (RENDER_CONFIG.trees3d !== false) {
+      // instanced 3D trees with near/mid/far LODs (trees.js)
+      this._treeField = new TreeField(spots, hAt, V, { nearM: RENDER_CONFIG.treeNearM ?? 150, sunDir: this.sunDir });
+      group.add(this._treeField.group);
+    } else {
+      const { meshes, windUpdate } = buildCardTrees(spots, hAt, V);
+      meshes.forEach((m) => group.add(m));
+      this._treeWind = windUpdate;
+    }
+    // contact blobs + litter only under the trees a golfer walks past (explicit
+    // trees and woods edges), not thousands of interior woods trees
+    const near = coreSpots.filter((p) => p.edge !== false);
+    if (RENDER_CONFIG.grounding) {
+      buildGrounding(near, hAt, V).meshes.forEach((m) => group.add(m));
+    }
     if (RENDER_CONFIG.pineStraw) {
-      buildPineStraw(coreSpots, (x, y) => this.hAt(x, y), V).meshes.forEach((m) => group.add(m));
+      buildPineStraw(near.slice(0, 2500), hAt, V).meshes.forEach((m) => group.add(m));
     }
   }
 
@@ -1024,7 +1068,9 @@ export class GolfScene {
     const onRough = (x, y) => { for (const s of rough) if (pointInPoly(x, y, s.poly)) return true; return false; };
     // Bunkers (and water) often sit as islands inside a rough polygon, so "on rough"
     // is true inside them — exclude those so fescue never sprouts in the sand.
-    const blocked = (geo.surfaces || []).filter((s) => (s.kind === 'bunker' || s.kind === 'water') && s.poly && s.poly.length >= 3);
+    // also mown ground: OSM rough polygons often enclose the fairway/green, and the
+    // physics surface priority puts those ABOVE rough — so no fescue on them
+    const blocked = (geo.surfaces || []).filter((s) => ['bunker', 'water', 'fairway', 'green', 'tee'].includes(s.kind) && s.poly && s.poly.length >= 3);
     const onBlocked = (x, y) => { for (const s of blocked) if (pointInPoly(x, y, s.poly)) return true; return false; };
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     for (const s of rough) for (const [x, y] of s.poly) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
@@ -1116,7 +1162,7 @@ export class GolfScene {
   // steer clear of water/bunkers/greens, so generic placement stays plausible.
   _flowerSpots(geo) {
     if (!RENDER_CONFIG.flowers) return [];
-    const trees = this._treeSpots(geo);
+    const trees = this._treeSpots(geo).filter((t) => t.edge !== false); // tree lines, not deep woods
     if (!trees.length) return [];
     const spots = [], rnd = mulberry32(91), CAP = RENDER_CONFIG.flowerCap;
     for (const t of trees) {
@@ -1614,7 +1660,9 @@ export class GolfScene {
 
     this._updateMarkers();
     this._updateShotFx(frameTime);
+    this._haze?.update(this.camera);
     if (this._treeWind) this._treeWind(frameTime);
+    if (this._treeField) this._treeField.update(this.camera, frameTime);
     if (this._grassWind) this._grassWind(frameTime);
     if (RENDER_CONFIG.foregroundGrass && this.camMode === 'idle' && this._fairwayGrassCenter) {
       const fdx = this.ballSim.x - this._fairwayGrassCenter.x, fdy = this.ballSim.y - this._fairwayGrassCenter.y;
