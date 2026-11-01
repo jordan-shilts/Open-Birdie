@@ -19,6 +19,10 @@ import { buildHdTerrain, buildCoarseTerrain } from './hd-terrain.js';
 import { makeTerrainSampler } from './terrain-grid.js';
 import { RENDER_CONFIG } from './config.js';
 import { isPlayFraming, ballReadScale, pinReadScale } from './framing.js';
+import { ShotTracer, makeGlow, makeLandingRing, makeBallShadow, makeDropLine } from './shot-fx.js';
+import { flightMarkers } from './flight-profile.js';
+import { flightCameraPlan, flightCameraAt } from './flight-camera.js';
+import { resolveQuality, autoDownshiftVerdict } from './quality.js';
 import { COLORS, DRY_PALETTE, courseDryFor, blendPalette } from './course-character.js';
 import { paintSurfaceMask, RAW_SURFACE_COLORS } from './surface-mask.js';
 import { smoothClassmapTexture } from './classmap-smoothing.js';
@@ -30,6 +34,25 @@ import {
 } from './capture-performance.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, z, -y); // sim -> three
+
+// RENDER_CONFIG knobs the quality preset scales (course-content budgets). The base
+// values are captured once so Low -> High restores them exactly.
+const QUALITY_BASE = {
+  grassCap: RENDER_CONFIG.grassCap,
+  foregroundGrassCap: RENDER_CONFIG.foregroundGrassCap,
+  flowerCap: RENDER_CONFIG.flowerCap,
+};
+function applyContentQuality(p) {
+  RENDER_CONFIG.grassCap = Math.round(QUALITY_BASE.grassCap * p.grassScale);
+  RENDER_CONFIG.foregroundGrassCap = Math.round(QUALITY_BASE.foregroundGrassCap * p.grassScale);
+  RENDER_CONFIG.foregroundGrass = !!p.foregroundGrass;
+  RENDER_CONFIG.flowers = !!p.flowers;
+  RENDER_CONFIG.flowerCap = Math.round(QUALITY_BASE.flowerCap * (p.flowers ? 1 : 0));
+  RENDER_CONFIG.waterReflect = !!p.waterReflect;
+  RENDER_CONFIG.treeCap = p.treeCap;
+  RENDER_CONFIG.treeDensity = p.treeDensity;
+  RENDER_CONFIG.treeNearM = p.treeNearM;
+}
 
 // deterministic PRNG so tree placement is stable between loads
 function mulberry32(seed) {
@@ -67,7 +90,7 @@ function hexToLinearRGB(hex) {
 // palette (this._pal) at load — see below.
 
 export class GolfScene {
-  constructor(container) {
+  constructor(container, { quality = 'auto', autoQuality = true } = {}) {
     this.container = container;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -99,6 +122,18 @@ export class GolfScene {
     this.pin = this._makePin();
     this.scene.add(this.pin);
 
+    // shot presentation (shot-fx.js): soft ball contact shadow, in-flight head glow,
+    // apex dot + drop line, landing ring. The tracer ribbon is built per shot.
+    this.ballShadow = makeBallShadow();
+    this.headGlow = makeGlow({ color: 0xffe7a3, px: 20 });
+    this.apexGlow = makeGlow({ color: 0xffc94a, px: 12 });
+    this.dropLine = makeDropLine();
+    this.landRing = makeLandingRing();
+    this.headGlow.visible = this.apexGlow.visible = this.dropLine.visible = this.landRing.visible = false;
+    this.scene.add(this.ballShadow, this.headGlow, this.apexGlow, this.dropLine, this.landRing);
+    this.tracer = null;      // ShotTracer of the current / lingering shot
+    this._fx = null;         // { apex3, land3, lingerStart } — marker + fade bookkeeping
+
     this.trail = null;
     this.aimLine = null;
     this.courseGroup = null;
@@ -125,6 +160,12 @@ export class GolfScene {
     this.markerLayer.className = 'dist-markers';
     container.appendChild(this.markerLayer);
     this.markers = [];
+    // shot callouts (apex height / carry) projected like the yardage markers
+    this.shotLabels = {
+      apex: Object.assign(document.createElement('div'), { className: 'shot-label apex' }),
+      land: Object.assign(document.createElement('div'), { className: 'shot-label land' }),
+    };
+    for (const l of Object.values(this.shotLabels)) { l.style.display = 'none'; this.markerLayer.appendChild(l); }
     this.postfx = new PostFX(this.renderer, this.scene, this.camera);
     this.waterDepth = RENDER_CONFIG.waterFoam ? makeWaterDepth(this.renderer) : null;
     window.addEventListener('resize', () => this.resize());
@@ -134,7 +175,86 @@ export class GolfScene {
     this.shaderCompileStatus = { state: 'waiting-for-course', revision: 0 };
     this._animationLoopLive = true;
     this._captureFixedTime = null;
+    // Graphics quality (quality.js) — resolved after the renderer + post chain exist.
+    this.onQualityChange = null;
+    this._autoQuality = autoQuality;
+    this._frameIntervals = [];
+    this._qualityHoldUntil = 0;
+    this._downshifted = false;
+    this.setQuality(quality, { rebuild: false });
     this.renderer.setAnimationLoop(this._liveFrame);
+  }
+
+  _qualityEnv() {
+    let gpuRenderer = '';
+    try {
+      const gl = this.renderer.getContext();
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      gpuRenderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    } catch (e) { /* unknown GPU -> treated as capable */ }
+    const nav = typeof navigator !== 'undefined' ? navigator : {};
+    return {
+      gpuRenderer,
+      mobile: /Android|iPhone|iPad|Mobile/i.test(nav.userAgent || ''),
+      deviceMemoryGb: nav.deviceMemory ?? null,
+      downshifted: this._downshifted,
+    };
+  }
+
+  // Apply a graphics setting ('auto' | 'high' | 'low'). Live knobs (pixel ratio,
+  // shadow map, AO/bloom) change at once; course-content budgets (trees, grass,
+  // flowers, reflections) rebuild the course scenery when the LEVEL changes.
+  setQuality(setting, { rebuild = true } = {}) {
+    const prev = this.quality;
+    const q = resolveQuality(setting, this._qualityEnv());
+    this.quality = q;
+    const p = q.preset;
+    applyContentQuality(p);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, p.pixelRatioCap));
+    if (this.sun) {
+      const sh = this.sun.shadow;
+      if (sh.mapSize.x !== p.shadowMapSize) {
+        sh.mapSize.set(p.shadowMapSize, p.shadowMapSize);
+        if (sh.map) { sh.map.dispose(); sh.map = null; }
+      }
+      sh.radius = p.shadowRadius;
+    }
+    this.postfx?.setQuality({ gtao: p.gtao, bloom: p.bloom });
+    if (this.container) this.resize();
+    this._frameIntervals.length = 0;
+    this._qualityHoldUntil = performance.now() + 5000;
+    if (rebuild && prev && prev.level !== q.level) this._rebuildScenery();
+    this.onQualityChange?.(q);
+    return q;
+  }
+
+  // Rebuild the course scenery in place (same geometry + HD assets), restoring the
+  // hole/ball/aim. Deferred while a shot is replaying.
+  _rebuildScenery() {
+    if (!this.geo) return;
+    if (this.anim) { this._pendingRebuild = true; return; }
+    this._pendingRebuild = false;
+    const hole = this._activeHole, ball = { ...this.ballSim }, aim = this.aimDeg;
+    this.loadCourse(this.geo, { hdAssets: this._hdAssets });
+    if (hole) this.setHole(hole, ball, aim);
+  }
+
+  // Feed one live frame interval to the 'auto' monitor (ignores hidden/stalled frames).
+  _trackFrameRate(dtMs) {
+    if (!this._autoQuality || !this.quality || this.quality.setting !== 'auto' || this.quality.level !== 'high') return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    const now = performance.now();
+    if (now < this._qualityHoldUntil || !(dtMs > 0) || dtMs > 250) return;
+    const xs = this._frameIntervals;
+    xs.push(dtMs);
+    if (xs.length > 240) xs.shift();
+    if (xs.length % 60 !== 0) return;
+    const v = autoDownshiftVerdict({ setting: this.quality.setting, level: this.quality.level, intervalsMs: xs });
+    if (v.downshift) {
+      console.log(`[render] auto graphics: ${v.reason} -> Low`);
+      this._downshifted = true;
+      this.setQuality('auto');
+    }
   }
 
   resize() {
@@ -258,6 +378,7 @@ export class GolfScene {
       revision: this._visualCaptureCourseRevision,
     };
     this._treeWind = this._grassWind = this._waterUpdate = this._waterMeshList = this._terrain = null; // drop stale per-course refs
+    this._foamOn = false;
     this._fairwayGrassMesh = this._fairwayGrassWind = this._fairwayGrassCenter = this._fgGeo = this._fgGroup = this._fairwayZoneColorFn = null;
     // HD bundles (one per built hole) each own their textures. hdAssets may be an
     // array, a single legacy bundle, or null — normalize, then free any bundle from
@@ -727,8 +848,10 @@ export class GolfScene {
   // Animated water (config.water) or the static fallback plane.
   _addWater(geo, group) {
     if (RENDER_CONFIG.water) {
-      const foamEnabled = !!this.waterDepth;
+      const foamEnabled = !!this.waterDepth && this.quality?.preset?.waterFoam !== false;
       const { meshes, waterMeshes, waterUpdate, setFoamDepth } = buildWater(geo.surfaces, (x, y) => this.hAt(x, y), this.sunDir, foamEnabled);
+      // the foam depth pre-pass re-renders the whole terrain — only pay for it with water
+      this._foamOn = foamEnabled && !!(waterMeshes && waterMeshes.length);
       meshes.forEach((m) => group.add(m));
       this._waterUpdate = waterUpdate;
       this._waterMeshList = waterMeshes;
@@ -1217,46 +1340,70 @@ export class GolfScene {
 
   _clearTrail() {
     if (this.trail) { this.scene.remove(this.trail); this.trail.geometry.dispose(); this.trail = null; }
+    if (this.tracer) { this.scene.remove(this.tracer.mesh); this.tracer.dispose(); this.tracer = null; }
+    this._fx = null;
+    this.headGlow.visible = this.apexGlow.visible = this.dropLine.visible = this.landRing.visible = false;
+    for (const l of Object.values(this.shotLabels || {})) l.style.display = 'none';
   }
 
   // ---------- shot replay ----------
-  playShot(points, flightTime, onDone) {
+  // points: server trajectory (sim frame); onDone fires after the ball settles;
+  // opts.onProgress(t) is called every frame with the replay's sim time (drives the
+  // HUD side view in sync); opts.isPutt keeps the camera still for putts.
+  playShot(points, flightTime, onDone, opts = {}) {
     if (!points || points.length < 2) { onDone?.(); return; }
     this._clearTrail();
     if (this.aimLine) this.aimLine.visible = false;
     const dur = points[points.length - 1].t;
+    const ft = Number.isFinite(flightTime) && flightTime > 0 ? flightTime : dur;
+    const isPutt = !!opts.isPutt;
     this.anim = {
       points, i: 0,
       t: 0,
       speed: dur > 14 ? dur / 14 : 1,
-      flightTime,
+      flightTime: ft,
       dur,
       onDone,
-      trailPts: [],
+      onProgress: opts.onProgress || null,
+      isPutt,
     };
-    // Fixed "golfer POV" tracer: park the camera behind the ball and let the
-    // shot fly away from a still vantage point — no chase, no greenside cut.
-    this._setTracerCam(points);
+    // Camera: a smooth follow (flight-camera.js) that starts exactly at the address
+    // camera and glides to a landing-area vantage during the descent.
+    const c = this.camera.position;
+    this.anim.plan = flightCameraPlan(points, {
+      startCam: { x: c.x, y: -c.z, z: c.y }, flightTime: ft, isPutt,
+      groundAt: (x, y) => this.hAt(x, y),
+    });
     this.camMode = 'static';
-  }
-
-  // Place the camera behind the ball on the launch line, framed to hold the
-  // whole flight; playShot then leaves it untouched so it stays still.
-  _setTracerCam(points) {
-    const p0 = points[0];
-    const ph = points[Math.min(points.length - 1, 10)];
-    const hd = Math.atan2(ph.x - p0.x, ph.y - p0.y); // launch heading (sim frame)
-    const dist = Math.max(this.orbit.dist, 15);
-    const height = Math.max(this.orbit.height + 1.5, 6);
-    const cx = p0.x - Math.sin(hd) * dist, cy = p0.y - Math.cos(hd) * dist;
-    this.camPosT.copy(V(cx, cy, this.hAt(cx, cy) + height));
-    let apex = -Infinity;
-    const last = points[points.length - 1];
-    for (const p of points) if (p.z > apex) apex = p.z;
-    const carry = Math.hypot(last.x - p0.x, last.y - p0.y) || 60;
-    const ld = Math.min(carry * 0.55, 140);
-    const lx = p0.x + Math.sin(hd) * ld, ly = p0.y + Math.cos(hd) * ld;
-    this.lookT.copy(V(lx, ly, p0.z + Math.max((apex - p0.z) * 0.45, 5)));
+    // Tracer ribbon over the AIR phase (to first contact), plus apex/landing markers.
+    if (!isPutt) {
+      const air = points.filter((p) => p.t <= ft);
+      const { apex, landing } = flightMarkers(points, ft);
+      if (landing && (!air.length || air[air.length - 1].t < landing.t)) air.push(landing);
+      if (air.length >= 2) {
+        this.tracer = new ShotTracer(air.map((p) => V(p.x, p.y, p.z + 0.06)), air.map((p) => p.t));
+        this.scene.add(this.tracer.mesh);
+      }
+      const apexFt = apex ? (apex.z - points[0].z) * 3.28084 : 0;
+      const carryYd = landing ? Math.hypot(landing.x - points[0].x, landing.y - points[0].y) / 0.9144 : 0;
+      this._fx = {
+        apex: apex && apexFt > 6 ? { t: apex.t, p: V(apex.x, apex.y, apex.z + 0.06), ground: V(apex.x, apex.y, this.hAt(apex.x, apex.y)), ft: apexFt } : null,
+        land: landing ? { t: landing.t, p: V(landing.x, landing.y, this.hAt(landing.x, landing.y) + 0.08), yd: carryYd } : null,
+        lingerStart: null,
+      };
+      if (this._fx.apex) {
+        const a = this._fx.apex;
+        this.dropLine.position.copy(a.p);
+        this.dropLine.scale.set(1, Math.max(0.1, a.p.y - a.ground.y), 1);
+        this.dropLine.computeLineDistances();
+        this.dropLine.material.dashSize = 1.2 / this.dropLine.scale.y;
+        this.dropLine.material.gapSize = 1.0 / this.dropLine.scale.y;
+        this.apexGlow.position.copy(a.p);
+      }
+      if (this._fx.land) this.landRing.position.copy(this._fx.land.p);
+      this.shotLabels.apex.innerHTML = this._fx.apex ? `<span>APEX</span> ${Math.round(this._fx.apex.ft)} ft` : '';
+      this.shotLabels.land.innerHTML = this._fx.land ? `<span>CARRY</span> ${Math.round(carryYd)} yd` : '';
+    }
   }
 
   _animStep(dt) {
@@ -1274,26 +1421,93 @@ export class GolfScene {
     }
     this.ballSim = { x: p.x, y: p.y };
     this.ball.position.copy(V(p.x, p.y, p.z + 0.06));
+    this._ballZ = p.z;
 
-    // trail
-    a.trailPts.push(this.ball.position.clone());
-    if (a.trailPts.length > 2) {
-      if (this.trail) { this.scene.remove(this.trail); this.trail.geometry.dispose(); }
-      if (!this._trailMat) this._trailMat = new THREE.LineBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.9 });
-      const g = new THREE.BufferGeometry().setFromPoints(a.trailPts);
-      this.trail = new THREE.Line(g, this._trailMat); // reuse one material (was allocated per frame)
-      this.scene.add(this.trail);
+    // follow camera (targets; _frame smooths them)
+    if (a.plan) {
+      const cam = flightCameraAt(a.plan, Math.min(a.t, a.dur), pts);
+      this.camPosT.copy(V(cam.pos.x, cam.pos.y, cam.pos.z));
+      this.lookT.copy(V(cam.look.x, cam.look.y, cam.look.z));
     }
+    a.onProgress?.(Math.min(a.t, a.dur));
 
     if (a.t >= a.dur) {
       const done = a.onDone;
       this.anim = null;
+      if (this._fx) this._fx.lingerStart = this.clock.elapsedTime;
       setTimeout(() => {
         this.camMode = 'idle';
         if (this.aimLine) this.aimLine.visible = true;
         done?.();
       }, 900);
     }
+  }
+
+  // Per-frame shot FX: tracer head + linger fade, head glow, apex/landing reveal,
+  // projected callouts, and the ball's contact shadow (always on).
+  _updateShotFx(frameTime) {
+    const a = this.anim;
+    const viewH = this.renderer.domElement.clientHeight || this.container.clientHeight || 720;
+    const pxWorld = (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2)) / Math.max(1, viewH);
+    const fx = this._fx;
+    let alpha = 1, head = a ? a.t : Infinity;
+    if (fx && fx.lingerStart != null) {
+      const age = frameTime - fx.lingerStart;
+      alpha = 1 - THREE.MathUtils.smoothstep(age, 4.5, 6.5);   // hold ~4.5 s, fade 2 s
+      if (alpha <= 0) { this._clearTrail(); return this._updateBallShadow(); }
+    }
+    if (this.tracer) this.tracer.update(this.camera, viewH, head, alpha);
+    const inAir = !!(a && !a.isPutt && a.t < a.flightTime);
+    this.headGlow.visible = inAir;
+    if (inAir) {
+      this.headGlow.position.copy(this.ball.position);
+      this.headGlow.userData.uniforms.uPxWorld.value = pxWorld;
+    }
+    if (fx) {
+      const apexOn = !!(fx.apex && head >= fx.apex.t);
+      this.apexGlow.visible = this.dropLine.visible = apexOn;
+      if (apexOn) {
+        this.apexGlow.userData.uniforms.uPxWorld.value = pxWorld;
+        this.apexGlow.userData.uniforms.uAlpha.value = alpha;
+        this.dropLine.material.opacity = 0.55 * alpha;
+      }
+      const landOn = !!(fx.land && head >= fx.land.t);
+      this.landRing.visible = landOn;
+      if (landOn) {
+        const d = this.camera.position.distanceTo(fx.land.p);
+        const r = Math.max(1.6, d * 0.022);
+        this.landRing.scale.set(r * 2, 1, r * 2);
+        this.landRing.userData.uniforms.uTime.value = frameTime;
+        this.landRing.userData.uniforms.uAlpha.value = alpha * 0.9;
+      }
+      this._placeLabel(this.shotLabels.apex, apexOn ? fx.apex.p : null, alpha, -18);
+      this._placeLabel(this.shotLabels.land, landOn ? fx.land.p : null, alpha, -14);
+    }
+    this._updateBallShadow();
+  }
+
+  _placeLabel(el, world, alpha, dy) {
+    if (!world || alpha <= 0.02) { el.style.display = 'none'; return; }
+    const v = world.clone().project(this.camera);
+    const w = this.container.clientWidth, h = this.container.clientHeight;
+    const sx = (v.x * 0.5 + 0.5) * w, sy = (-v.y * 0.5 + 0.5) * h + dy;
+    if (v.z > 1 || sx < 20 || sx > w - 20 || sy < 60 || sy > h - 20) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.style.opacity = alpha.toFixed(2);
+    el.style.transform = `translate(-50%,-100%) translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
+  }
+
+  _updateBallShadow() {
+    const bx = this.ballSim.x, by = this.ballSim.y;
+    const gz = this.hAt(bx, by);
+    const bz = this.anim ? (this._ballZ ?? gz) : gz;
+    const hgt = Math.max(0, bz - gz);
+    const s = this.ball.scale.x;               // follow the address read-scale
+    const size = (0.26 + hgt * 0.05) * s;
+    this.ballShadow.position.copy(V(bx, by, gz + 0.025));
+    this.ballShadow.scale.set(size, 1, size);
+    this.ballShadow.material.opacity = THREE.MathUtils.clamp(1 - hgt / 25, 0, 1) * 0.85;
+    this.ballShadow.visible = this.ballShadow.material.opacity > 0.02;
   }
 
   // ---------- cameras ----------
@@ -1365,7 +1579,10 @@ export class GolfScene {
 
   _frame(capture = null) {
     const fixed = capture && typeof capture === 'object';
-    const dt = fixed ? Math.max(0, Number(capture.fixedDelta) || 0) : Math.min(this.clock.getDelta(), 0.05);
+    const rawDt = fixed ? 0 : this.clock.getDelta();
+    const dt = fixed ? Math.max(0, Number(capture.fixedDelta) || 0) : Math.min(rawDt, 0.05);
+    if (!fixed) this._trackFrameRate(rawDt * 1000);
+    if (this._pendingRebuild && !this.anim) this._rebuildScenery();
     const frameTime = fixed ? (Number(capture.fixedTime) || 0) : this.clock.elapsedTime;
     this._captureFixedTime = fixed ? frameTime : null;
 
@@ -1376,9 +1593,14 @@ export class GolfScene {
     if (this.camMode === 'idle') this._idleTargets();
     else if (this.camMode === 'free') { this._freeStep(dt); this._freeTargets(); }
 
-    const k = capture?.snapCamera ? 1 : 1 - Math.exp(-4.2 * dt);
+    // The flight camera's targets are already smooth (flight-camera.js), so track them
+    // tighter than the address/orbit easing — a loose look-lerp lets a 70 m/s ball
+    // run out ahead of frame.
+    const flying = this.camMode === 'static' && this.anim && this.anim.plan;
+    const k = capture?.snapCamera ? 1 : 1 - Math.exp(-(flying ? 3.2 : 4.2) * dt);
+    const kLook = capture?.snapCamera ? 1 : 1 - Math.exp(-(flying ? 9.0 : 4.2) * dt);
     this.camera.position.lerp(this.camPosT, k);
-    this.lookCur.lerp(this.lookT, k);
+    this.lookCur.lerp(this.lookT, kLook);
     this.camera.lookAt(this.lookCur);
 
     // keep ball & pin readable at distance — but ONLY in a play framing, so
@@ -1391,6 +1613,7 @@ export class GolfScene {
     if (this.aimLine) this.aimLine.visible = isPlayFraming(this.camMode, this.anim);
 
     this._updateMarkers();
+    this._updateShotFx(frameTime);
     if (this._treeWind) this._treeWind(frameTime);
     if (this._grassWind) this._grassWind(frameTime);
     if (RENDER_CONFIG.foregroundGrass && this.camMode === 'idle' && this._fairwayGrassCenter) {
@@ -1400,7 +1623,7 @@ export class GolfScene {
     if (this._fairwayGrassWind) this._fairwayGrassWind(frameTime);
     if (this._flagU) this._flagU.value = frameTime;
     if (this._waterUpdate) this._waterUpdate(frameTime);
-    if (this.waterDepth && this._terrain) this.waterDepth.prepass(this._terrain, this.camera);
+    if (this.waterDepth && this._foamOn && this._terrain) this.waterDepth.prepass(this._terrain, this.camera);
     this.postfx.render();
     if (fixed) {
       this._lastVisualCapture = {

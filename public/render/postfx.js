@@ -62,6 +62,7 @@ export class PostFX {
       });
       gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 16 });
       this.composer.addPass(gtao);
+      this.gtao = gtao;
     }
 
     // Bloom must NOT touch turf: sun-lit bright grass (esp. the greens) sits near
@@ -82,6 +83,12 @@ export class PostFX {
     // (The last pass renders to the default framebuffer, so preserveDrawingBuffer
     // still captures the composited frame for the screenshot/recording path.)
     this.composer.addPass(new SMAAPass());
+  }
+
+  // Graphics quality (quality.js): toggle the optional passes live.
+  setQuality({ gtao = true, bloom = true } = {}) {
+    if (this.gtao) this.gtao.enabled = !!gtao;
+    if (this.bloom) this.bloom.enabled = !!bloom;
   }
 
   setSize(w, h) {
