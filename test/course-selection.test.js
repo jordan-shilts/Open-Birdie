@@ -14,7 +14,7 @@ const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'birdie-selection-'));
 process.env.BIRDIE_DATA_DIR = dataDir;
 
 const {
-  searchCourses, loadCourse, makeSurfaceLookup, boundaryProblem, overpass, CourseLoadError,
+  searchCourses, loadCourse, makeSurfaceLookup, boundaryProblem, overpass, overpassEndpoints, CourseLoadError,
 } = require('../lib/course');
 const { createCourseActivationManager } = require('../lib/course-activation');
 const { Game } = require('../lib/game');
@@ -213,6 +213,26 @@ test('the mirror that answered last is tried first next time', async () => {
   seen.length = 0;
   await overpass('q2', { ...fast, endpoints, fetchImpl });
   assert.deepEqual(seen, [endpoints[1]]);
+});
+
+test('the mirror list includes the mail.ru mirror after the main instance', () => {
+  const endpoints = overpassEndpoints({});
+  assert.equal(endpoints[0], 'https://overpass-api.de/api/interpreter');
+  assert.equal(endpoints[1], 'https://maps.mail.ru/osm/tools/overpass/api/interpreter');
+  assert.equal(new Set(endpoints).size, endpoints.length, 'no duplicates');
+});
+
+test('BIRDIE_OVERPASS_URLS puts your own mirrors first and skips anything that is not a URL', (t) => {
+  t.mock.method(console, 'warn', () => {});
+  const own = 'https://overpass.example.test/api/interpreter';
+  const endpoints = overpassEndpoints({
+    BIRDIE_OVERPASS_URLS: ` ${own} , not a url,ftp://x.test/api, https://overpass-api.de/api/interpreter,`,
+  });
+  assert.equal(endpoints[0], own);
+  assert.equal(endpoints[1], 'https://overpass-api.de/api/interpreter', 'a public mirror you list moves up, once');
+  assert.equal(endpoints.filter((e) => e.includes('overpass-api.de')).length, 1);
+  assert.ok(!endpoints.some((e) => e.includes('not a url') || e.startsWith('ftp:')));
+  assert.equal(console.warn.mock.callCount(), 2, 'one warning per rejected entry');
 });
 
 // ---------- refusing a non-golf-course feature ----------

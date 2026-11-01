@@ -135,6 +135,11 @@ All notable changes to Open-Birdie are documented here.
   clean lush fairway rather than churned mud (`turf.js`, `scene.js` `COLORS`).
 
 ### Fixed
+- **Courses load when the usual map servers are busy** — every built-in Overpass mirror was at
+  capacity or silent, so new courses failed to load. Added the maps.mail.ru mirror (it answers,
+  but slowly) and gave each request time to finish: 45 s for lookups, 100 s for the feature query
+  (was 20 s / 60 s, which cut off a slow-but-working mirror and then skipped it). New
+  `BIRDIE_OVERPASS_URLS` puts your own mirrors first (`lib/course.js`).
 - **No more fescue growing in bunkers** — bunkers map as islands inside a rough polygon, so the
   grass scatter used to sprout tufts in the sand; the scatter now excludes bunker/water areas
   (`scene.js` `_grassSpots`).
