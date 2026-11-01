@@ -7,7 +7,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { OpenConnectServer } = require('./lib/openconnect');
+const { OpenConnectServer, toOpenConnectClub } = require('./lib/openconnect');
 const { searchCourses, loadCourse, listCached, loadCached } = require('./lib/course');
 const { createCourseActivationManager } = require('./lib/course-activation');
 const { serveCourseArtRequest } = require('./lib/course-art-http');
@@ -251,7 +251,7 @@ const server = http.createServer(async (req, res) => {
         return json(res, { ok: true });
       }
       if (p === '/api/club') {
-        oc.setPlayer({ Club: body.club || 'DR' });
+        oc.setPlayer({ Club: toOpenConnectClub(body.club) });
         return json(res, { ok: true });
       }
       if (p === '/api/next-hole') {

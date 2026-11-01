@@ -519,7 +519,7 @@ for (const [label, key] of CLUBS) {
     document.querySelectorAll('#clubs .club').forEach((x) => x.classList.remove('active'));
     b.classList.add('active');
     $('lie-club').textContent = label.toUpperCase();
-    fetch('/api/club', { method: 'POST', body: JSON.stringify({ club: label.toUpperCase() }) });
+    fetch('/api/club', { method: 'POST', body: JSON.stringify({ club: key }) });
     const p = clubPresets[key];
     if (p) setPractice(p.speedMph, p.vla, p.spin);
   };
