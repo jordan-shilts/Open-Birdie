@@ -5,6 +5,7 @@ import { buildHdAckEvidence, validateHdPolicy, waitForCaptureReady } from './ren
 import { toPar, forwardLabel, verdict } from './scoring.mjs';
 import { FlightView } from './flight-view.js';
 import { parseQualitySetting, nextQualitySetting, qualityLabel } from './render/quality.js';
+import { parseSkySetting, nextSkySetting, skyLabel } from './render/sky-presets.js';
 
 const $ = (id) => document.getElementById(id);
 // Readiness nonce handed only to the loopback Electron primary client (absent on LAN mirrors).
@@ -16,7 +17,12 @@ const visualCaptureEnabled = query.get('visualCapture') === '1';
 const GFX_KEY = 'open-birdie.graphics';
 const readGfx = () => { try { return localStorage.getItem(GFX_KEY); } catch { return null; } };
 let gfxSetting = parseQualitySetting(query.get('gfx') || (visualCaptureEnabled ? 'high' : readGfx()) || 'auto');
-const scene = new GolfScene($('scene'), { quality: gfxSetting, autoQuality: !visualCaptureEnabled });
+// Time of day: ?sky=morning|midday|golden overrides the saved choice (Midday by default;
+// visual capture pins Midday unless asked).
+const SKY_KEY = 'open-birdie.sky';
+const readSky = () => { try { return localStorage.getItem(SKY_KEY); } catch { return null; } };
+let skySetting = parseSkySetting(query.get('sky') || (visualCaptureEnabled ? 'midday' : readSky()));
+const scene = new GolfScene($('scene'), { quality: gfxSetting, autoQuality: !visualCaptureEnabled, sky: skySetting });
 const flightView = new FlightView($('flightview'));
 function showGfx(q) {
   const b = $('btn-gfx');
@@ -29,6 +35,15 @@ $('btn-gfx').onclick = () => {
   gfxSetting = nextQualitySetting(gfxSetting);
   try { localStorage.setItem(GFX_KEY, gfxSetting); } catch { /* private mode */ }
   scene.setQuality(gfxSetting);
+};
+const showSky = () => { $('btn-sky').textContent = `Sky: ${skyLabel(skySetting)}`; };
+showSky();
+$('btn-sky').onclick = () => {
+  skySetting = nextSkySetting(skySetting);
+  try { localStorage.setItem(SKY_KEY, skySetting); } catch { /* private mode */ }
+  showSky();
+  // a sky that can't be fetched falls back to midday: show what actually loaded
+  scene.setSky(skySetting).then(() => { skySetting = scene.skySetting; showSky(); });
 };
 window.__birdie = { scene, get state() { return state; } };
 

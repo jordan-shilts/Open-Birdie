@@ -15,6 +15,7 @@ import { buildRakes } from './props.js';
 import { buildGrass } from './grass.js';
 import { GrassField } from './grass-field.js';
 import { buildWater } from './water.js';
+import { SKY_PRESETS, parseSkySetting } from './sky-presets.js';
 import { coursePonds, carveBeds } from './water-shore.js';
 import { makeWaterDepth } from './water-depth.js';
 import { makeTurfMaterial, makeSandMaterial } from './turf.js';
@@ -97,8 +98,9 @@ function hexToLinearRGB(hex) {
 // palette (this._pal) at load — see below.
 
 export class GolfScene {
-  constructor(container, { quality = 'auto', autoQuality = true } = {}) {
+  constructor(container, { quality = 'auto', autoQuality = true, sky = 'midday' } = {}) {
     this.container = container;
+    this.skySetting = parseSkySetting(sky);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(container.clientWidth, container.clientHeight);
@@ -297,23 +299,61 @@ export class GolfScene {
 
     // HDRI: image-based lighting + visible sky + ground horizon + sun direction.
     // One source of truth for the sun (this.sunDir) drives the light + _fitShadows.
-    this.envReady = loadHDRIEnvironment(this.renderer).then(({ envTexture, equirect, sunDir, horizonColor, horizonLinear }) => {
+    this.envReady = this._applySky(this.skySetting);
+  }
+
+  // Time of day (sky-presets.js): the sky photo plus the light that goes with it.
+  // this.sunDir is updated IN PLACE — trees, turf and water hold that vector.
+  setSky(setting) {
+    this.skySetting = parseSkySetting(setting);
+    this.envReady = this._applySky(this.skySetting);
+    return this.envReady;
+  }
+
+  _applySky(name) {
+    const preset = SKY_PRESETS[name];
+    const midday = !preset.hdri;
+    this.environmentStatus = { state: 'loading', sky: name };
+    const opts = midday ? {} : { url: preset.hdri, sunAzimuthDeg: null, sunAltitudeDeg: preset.sunAltitudeDeg };
+    const token = (this._skyToken = (this._skyToken || 0) + 1);
+    return loadHDRIEnvironment(this.renderer, opts).then(({ envTexture, equirect, sunDir, horizonColor, horizonLinear }) => {
+      if (token !== this._skyToken) { envTexture.dispose(); equirect.dispose(); return; } // a newer pick won
+      const oldEnv = this.scene.environment, oldSky = this._equirect;
       this.scene.environment = envTexture;
-      this.scene.environmentIntensity = RENDER_CONFIG.environmentIntensity;
+      this.scene.environmentIntensity = preset.environmentIntensity;
       this.scene.background = equirect;
       this._equirect = equirect;
+      if (oldEnv && oldEnv !== envTexture) oldEnv.dispose();
+      if (oldSky && oldSky !== equirect) oldSky.dispose();
       this.sunDir.copy(sunDir);
+      this.sun.color.set(preset.sunColor);
+      this.sun.intensity = preset.sunIntensity;
+      this.renderer.toneMappingExposure = preset.exposure;
       // fog + horizon haze in the sky's own (linear) radiance so they meet it exactly
       const fogCol = horizonLinear ? horizonLinear.clone().multiplyScalar(0.92) : new THREE.Color(horizonColor);
-      if (RENDER_CONFIG.aerialFog) this.scene.fog = makeAerialFog(fogCol);
-      if (RENDER_CONFIG.groundApron) {
-        this._haze = buildHorizonHaze({ color: fogCol, baseHeight: this._apronBase ?? 0 });
-        this.scene.add(this._haze.mesh);
+      this._fogDensity = preset.fogDensity;   // scaled by camera height each frame
+      if (RENDER_CONFIG.aerialFog) {
+        if (this.scene.fog) { this.scene.fog.color.copy(fogCol); this.scene.fog.density = preset.fogDensity; }
+        else { this.scene.fog = makeAerialFog(fogCol); this.scene.fog.density = preset.fogDensity; }
       }
+      if (RENDER_CONFIG.groundApron) {
+        if (this._haze) this._haze.setColor(fogCol);
+        else {
+          this._haze = buildHorizonHaze({ color: fogCol, baseHeight: this._apronBase ?? 0 });
+          this.scene.add(this._haze.mesh);
+        }
+      }
+      this._waterSetSun?.(this.sunDir);
       if (this.bounds) this._placeSkybox();                     // course already loaded
       if (this._activeHole) this._fitShadows(this._activeHole); // re-aim shadows to HDRI sun
-      this.environmentStatus = { state: 'ready' };
+      this.environmentStatus = { state: 'ready', sky: name };
     }).catch((e) => {
+      if (token !== this._skyToken) return;
+      if (!midday) {
+        console.warn(`[env] ${preset.label} sky unavailable (${e?.message || e}); using midday`);
+        this.skySetting = 'midday';
+        return this._applySky('midday');
+      }
       console.error('[env] HDRI load failed, using fallback env', e);
       this.scene.environment = makeFallbackEnv(this.renderer);  // D1: keep scene lit
       this.scene.environmentIntensity = RENDER_CONFIG.environmentIntensity;
@@ -1708,6 +1748,13 @@ export class GolfScene {
     if (this._treeWind) this._treeWind(frameTime);
     if (this._treeField) this._treeField.update(this.camera, frameTime);
     if (this._grassField) this._grassField.update(this.camera, frameTime);
+    if (this.scene.fog && this._fogDensity) {
+      // haze lies in the low air: looking down from a flyover or overview the light
+      // crosses far less of it than along the ground, so thin it as the camera climbs
+      const cp = this.camera.position;
+      const above = cp.y - (this.geo ? this.hAt(cp.x, -cp.z) : 0);
+      this.scene.fog.density = this._fogDensity * (1 - 0.6 * THREE.MathUtils.smoothstep(above, 40, 700));
+    }
     if (this._grassWind) this._grassWind(frameTime);
     if (RENDER_CONFIG.foregroundGrass && this.camMode === 'idle' && this._fairwayGrassCenter) {
       const fdx = this.ballSim.x - this._fairwayGrassCenter.x, fdy = this.ballSim.y - this._fairwayGrassCenter.y;

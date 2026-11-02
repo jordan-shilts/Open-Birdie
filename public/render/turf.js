@@ -397,7 +397,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
             float tb1 = sin((wx * 0.71 + wy * 0.71) * (3.14159265 / 1.6));
             float tb2 = sin((wx * -0.71 + wy * 0.71) * (3.14159265 / 1.6));
             grass *= 1.0 + 0.05 * ((smoothstep(-0.5, 0.5, tb1) - 0.5) + (smoothstep(-0.5, 0.5, tb2) - 0.5)) * teeK * sFade;
-            grass *= mix(1.0, mix(0.84, 0.94, uTurfClean), teeK); // the tee palette reads hot next to the darker rough
+            grass *= mix(1.0, mix(0.82, 0.86, uTurfClean), teeK); // the tee palette reads hot next to the darker rough (a lit pad in the sun-dominant key)
           }
           // GREEN (v29): calm fine grain + a SUBTLE checker mow + a gentle contour roll,
           // all gated by the SOFT edge (gEdge) so the putting-surface character fades

@@ -13,7 +13,7 @@ export const RENDER_CONFIG = {
   toneMappingExposure: 0.7,
   environmentIntensity: 0.4,
   sunIntensity: 5.0,
-  fogDensity: 0.00035, // aerial-perspective fog (atmosphere.js curve: linear + quadratic) to the HDRI horizon
+  fogDensity: 0.00042, // aerial-perspective fog (atmosphere.js curve: linear + quadratic) to the HDRI horizon; each time-of-day preset sets its own (sky-presets.js)
   groundApron: true,   // countryside ring past the course edge + horizon haze band (horizon.js)
   skyboxHeight: 30, // GroundedSkybox projection height (world meters); tuned in Task 7
   // Sun direction: null = auto-estimate from the HDRI's brightest texel.
