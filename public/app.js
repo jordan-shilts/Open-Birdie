@@ -79,18 +79,34 @@ const CLUBS = [
 ];
 
 // ---------- state application ----------
+// The HUD stat tiles: the round's labels, or a practice session's.
+function setStat(id, label, value) {
+  $(id).previousElementSibling.textContent = label;
+  $(id).textContent = value;
+}
+const PRACTICE_SHORT = { range: 'RANGE', closest: 'CTP', longdrive: 'LONG', targets: 'TARGET' };
+
 function applyState(s) {
   state = s;
   if (!s.loaded) { openCourseModal(); return; }
+  const pr = s.practice || null;   // driving range / mini game session (the round is paused)
   $('course-name').textContent = s.courseName.split(',')[0];
-  $('hud-hole').textContent = `${s.holeRef ?? s.hole}`; // real course hole number (1,9,10,18…), not play index
-  $('hud-par').textContent = s.par;
-  $('hud-len').textContent = `${s.lengthYd}y`;
+  if (pr) {
+    const closest = pr.mode === 'closest' && pr.holeRef != null;
+    setStat('hud-hole', closest ? 'HOLE' : 'MODE', closest ? `${pr.holeRef}` : PRACTICE_SHORT[pr.mode]);
+    setStat('hud-par', 'PAR', closest ? '3' : '–');
+    setStat('hud-len', 'FLAG', `${pr.target.yd}y`);
+    setStat('hud-strokes', 'BALLS', pr.ballsTotal ? `${pr.ballsHit}/${pr.ballsTotal}` : `${pr.ballsHit}`);
+  } else {
+    setStat('hud-hole', 'HOLE', `${s.holeRef ?? s.hole}`); // real course hole number (1,9,10,18…), not play index
+    setStat('hud-par', 'PAR', s.par);
+    setStat('hud-len', 'LENGTH', `${s.lengthYd}y`);
+    setStat('hud-strokes', 'STROKES', s.strokes);
+  }
   const pinTxt = s.distToPinYd > 45
     ? `${Math.round(s.distToPinYd)}y` : `${Math.round(s.distToPinYd * 3)}ft`;
   $('hud-pin').textContent = pinTxt;
   $('lie-pin').textContent = pinTxt;
-  $('hud-strokes').textContent = s.strokes;
   $('hud-lie').textContent = s.holed ? '⛳' : s.lie;
   updateForward(s);
   $('aim-slider').value = s.aimOffset;
@@ -99,24 +115,32 @@ function applyState(s) {
   updateHolePills(s);
   drawMinimap(s);
 
-  const key = `${s.courseName}#${s.hole}`;
+  // a practice target is its own "hole": a new flag re-frames the shot
+  const key = pr
+    ? `${s.courseName}#${pr.mode}@${s.pin[0].toFixed(1)},${s.pin[1].toFixed(1)}`
+    : `${s.courseName}#${s.hole}`;
   if (scene.geo) {
     if (key !== lastHoleKey) {
       lastHoleKey = key;
       flightView.newHole(key);
-      scene.setHole({ pin: s.pin, tee: s.tee, ref: s.holeRef ?? s.hole }, { x: s.ball.x, y: s.ball.y }, s.aimDeg);
+      scene.setHole({ pin: s.pin, tee: s.tee, ref: pr ? pr.target.yd : (s.holeRef ?? s.hole) }, { x: s.ball.x, y: s.ball.y }, s.aimDeg);
     } else if (!animating) {
       scene.setBall(s.ball);
       scene.setAim(s.aimDeg);
     }
+    scene.setPracticeFlags(pr ? pr.flags.filter((f) => f.yd !== pr.target.yd) : []);
+    scene.setPracticeGrid(pr && pr.grid
+      ? { from: pr.spot, to: s.pin, halfWidth: pr.grid.halfWidthYd * 0.9144, lengthM: 360 }
+      : null);
   }
   buildScorecard(s);
+  renderPracticeBoard(s);
 
   // round-over: auto-open the card exactly once (latched on the false->true edge), and
   // lock out further play. Lives here so the pendingState/animation path triggers it too.
-  if (s.over && !prevOver) { $('scorecard').classList.remove('hidden'); $('practice').classList.add('hidden'); }
+  if (s.over && !prevOver && !pr) { $('scorecard').classList.remove('hidden'); $('practice').classList.add('hidden'); }
   prevOver = s.over;
-  $('btn-practice').classList.toggle('hidden', !!s.over);
+  $('btn-practice').classList.toggle('hidden', !!s.over && !pr);
 }
 
 async function loadGeometry() {
@@ -338,6 +362,7 @@ function showShotData(shot) {
 }
 
 function shotToast(shot) {
+  if (shot.practice) { practiceToast(shot); return; }
   let main, sub = shot.note || '';
   if (shot.holed) {
     const par = state?.par ?? 4;
@@ -384,7 +409,7 @@ const FWD_ARIA = {
 function updateForward(s) {
   const f = forwardLabel(s);
   const btn = $('btn-next');
-  btn.classList.toggle('hidden', !!f.hidden);
+  btn.classList.toggle('hidden', !!f.hidden || !!s.practice);
   if (f.label) { btn.textContent = `${f.label} ▶`; btn.setAttribute('aria-label', FWD_ARIA[f.label] || f.label); }
 }
 function updateScoreChip(s) {
@@ -397,6 +422,7 @@ function updateScoreChip(s) {
 
 function updateHolePills(s) {
   const el = $('hole-pills');
+  el.classList.toggle('hidden', !!s.practice);
   if (el.children.length !== s.holeCount) {
     el.innerHTML = '';
     for (let i = 1; i <= s.holeCount; i++) {
@@ -491,7 +517,9 @@ function drawMinimap(s) {
   ctx.beginPath(); ctx.arc(bx, by, 3.6, 0, 7); ctx.fill(); ctx.stroke();
   ctx.restore();
 
-  $('mm-title').textContent = `HOLE ${s.holeRef ?? s.hole} · PAR ${s.par} · ${s.lengthYd}y`;
+  $('mm-title').textContent = s.practice
+    ? `${s.practice.label.toUpperCase()} · ${s.practice.target.yd}y`
+    : `HOLE ${s.holeRef ?? s.hole} · PAR ${s.par} · ${s.lengthYd}y`;
   $('mm-topin').textContent = s.distToPinYd > 45 ? `${Math.round(s.distToPinYd)}y` : `${Math.round(s.distToPinYd * 3)}ft`;
 }
 
@@ -565,6 +593,95 @@ function buildSummary(s) {
     + `<div class="sum-meta"><b>${verdict(t)}</b><span>${totScore} strokes · par ${totPar}</span></div>`
     + `</div>${nines}${highlights(s)}`;
 }
+
+// ---------- range & games ----------
+const postPractice = (body) => fetch('/api/practice', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+}).then((r) => r.json()).then((r) => { if (!r.ok) showToast('Range & games', r.error || 'not available'); });
+
+function practiceToast(shot) {
+  const p = shot.practice;
+  let main = p.shot.holed ? '⛳ HOLE IN ONE!' : p.shot.note;
+  let sub = `Carry ${shot.sim.carryYd.toFixed(0)} · Total ${shot.sim.totalYd.toFixed(0)} yd`;
+  if (p.over && p.score) { sub = main; main = `${p.score.label}: ${p.score.value}`; }
+  showToast(main, sub);
+}
+
+const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const yd0 = (v) => (Number.isFinite(v) ? Math.round(v) : '–');
+const lr = (v) => (Number.isFinite(v) ? `${v > 0 ? 'R' : v < 0 ? 'L' : ''}${Math.abs(Math.round(v))}` : '–');
+
+// Shot columns per game: [heading, cell(shot)].
+const PB_COLUMNS = {
+  range: [['#', (s) => s.n], ['CLUB', (s) => esc(s.club ? prettyClub(s.club) : '–')], ['CARRY', (s) => yd0(s.carryYd)], ['TOTAL', (s) => yd0(s.totalYd)], ['OFF', (s) => lr(s.offlineYd)]],
+  closest: [['#', (s) => s.n], ['CLUB', (s) => esc(s.club ? prettyClub(s.club) : '–')], ['CARRY', (s) => yd0(s.carryYd)],
+    ['TO PIN', (s) => (s.holed ? 'ACE' : s.counted === false ? (s.lie === 'water' ? 'water' : 'OB') : `${Math.round(s.toTargetYd * 3)} ft`)]],
+  longdrive: [['#', (s) => s.n], ['DIST', (s) => yd0(s.distanceYd)], ['CARRY', (s) => yd0(s.carryYd)], ['OFF', (s) => lr(s.offlineYd)], ['', (s) => (s.counted ? '✓' : '✗')]],
+  targets: [['#', (s) => s.n], ['FLAG', (s) => `${s.targetYd}y`], ['TO FLAG', (s) => `${yd0(s.toTargetYd)}y`], ['PTS', (s) => s.points ?? 0]],
+};
+
+function renderPracticeBoard(s) {
+  const pr = s.practice;
+  $('practice-board').classList.toggle('hidden', !pr);
+  document.querySelectorAll('#games-menu .game-card').forEach((c) => c.classList.toggle('active', !!pr && c.dataset.mode === pr.mode));
+  if (!pr) return;
+  $('pb-mode').textContent = pr.label.toUpperCase();
+  const where = pr.mode === 'closest' && pr.holeRef != null ? `Hole ${pr.holeRef}, ${pr.target.yd} yd`
+    : pr.ground === 'range' ? "On the course's driving range" : "From hole 1's tee (no range mapped)";
+  const left = pr.ballsTotal ? (pr.over ? 'game over' : `ball ${pr.ballsHit + 1} of ${pr.ballsTotal}`) : `${pr.ballsHit} balls`;
+  $('pb-sub').textContent = `${where} · ${left}`;
+  $('pb-score-label').textContent = pr.score ? pr.score.label.toUpperCase() : 'BALLS';
+  $('pb-score').textContent = pr.score ? pr.score.value : `${pr.ballsHit}`;
+
+  // flag picker (range, long drive) or par-3 picker (closest to the pin)
+  const chips = $('pb-targets');
+  chips.innerHTML = '';
+  const chip = (label, active, onclick) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = `chip${active ? ' active' : ''}`; b.textContent = label; b.onclick = onclick;
+    chips.appendChild(b);
+  };
+  if (pr.mode === 'range' || pr.mode === 'longdrive') {
+    for (const f of pr.flags) chip(`${f.yd}y`, f.yd === pr.target.yd, () => postPractice({ action: 'target', targetYd: f.yd }));
+  } else if (pr.mode === 'closest' && pr.par3s && pr.par3s.length > 1) {
+    for (const h of pr.par3s) {
+      chip(`#${h.ref} · ${h.lengthYd}y`, h.ref === pr.holeRef, () => postPractice({ mode: 'closest', hole: h.index }));
+    }
+  }
+
+  const cols = PB_COLUMNS[pr.mode];
+  const best = pr.score && pr.score.shot;
+  const rows = pr.shots.slice(-8).reverse().map((sh) => {
+    const cls = sh.n === best ? 'best' : sh.counted === false ? 'miss' : '';
+    return `<tr class="${cls}">${cols.map(([, cell]) => `<td>${cell(sh)}</td>`).join('')}</tr>`;
+  });
+  $('pb-shots').innerHTML = rows.length
+    ? `<tr>${cols.map(([h]) => `<th>${h}</th>`).join('')}</tr>${rows.join('')}`
+    : '<tr><td class="muted">Hit a ball: launch monitor or the Practice shot panel.</td></tr>';
+
+  const clubs = pr.clubStats || [];
+  $('pb-clubs').innerHTML = clubs.length
+    ? '<div class="panel-eyebrow">CLUB AVERAGES</div><table class="pb-table"><tr><th>CLUB</th><th>BALLS</th><th>CARRY</th><th>TOTAL</th><th>±OFF</th></tr>'
+      + clubs.map((c) => `<tr><td>${esc(c.club === '—' ? '–' : prettyClub(c.club))}</td><td>${c.n}</td><td>${yd0(c.carryYd)}</td><td>${yd0(c.totalYd)}</td><td>${yd0(c.offlineYd)}</td></tr>`).join('')
+      + '</table>'
+    : '';
+  $('pb-again').textContent = pr.mode === 'range' ? 'New bucket' : 'Play again';
+}
+
+$('btn-games').onclick = () => {
+  if (!state?.loaded) { openCourseModal(); return; }
+  $('games-menu').classList.toggle('hidden');
+};
+document.querySelectorAll('#games-menu .game-card').forEach((card) => {
+  card.onclick = () => { $('games-menu').classList.add('hidden'); postPractice({ mode: card.dataset.mode }); };
+});
+$('pb-again').onclick = () => {
+  const pr = state?.practice;
+  if (!pr) return;
+  const hole = pr.mode === 'closest' ? (pr.par3s || []).find((h) => h.ref === pr.holeRef)?.index : undefined;
+  postPractice({ mode: pr.mode, ...(hole != null ? { hole } : {}), ...(pr.mode !== 'targets' ? { targetYd: pr.target.yd } : {}) });
+};
+$('pb-end').onclick = () => postPractice({ action: 'end' });
 
 // ---------- controls ----------
 let fwdBusy = false; // debounce the forward POST so a double-press can't skip a hole (F6)
@@ -641,7 +758,7 @@ function setPractice(speed, vla, spin) {
   $('ps-spin').value = spin; $('ps-spin-v').textContent = `${spin} rpm`;
 }
 $('ps-hit').onclick = () => {
-  if (animating || state?.over) return;
+  if (animating || (state?.over && !state?.practice)) return;
   fetch('/api/test-shot', {
     method: 'POST',
     body: JSON.stringify({

@@ -112,7 +112,8 @@ function playShot(ballData, clubName) {
 
 function updatePlayerInfo() {
   if (!game.course) return;
-  oc.setPlayer({ DistanceToTarget: Math.round(game.distToPinYd) });
+  // the round's pin, or the practice target while on the range / in a mini game
+  oc.setPlayer({ DistanceToTarget: Math.round(game.state().distToPinYd) });
 }
 
 function deriveActivationSource(request) {
@@ -337,7 +338,27 @@ const server = http.createServer(async (req, res) => {
         return json(res, { ok: true });
       }
       if (p === '/api/aim') {
-        game.aimOffset = Math.max(-45, Math.min(45, +body.offset || 0));
+        game.setAimOffset(body.offset);
+        broadcast('state', game.state());
+        return json(res, { ok: true });
+      }
+      // Driving range and mini games on the loaded course (lib/practice.js):
+      //   {mode: range|closest|longdrive|targets, targetYd?, hole?}  start (or restart)
+      //   {action: 'target', targetYd}                              move the range flag
+      //   {action: 'end'}                                           back to the round
+      if (p === '/api/practice') {
+        if (!game.course) return json(res, { ok: false, error: 'Load a course first' }, 409);
+        try {
+          if (body.action === 'end') game.endPractice();
+          else if (body.action === 'target') { if (game.practice) game.practice.setTarget(body.targetYd); }
+          else game.startPractice(String(body.mode || 'range'), {
+            targetYd: Number.isFinite(+body.targetYd) ? +body.targetYd : null,
+            hole: Number.isInteger(body.hole) ? body.hole : null,
+          });
+        } catch (error) {
+          return json(res, { ok: false, error: error.message }, 400);
+        }
+        updatePlayerInfo();
         broadcast('state', game.state());
         return json(res, { ok: true });
       }

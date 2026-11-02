@@ -379,3 +379,45 @@ body {
   #hole-pills { display: none; }
   #scorecard { width: auto; left: 12px; right: 12px; max-width: none; }
 }
+
+/* ---------- range & games (lib/practice.js) ---------- */
+#games-menu { width: 360px; }
+.game-cards { display: grid; gap: 8px; margin-bottom: 10px; }
+.game-card {
+  display: flex; flex-direction: column; gap: 3px; text-align: left; cursor: pointer;
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bg-card); color: var(--fg); font: inherit;
+}
+.game-card b { font-size: 13px; }
+.game-card span { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.game-card:hover, .game-card.active { border-color: var(--accent); background: var(--accent-soft); }
+#games-note { font-size: 11.5px; }
+
+#practice-board {
+  position: fixed; left: 16px; bottom: 196px; z-index: 10; width: 290px; max-height: 44vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+  padding: 11px 13px 12px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+}
+.pb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.pb-head .panel-eyebrow { margin-bottom: 2px; color: var(--accent); }
+.pb-sub { font-size: 11.5px; color: var(--muted); }
+.pb-score { text-align: right; }
+.pb-score span { display: block; font-size: 9.5px; letter-spacing: 1.2px; color: var(--muted); font-weight: 700; }
+.pb-score b { font-family: "Bahnschrift", "DIN Alternate", "Inter", system-ui, sans-serif; font-size: 24px; font-weight: 700; color: var(--accent); }
+.pb-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.pb-chips:empty { display: none; }
+.pb-chips .chip { padding: 4px 9px; font-size: 11px; }
+.pb-chips .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pb-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-bottom: 8px; }
+.pb-table th { color: var(--muted); font-weight: 700; font-size: 9.5px; letter-spacing: 0.8px; text-align: right; padding: 2px 3px; }
+.pb-table td { text-align: right; padding: 3px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.pb-table th:first-child, .pb-table td:first-child { text-align: left; }
+.pb-table tr.best td { color: var(--green-deep); font-weight: 700; }
+.pb-table tr.miss td { color: var(--muted); }
+#pb-clubs .panel-eyebrow { margin: 4px 0 4px; }
+.pb-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.pb-actions .btn { padding: 6px 11px; font-size: 12px; }
+@media (max-width: 430px) {
+  #practice-board { left: 12px; right: 12px; width: auto; bottom: 160px; max-height: 36vh; }
+  #games-menu { left: 12px; right: 12px; width: auto; }
+}

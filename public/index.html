@@ -38,6 +38,7 @@
   </div>
   <div id="lm-status" title="Launch monitor connection"><span class="dot"></span><span id="lm-text">LM: waiting</span></div>
   <button id="btn-course" class="btn">Course</button>
+  <button id="btn-games" class="btn" title="Driving range and mini games on this course">Range &amp; games</button>
   <button id="btn-score" class="btn">Scorecard</button>
   <button id="btn-flyover" class="btn" title="Fly over the current hole (F) — any key or click skips">Flyover</button>
   <button id="btn-free" class="btn" title="Free course-creator camera (C)">Free look</button>
@@ -113,6 +114,31 @@
   <label>Spin axis <input id="ps-axis" type="range" min="-30" max="30" value="0" step="1"><b id="ps-axis-v">0°</b></label>
   <button id="ps-hit" class="btn primary big">HIT ⛳</button>
 </div>
+
+<div id="games-menu" class="panel hidden" role="dialog" aria-label="Driving range and mini games">
+  <h3>Range &amp; games <span class="muted">on this course</span></h3>
+  <div class="game-cards">
+    <button class="game-card" data-mode="range"><b>Driving range</b><span>Hit from the course's own range at yardage flags. Shot table and club averages.</span></button>
+    <button class="game-card" data-mode="closest"><b>Closest to the pin</b><span>5 balls at a par 3. Your best ball counts; an ace wins outright.</span></button>
+    <button class="game-card" data-mode="longdrive"><b>Long drive</b><span>6 drives. Only drives that stop inside the grid count.</span></button>
+    <button class="game-card" data-mode="targets"><b>Target challenge</b><span>10 balls, a new flag each time. 10 / 5 / 3 / 1 points inside 3 / 8 / 15 / 25 yd.</span></button>
+  </div>
+  <p id="games-note" class="muted">Your round is paused while you practise and resumes where you left it.</p>
+</div>
+
+<aside id="practice-board" class="hidden" aria-live="polite">
+  <div class="pb-head">
+    <div><div class="panel-eyebrow" id="pb-mode">DRIVING RANGE</div><div id="pb-sub" class="pb-sub"></div></div>
+    <div class="pb-score"><span id="pb-score-label">BALLS</span><b id="pb-score">0</b></div>
+  </div>
+  <div id="pb-targets" class="pb-chips"></div>
+  <table id="pb-shots" class="pb-table"></table>
+  <div id="pb-clubs"></div>
+  <div class="pb-actions">
+    <button id="pb-again" class="btn">Play again</button>
+    <button id="pb-end" class="btn primary">Back to the round</button>
+  </div>
+</aside>
 
 <div id="scorecard" class="panel hidden">
   <div id="score-summary" class="hidden"></div>

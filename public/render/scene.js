@@ -1393,6 +1393,58 @@ export class GolfScene {
     this._aimLineUpdate();
   }
 
+  // ---------- range & games ----------
+  // Yellow yardage flags ([{x, y, yd}] in sim metres) besides the target's own pin;
+  // [] removes them. They wave and read-scale with the pin.
+  setPracticeFlags(flags = []) {
+    this._practiceFlags = this._practiceFlags || [];
+    while (this._practiceFlags.length > flags.length) {
+      const f = this._practiceFlags.pop();
+      this.scene.remove(f.group);
+      f.dispose();
+    }
+    while (this._practiceFlags.length < flags.length) {
+      const f = makePin({ cloth: '#f2c230', hem: '#d9a91c', ink: '#1d2a1f' });
+      this.scene.add(f.group);
+      this._practiceFlags.push(f);
+    }
+    if (!this.geo) return;
+    flags.forEach((fl, i) => {
+      const f = this._practiceFlags[i];
+      f.group.position.copy(V(fl.x, fl.y, this.hAt(fl.x, fl.y)));
+      f.setLabel(fl.yd);
+    });
+  }
+
+  // Long drive: the grid's two edge lines, halfWidth metres either side of the line
+  // from `from` toward `to`, out to lengthM; null removes them.
+  setPracticeGrid(grid) {
+    if (this._practiceGrid) {
+      this.scene.remove(this._practiceGrid);
+      this._practiceGrid.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
+      this._practiceGrid = null;
+    }
+    if (!grid || !this.geo) return;
+    const { from, to, halfWidth, lengthM } = grid;
+    let ux = to[0] - from[0], uy = to[1] - from[1];
+    const len = Math.hypot(ux, uy) || 1;
+    ux /= len; uy /= len;
+    const group = new THREE.Group();
+    const mat = new THREE.LineDashedMaterial({ color: 0xffd400, transparent: true, opacity: 0.7, dashSize: 3, gapSize: 2 });
+    for (const side of [-1, 1]) {
+      const pts = [];
+      for (let d = 20; d <= lengthM; d += 5) {
+        const x = from[0] + ux * d + uy * halfWidth * side, y = from[1] + uy * d - ux * halfWidth * side;
+        pts.push(V(x, y, this.hAt(x, y) + 0.3));
+      }
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat.clone());
+      line.computeLineDistances();
+      group.add(line);
+    }
+    this._practiceGrid = group;
+    this.scene.add(group);
+  }
+
   _fitShadows(hole) {
     const cx = (hole.tee[0] + hole.pin[0]) / 2, cy = (hole.tee[1] + hole.pin[1]) / 2;
     const cz = this.hAt(cx, cy);
@@ -1712,6 +1764,10 @@ export class GolfScene {
     this.ball.scale.setScalar(ballReadScale(bd, this.camMode, this.anim));
     const pd = this.camera.position.distanceTo(this.pin.position);
     this.pin.scale.setScalar(pinReadScale(pd, this.camMode, this.anim));
+    for (const f of this._practiceFlags || []) {
+      f.group.scale.setScalar(pinReadScale(this.camera.position.distanceTo(f.group.position), this.camMode, this.anim));
+      f.uTime.value = frameTime;
+    }
     // gameplay aim line is an address-view aid — never in non-play framings
     if (this.aimLine) this.aimLine.visible = isPlayFraming(this.camMode, this.anim);
 
