@@ -5,6 +5,16 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **The ball hits the course's real trees** — the trees the renderer draws (canopy trees, plus OSM tree
+  points no canopy tree already covers) are obstacles, indexed once per course on an 8 m grid
+  (`lib/tree-obstacles.js`). Trunks are solid up to the crown (radius 0.12 + 0.01 × height): the ball
+  bounces off at restitution 0.4–0.5 and loses most of its spin, in flight or rolling. Each crown is fitted
+  to the generated model drawn there (`tree-gen.js`; open- or woods-grown form, sized like the renderer
+  sizes it): an ellipsoid around the leaf mass, a cone for firs, whose skirt can catch a rolling ball.
+  Crowns are porous: 0.25–0.4 branch hits per metre inside, each keeping 20–60% of the speed and throwing
+  the ball down and back, so it usually drops out under the tree. The luck is seeded by the shot, so a
+  replay plays out identically, and a shot no tree reaches is bit-for-bit unchanged. Hits are `tree` shot
+  events (`part: 'crown' | 'trunk'`); the HUD calls out "Tree!" as the replay reaches the first one.
 - **Real trees from canopy height data** — `tools/add-canopy-trees.mjs` streams the Meta & WRI 1 m
   global canopy height map (CC BY 4.0) for a course and writes `course.canopy`: every tree's position,
   height and crown radius (distinct crowns, plus a fill for closed woods). The renderer places and sizes

@@ -247,12 +247,13 @@ es.addEventListener('shot', (e) => {
   showShotData(shot);
   animating = true;
   flightView.startShot(shot);
+  const treeCallout = treeCalloutFor(shot);
   scene.playShot(shot.sim.points, shot.sim.flightTime, () => {
     animating = false;
     flightView.finish();
     if (pendingState) { applyState(pendingState); pendingState = null; }
     shotToast(shot);
-  }, { onProgress: (t) => flightView.setTime(t), isPutt: !!shot.sim.isPutt });
+  }, { onProgress: (t) => { flightView.setTime(t); treeCallout(t); }, isPutt: !!shot.sim.isPutt });
 });
 
 function setVal(id, num, unit) {
@@ -299,7 +300,6 @@ function showShotData(shot) {
 }
 
 function shotToast(shot) {
-  const t = $('toast');
   let main, sub = shot.note || '';
   if (shot.holed) {
     const par = state?.par ?? 4;
@@ -312,11 +312,28 @@ function shotToast(shot) {
     main = `Carry ${shot.sim.carryYd.toFixed(0)} · Total ${shot.sim.totalYd.toFixed(0)} yd`;
     if (!sub) sub = `${shot.sim.offlineYd > 0 ? 'R' : 'L'}${Math.abs(shot.sim.offlineYd).toFixed(0)} yd ${shot.lie === 'ob' ? '' : '· lie: ' + shot.lie}`;
   }
+  showToast(main, sub);
+}
+
+function showToast(main, sub = '') {
+  const t = $('toast');
   t.innerHTML = `${main}${sub ? `<div class="sub">${sub}</div>` : ''}`;
   t.classList.remove('hidden');
   t.style.opacity = 1;
   clearTimeout(t._h);
   t._h = setTimeout(() => { t.style.opacity = 0; }, 4200);
+}
+
+// "Tree!" the moment the replay reaches the ball's first tree contact (a `tree` sim
+// event: part 'trunk' or 'crown'). Returns the per-frame replay-time hook.
+function treeCalloutFor(shot) {
+  const hit = (shot.sim.events || []).find((ev) => ev.type === 'tree');
+  let shown = !hit;
+  return (t) => {
+    if (shown || t < hit.t) return;
+    shown = true;
+    showToast('🌳 Tree!', hit.part === 'trunk' ? 'Off the trunk' : 'Into the branches');
+  };
 }
 
 // ---------- HUD chips ----------
