@@ -17,6 +17,7 @@ const { prepareCourseCandidate } = require('./lib/resolved-course-package');
 const { Game, CLUB_FULL } = require('./lib/game');
 const { serveHdAsset, publicHdMetadata, pickDescriptor } = require('./lib/hd-http');
 const { makeNonce, verifyReadinessAck } = require('./lib/hd-readiness');
+const { googleTilesConfig } = require('./lib/google-tiles-config');
 
 const HTTP_PORT = +(process.env.BIRDIE_PORT || 8222);
 const OC_PORT = +(process.env.BIRDIE_OC_PORT || 921);
@@ -175,7 +176,13 @@ const activationManager = createCourseActivationManager({
 });
 
 // ---------- HTTP ----------
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.wasm': 'application/wasm' };
+// ES modules served from node_modules (keeps the app fully offline-capable). three.js is
+// always used; 3d-tiles-renderer is only fetched when Google 3D tiles are configured.
+const VENDOR = { '/vendor/three/': 'three', '/vendor/3d-tiles-renderer/': '3d-tiles-renderer' };
+// Official Google Maps logo for the 3D-tiles attribution, if the user has installed it
+// (else the page shows the words "Google Maps", which the Map Tiles policies allow).
+const GOOGLE_LOGO = 'assets/attribution/google-maps-logo.svg';
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -312,11 +319,19 @@ const server = http.createServer(async (req, res) => {
       } catch (e) { res.writeHead(404); return res.end('not found'); }
     }
     if (p === '/api/course-geometry') return json(res, courseGeometry());
+    if (p === '/api/google-tiles-config') {
+      const config = googleTilesConfig({
+        loopback: isLoopbackAddr(req.socket.remoteAddress),
+        logoUrl: fs.existsSync(path.join(PUB, GOOGLE_LOGO)) ? GOOGLE_LOGO : null,
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(config));
+    }
 
-    // three.js served from node_modules (keeps the app fully offline-capable)
-    if (p.startsWith('/vendor/three/')) {
-      const base = path.join(__dirname, 'node_modules', 'three');
-      const rel = path.normalize(p.slice('/vendor/three/'.length)).replace(/^([.][.][/\\])+/, '');
+    for (const [prefix, pkg] of Object.entries(VENDOR)) {
+      if (!p.startsWith(prefix)) continue;
+      const base = path.join(__dirname, 'node_modules', pkg);
+      const rel = path.normalize(p.slice(prefix.length)).replace(/^([.][.][/\\])+/, '');
       const tfull = path.join(base, rel);
       if (!tfull.startsWith(base) || !fs.existsSync(tfull) || !fs.statSync(tfull).isFile()) {
         res.writeHead(404); return res.end('not found');
@@ -358,6 +373,10 @@ function courseGeometry() {
   const activePackage = activationManager.current();
   if (!game.course || !activePackage) return null;
   const { name, surfaces, boundary, holes, trees, woods, buildings, elevation } = game.course;
+  // projection origin of the course-local metres (lib/course.js parseOsm) — places
+  // geographic content such as Google 3D tiles; client-only, not part of any fingerprint
+  const origin = game.course.origin && Number.isFinite(game.course.origin.lat) && Number.isFinite(game.course.origin.lon)
+    ? { lat: game.course.origin.lat, lon: game.course.origin.lon } : null;
   // real trees [[x, y, heightM, crownRadiusM], ...] from canopy height data (non-fingerprinted scenery)
   const canopy = game.course.canopy?.trees || null;
   // Course-wide aerial: bounds only (the image is fetched from /api/course-aerial);
@@ -376,7 +395,7 @@ function courseGeometry() {
   const hd = activeHd.length ? activeHd.map(publicHdMetadata) : null;
   return {
     name,
-    origin: game.course.origin || null,
+    origin,
     surfaces,
     boundary,
     holes,

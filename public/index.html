@@ -8,7 +8,10 @@
 <script type="importmap">
   { "imports": {
     "three": "/vendor/three/build/three.module.js",
-    "three/addons/": "/vendor/three/examples/jsm/"
+    "three/addons/": "/vendor/three/examples/jsm/",
+    "three/examples/jsm/": "/vendor/three/examples/jsm/",
+    "3d-tiles-renderer": "/vendor/3d-tiles-renderer/build/index.js",
+    "3d-tiles-renderer/plugins": "/vendor/3d-tiles-renderer/build/index.plugins.js"
   } }
 </script>
 </head>
@@ -36,6 +39,7 @@
   <div id="lm-status" title="Launch monitor connection"><span class="dot"></span><span id="lm-text">LM: waiting</span></div>
   <button id="btn-course" class="btn">Course</button>
   <button id="btn-score" class="btn">Scorecard</button>
+  <button id="btn-flyover" class="btn" title="Fly over the current hole (F) — any key or click skips">Flyover</button>
   <button id="btn-free" class="btn" title="Free course-creator camera (C)">Free look</button>
   <button id="btn-gfx" class="btn" title="Graphics quality — click to cycle Auto / High / Low">Graphics</button>
   <button id="btn-sky" class="btn" title="Time of day — click to cycle Morning / Midday / Golden hour">Sky</button>

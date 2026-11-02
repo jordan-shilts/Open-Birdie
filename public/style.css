@@ -114,6 +114,31 @@ body {
 }
 #freecam-hint b { color: var(--accent); }
 
+/* hole flyover (render/flyover.js): dip-to-black overlay over the 3D view + skip hint */
+.flyover-fade { position: absolute; inset: 0; z-index: 6; background: #05080a; opacity: 0; pointer-events: none; }
+.flyover-hint {
+  position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%); z-index: 7;
+  background: rgba(13, 21, 16, 0.72); color: rgba(242, 241, 236, 0.9); border-radius: 9px;
+  padding: 6px 13px; font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none;
+}
+.flyover-hint b { color: #ffd400; }
+
+/* Google 3D tiles attribution (render/google-tiles.js): logo + data providers, bottom-right
+   of the 3D view between the minimap and the bottom bar; click to unfold long credits */
+.gt-attrib {
+  position: fixed; right: 16px; bottom: 53px; z-index: 10; max-width: calc(100vw - 230px);
+  display: flex; align-items: center; justify-content: flex-end; gap: 14px; cursor: pointer;
+  font-size: 11px; line-height: 16px; color: #fff; text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.gt-attrib[hidden] { display: none; }
+.gt-google { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.gt-label, .gt-ours { opacity: 0.85; white-space: nowrap; }
+.gt-logo { height: 16px; width: auto; margin: 0 10px; display: block; }
+.gt-wordmark { font-size: 13px; font-weight: 600; letter-spacing: 0.1px; margin: 0 4px; white-space: nowrap; }
+.gt-data { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.gt-attrib.expanded { align-items: flex-end; }
+.gt-attrib.expanded .gt-data { white-space: normal; }
+
 /* ---------- shot data cards ---------- */
 #shotpanel { position: fixed; left: 16px; top: 74px; z-index: 10; width: 234px; }
 .dcard-row { display: flex; gap: 8px; margin-bottom: 8px; }

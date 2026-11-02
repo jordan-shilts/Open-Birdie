@@ -67,6 +67,7 @@ Everything runs on this PC; no firewall changes needed. (If GSPconnect ever runs
 | Scorecard | scores, round-complete summary, restart / new round |
 | Graphics | cycle Auto / High / Low (High: live pond mirrors, grass blades, full tree detail) |
 | Sky | cycle Morning / Midday / Golden hour (sky photo + matching sun and haze) |
+| Flyover / F | fly over the current hole, tee to green; any key or click skips back to the shot |
 | F11 | toggle fullscreen |
 
 Putts are detected automatically when on the green (low speed + low launch).
@@ -91,8 +92,30 @@ and works offline.
 | `BIRDIE_SPEED_SCALE` | 1 | multiplier for incoming ball speed; set `2.23694` if your monitor reports m/s (shots play ~2.2× short otherwise) |
 | `BIRDIE_NO_WATCH` | (unset) | set to `1` to skip auto-starting the Uneekor VIEW feed bridge |
 | `BIRDIE_OVERPASS_URLS` | (unset) | comma-separated Overpass interpreter URLs to try before the built-in public mirrors (overpass-api.de, maps.mail.ru, kumi.systems, private.coffee) — useful when they are all at capacity or you run your own |
+| `GOOGLE_MAPS_API_KEY` | (unset) | your own Google Map Tiles API key — turns on the optional Google 3D surroundings (below). Unset = no requests to Google at all |
 
 Gimme distance: `POST /api/settings {"gimmeYd": feet}` (UI toggle coming later).
+
+### Optional: Google 3D surroundings
+
+With a key, the real houses, trees and lakes around the course stream in as Google
+Photorealistic 3D Tiles. The course itself is still drawn from open data: inside the course's
+terrain rectangle our own terrain, trees and buildings take over, and the Google tiles are
+lifted or lowered to meet our terrain at the edge.
+
+1. In a Google Cloud project with **billing enabled**, enable the **Map Tiles API** and create an
+   API key (restrict it to the Map Tiles API). Each course load starts one tiles session (one
+   root-tileset request); see Google's current Map Tiles pricing.
+2. Start the app with the key in the environment, e.g. `GOOGLE_MAPS_API_KEY=... npm start`
+   (Windows: `setx GOOGLE_MAPS_API_KEY "..."`, then reopen the terminal / restart the app).
+
+The key is handed only to the local window (never to LAN mirrors) and is never logged or
+cached. A rejected key logs one console warning and the game carries on without the tiles.
+Attribution (the Google Maps logo, or the words "Google Maps", plus the data providers for the
+tiles in view) shows at the bottom right, next to the course's own data credit. To use the
+official logo, save Google's logo file as `public/assets/attribution/google-maps-logo.svg`.
+Google's terms apply to everything streamed: no caching or exporting the tiles, and keep the
+attribution visible. `?googleTiles=0` turns the tiles off for a page.
 
 ## Dev tools
 
@@ -124,6 +147,9 @@ node tools/refresh-elevation.mjs  data/courses/<slug>.json   # re-fetch lidar if
   [High Resolution Canopy Height Maps](https://registry.opendata.aws/dataforgood-fb-forests/),
   licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (used by `tools/add-canopy-trees.mjs`)
 - Skies, leaves, needles and bark: [Poly Haven](https://polyhaven.com) (CC0) — see `ASSETS.md`
+- Optional surroundings (only with your own key): Google Photorealistic 3D Tiles, streamed under
+  the [Google Maps Platform terms](https://cloud.google.com/maps-platform/terms), rendered with
+  [3d-tiles-renderer](https://github.com/NASA-AMMOS/3DTilesRendererJS) (Apache-2.0)
 
 ## Known limitations / roadmap
 
