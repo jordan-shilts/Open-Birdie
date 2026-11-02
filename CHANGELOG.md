@@ -160,6 +160,10 @@ All notable changes to Open-Birdie are documented here.
   clean lush fairway rather than churned mud (`turf.js`, `scene.js` `COLORS`).
 
 ### Fixed
+- **Packaged app: three.js addons were missing** — electron-builder drops every dependency's
+  `examples` folder, which removed `three/examples/jsm` (post-processing, loaders) from the asar,
+  so the packaged renderer could not load. A build hook (`build/keep-three-addons.cjs`) keeps it;
+  `examples/fonts` stays out.
 - **Part of a course silently lost its lidar relief** — each 3DEP tile got one 12 s attempt; a slow reply
   dropped that whole area to the smoothed ~10 m terrain (Hazeltine holes 1, 9, 10, 18). Base tiles now get
   a 40 s deadline, 3 attempts with backoff, and a warning if one still fails (`lib/lidar.js`, `lib/elevation.js`).

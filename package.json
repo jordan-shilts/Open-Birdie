@@ -51,8 +51,10 @@
       "!data",
       "!docs",
       "!test",
-      "!.claude"
+      "!.claude",
+      "!node_modules/three/examples/fonts"
     ],
+    "onNodeModuleFile": "build/keep-three-addons.cjs",
     "asar": true,
     "asarUnpack": [
       "tools/uneekor-watch.js"
