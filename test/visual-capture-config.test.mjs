@@ -37,6 +37,7 @@ import {
 } from '../tools/visual-capture/metrics.mjs';
 import {
   cleanupRecordedChild,
+  defaultElectronPath,
   runCapture,
   runCourseChild,
   runComparison,
@@ -277,6 +278,17 @@ function expectIssue(mutator, expectedPath) {
       error.details.issues.some((issue) => issue.path === expectedPath),
   );
 }
+
+test('the Electron binary path comes from the electron package record on every platform', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'birdie-electron-path-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const pkg = path.join(root, 'node_modules', 'electron');
+  assert.equal(defaultElectronPath(root, 'darwin'), path.join(pkg, 'dist', 'electron'), 'not installed: conventional name');
+  assert.equal(defaultElectronPath(root, 'win32'), path.join(pkg, 'dist', 'electron.exe'));
+  fs.mkdirSync(pkg, { recursive: true });
+  fs.writeFileSync(path.join(pkg, 'path.txt'), 'Electron.app/Contents/MacOS/Electron');
+  assert.equal(defaultElectronPath(root, 'darwin'), path.join(pkg, 'dist', 'Electron.app', 'Contents', 'MacOS', 'Electron'));
+});
 
 test('suite resolver accepts built-in IDs and explicit JSON paths', () => {
   const root = path.resolve('.');

@@ -959,9 +959,23 @@ async function assertCaptureInputsUnchanged({
   }
 }
 
+// The electron package records where its platform binary lives inside dist/ in
+// path.txt (Electron.app/Contents/MacOS/Electron on macOS, electron.exe on Windows),
+// so read that instead of guessing a name that does not exist on macOS.
+export function defaultElectronPath(root = ROOT, platform = process.platform) {
+  const pkg = path.join(root, 'node_modules', 'electron');
+  try {
+    const recorded = fs.readFileSync(path.join(pkg, 'path.txt'), 'utf8').trim();
+    if (recorded) return path.join(pkg, 'dist', recorded);
+  } catch {
+    // Binary not downloaded yet: fall back to the conventional name.
+  }
+  return path.join(pkg, 'dist', platform === 'win32' ? 'electron.exe' : 'electron');
+}
+
 export async function runCapture(options, {
   root = ROOT,
-  electronPath = path.join(root, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron'),
+  electronPath = defaultElectronPath(root),
   runnerPath = path.join(root, 'tools', 'visual-capture', 'electron-runner.cjs'),
   spawnCourse = runCourseChild,
   gitStateImpl = gitState,

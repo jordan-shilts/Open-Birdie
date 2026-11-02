@@ -29,7 +29,7 @@ import { flightMarkers } from './flight-profile.js';
 import { flightCameraPlan, flightCameraAt } from './flight-camera.js';
 import { resolveQuality, autoDownshiftVerdict, renderPixelRatio } from './quality.js';
 import { COLORS, DRY_PALETTE, courseDryFor, blendPalette } from './course-character.js';
-import { paintSurfaceMask, RAW_SURFACE_COLORS } from './surface-mask.js';
+import { fillShapesBlurred, paintSurfaceMask, RAW_SURFACE_COLORS } from './surface-mask.js';
 import { smoothClassmapTexture } from './classmap-smoothing.js';
 import { installLoadingTracker } from './capture-readiness.js';
 import {
@@ -769,11 +769,10 @@ export class GolfScene {
     const px = (x) => (x - b.minX) * ppm;
     const py = (y) => (b.maxY - y) * ppm; // canvas top = north
 
-    const tracePoly = (poly) => {
-      ctx.beginPath();
-      ctx.moveTo(px(poly[0][0]), py(poly[0][1]));
-      for (let i = 1; i < poly.length; i++) ctx.lineTo(px(poly[i][0]), py(poly[i][1]));
-      ctx.closePath();
+    const tracePoly = (c, poly) => {
+      c.moveTo(px(poly[0][0]), py(poly[0][1]));
+      for (let i = 1; i < poly.length; i++) c.lineTo(px(poly[i][0]), py(poly[i][1]));
+      c.closePath();
     };
 
     // base
@@ -797,24 +796,18 @@ export class GolfScene {
     // (Macro-mottling removed in Tier 2: the tiled PBR grass detail now provides
     // turf variation; the old large soft-light patches read as a blob/smudge.)
 
-    const fillKind = (kinds, color, blur = 2) => {
-      ctx.save();
-      ctx.filter = `blur(${blur}px)`;
-      ctx.fillStyle = color;
-      for (const s of geo.surfaces) {
-        if (!kinds.includes(s.kind)) continue;
-        tracePoly(s.poly);
-        ctx.fill();
-      }
-      ctx.restore();
-    };
+    // One blur per kind on a scratch layer, not one per polygon (see fillShapesBlurred).
+    const layer = document.createElement('canvas');
+    layer.width = W; layer.height = H;
+    const fillKind = (kinds, color, blur = 2) => fillShapesBlurred(
+      ctx,
+      geo.surfaces.filter((s) => kinds.includes(s.kind) && s.poly?.length).map((s) => s.poly),
+      { fillStyle: color, blurPx: blur, trace: tracePoly, layer },
+    );
 
     // wooded ground
-    ctx.save();
-    ctx.filter = 'blur(3px)';
-    ctx.fillStyle = this._pal.wood;
-    for (const w of geo.woods || []) { tracePoly(w); ctx.fill(); }
-    ctx.restore();
+    fillShapesBlurred(ctx, (geo.woods || []).filter((w) => w?.length),
+      { fillStyle: this._pal.wood, blurPx: 3, trace: tracePoly, layer });
 
     fillKind(['rough'], this._pal.rough, 1.5);
     fillKind(['range'], this._pal.range, 1.5);
