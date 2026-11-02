@@ -29,6 +29,15 @@ regenerable, too large for history). None of this data is committed to the repo.
   the backdrop reads as real sky, not a photographed tree-line; GroundedSkybox is
   disabled with it (it has no ground detail to project).
 
+### Time-of-day skies (fetched on first use, not bundled)
+- **Morning** — "Rustig Koppie (Pure Sky)" by Poly Haven (CC0).
+  https://polyhaven.com/a/rustig_koppie_puresky
+- **Golden hour** — "Kloppenheim 06 (Pure Sky)" by Poly Haven (CC0).
+  https://polyhaven.com/a/kloppenheim_06_puresky
+- Both are loaded from Poly Haven's CDN (4K .hdr, ~15-17 MB each) the first time the Sky button
+  picks them (`public/render/sky-presets.js`); Midday is the bundled sky above and the fallback when
+  a download fails.
+
 ## Trees (Tier 1)
 - `public/assets/trees/foliage_diff.jpg`, `foliage_alpha.jpg`, `bark_diff.jpg` — from
   "Fir Tree 01" by Poly Haven (CC0). Source: https://polyhaven.com/a/fir_tree_01
