@@ -19,8 +19,10 @@ import { replaceGtaoNoiseTexture } from './gtao-noise.js';
 const GRADE_SHADER = {
   uniforms: {
     tDiffuse: { value: null },
-    uContrast: { value: 1.1 },
-    uSaturation: { value: 1.16 },
+    // natural: the old 1.16 saturation pushed sunlit turf toward lime once the sun
+    // became the key light
+    uContrast: { value: 1.08 },
+    uSaturation: { value: 1.08 },
     uVignette: { value: 0.34 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
