@@ -67,3 +67,28 @@ test('acquireElevation returns patch + stats on acceptable data', async () => {
   assert.equal(stats.max, 16);
   assert.ok(stats.groundSpacingM <= 3.4 * 1.5);
 });
+
+test('acquireElevation retries a slow or failing 3DEP export, but not a final answer', async () => {
+  const fine = { width: 2, height: 2, extent: { xmin: 0, ymin: 0, xmax: 4.1, ymax: 4.1 } };
+  let calls = 0;
+  const flaky = async (url) => {
+    if (!String(url).includes('f=json') && ++calls < 3) return new Response('busy', { status: 503 });
+    return mock3dep({ meta: fine, image: f32le([10, 12, 14, 16]) })(url);
+  };
+  const { patch } = await acquireElevation(bbox, { fetchImpl: flaky, nativeSpacingM: 3.4, backoffMs: 1 });
+  assert.equal(patch.width, 2);
+  assert.equal(calls, 3, 'two 503s, then the export');
+
+  let tries = 0;
+  const down = async (url) => { tries++; return new Response('down', { status: 503 }); };
+  await assert.rejects(
+    () => acquireElevation(bbox, { fetchImpl: down, nativeSpacingM: 3.4, backoffMs: 1, attempts: 2 }),
+    (e) => e.name === 'HdCompileError' && e.context.attempts === 2,
+  );
+  assert.equal(tries, 2);
+
+  let noData = 0;
+  const empty = async (url) => { noData++; return mock3dep({ meta: fine, image: f32le([NaN, NaN, NaN, NaN]) })(url); };
+  await assert.rejects(() => acquireElevation(bbox, { fetchImpl: empty, nativeSpacingM: 3.4, backoffMs: 1 }), (e) => e.code === 'HD_3DEP_NODATA');
+  assert.equal(noData, 2, 'one metadata + one image request: no lidar here is final');
+});

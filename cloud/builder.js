@@ -17,6 +17,7 @@ const path = require('node:path');
 const { readSourceKeyedCache } = require('../lib/course');
 const { LAYER_LABELS, enrichCourseScenery, persistSceneryUpdate } = require('../lib/course-enrichment');
 const { buildCoursePackage, installCoursePackage, parsePackageKey } = require('../lib/course-package');
+const { resolveHdBundles } = require('../lib/hd-bundle');
 const { blobKey, manifestKey } = require('./store');
 
 const LAYER_PCT = Object.freeze({ buildings: 50, canopy: 65, aerial: 80 });
@@ -97,8 +98,14 @@ function createCourseBuilder({
       onLayer: async ({ course: enriched, artifacts }) => persistSceneryUpdate({ cacheDir, course: enriched, artifacts }),
     });
 
-    // 1 m HD holes go into dataDir/hd-courses, where the package below picks them up
-    const hdManifests = hd ? hd.manifestsFor(source.courseId) : [];
+    // 1 m HD holes go into dataDir/hd-courses, where the package below picks them up;
+    // holes the published package already carries (installed on resume) are kept
+    let hdManifests = hd ? hd.manifestsFor(source.courseId) : [];
+    if (hdManifests.length) {
+      const present = resolveHdBundles(course, { dataDir });
+      const have = new Set(present.status === 'valid' ? present.descriptors.map((d) => d.hole) : []);
+      hdManifests = hdManifests.filter((m) => !have.has(m.hole));
+    }
     if (hdManifests.length) {
       const hdOutcome = await hd.build({
         course,
