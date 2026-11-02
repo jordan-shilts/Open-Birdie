@@ -4,7 +4,9 @@
 // shore.
 //
 // High quality: the plane IS a planar mirror (three's Reflector re-renders the scene
-// about the pond's level) with its own shader. An analytic ripple field in world XZ
+// about the pond's level) with its own shader. A mirror re-renders the whole course,
+// so only the ponds that matter most on screen (MAX_LIVE_MIRRORS, by size over
+// distance) are live, refreshed in turns; the rest mirror the sky photo alone. An analytic ripple field in world XZ
 // distorts the mirror and drives the sun glitter; Fresnel mixes the mirror with the
 // dark water body (across a pond the trees and sky mirror; looking down you see into
 // it); where the terrain depth pre-pass says the water is shallow it clears over the
@@ -62,8 +64,8 @@ const POND_FRAG = /* glsl */`
   uniform sampler2D tDiffuse;    // the mirrored scene
   uniform float uTime, uChop, uDistort;
   uniform vec3 uSunDir, uSunColor, uDeep, uSilt;
-  uniform float uDepthOn, uCamNear, uCamFar;
-  uniform sampler2D uDepthTex;
+  uniform float uDepthOn, uCamNear, uCamFar, uMirror;
+  uniform sampler2D uDepthTex, uSky;
   uniform vec2 uResolution;
   varying vec4 vUv;
   varying vec3 vWorldPos;
@@ -81,7 +83,9 @@ const POND_FRAG = /* glsl */`
     float F = mix(0.22, 1.0, 0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0));
     vec4 uv = vUv;
     uv.xy += N.xz * uDistort * uv.w;
-    vec3 mirror = texture2DProj(tDiffuse, uv).rgb * color;
+    // a live mirror shows the course; the others reflect the sky photo alone
+    vec3 mirror = uMirror > 0.5 ? texture2DProj(tDiffuse, uv).rgb * color
+                                : texture2D(uSky, equirectUv(reflect(-V, N))).rgb * color;
     // the body: dark, a little green-brown (algae, tannin), lit by the daylight
     vec3 body = uDeep * (0.45 + 0.55 * clamp(uSunDir.y * 1.5, 0.0, 1.0));
     vec3 col = mix(body, mirror, F);
@@ -117,14 +121,28 @@ function mirrorPond(geom, shared) {
     },
   });
   const m = refl.material;
-  // shared live uniforms (time, sun, depth pre-pass) across every pond
-  Object.assign(m.uniforms, shared);
+  // shared live uniforms (time, sun, sky, depth pre-pass) across every pond; uMirror is
+  // this pond's own
+  Object.assign(m.uniforms, shared, { uMirror: { value: 0 } });
   m.fog = true;
   m.transparent = true;
   refl.receiveShadow = false;
   refl.userData.isWaterReflector = true; // for disposal on course reload
+  // Reflector re-renders the scene in onBeforeRender, which fires for EVERY pass that
+  // draws the pond (the main pass, the AO normal pass, other ponds' mirrors). Render
+  // only when the budget asked for it this frame, once, and never nested in another
+  // pond's mirror.
+  const render = refl.onBeforeRender.bind(refl);
+  refl.onBeforeRender = (...args) => {
+    if (!refl.userData.refresh || inMirror) return;
+    refl.userData.refresh = false;
+    inMirror = true;
+    try { render(...args); } finally { inMirror = false; }
+  };
   return refl;
 }
+let inMirror = false;
+const MAX_LIVE_MIRRORS = 2;
 
 // ---------------------------------------------------------------- sky-only fallback
 function addRippleShader(material, shared) {
@@ -169,6 +187,7 @@ export function buildWater(ponds, sunDir, depth) {
     uDeep: { value: new THREE.Color(0x14261f).convertSRGBToLinear() },
     uSilt: { value: new THREE.Color(0x4a4532).convertSRGBToLinear() },
     uDepthOn: { value: 0 },
+    uSky: { value: null },
     uDepthTex: { value: null },
     uResolution: { value: new THREE.Vector2(1, 1) },
     uCamNear: { value: 0.3 },
@@ -190,6 +209,9 @@ export function buildWater(ponds, sunDir, depth) {
     m.rotation.x = -Math.PI / 2;
     m.position.y = level;
     if (!reflect) m.receiveShadow = true;
+    m.updateMatrixWorld(true);
+    g.computeBoundingSphere();
+    m.userData.sphere = g.boundingSphere.clone().applyMatrix4(m.matrixWorld);
     meshes.push(m);
   }
 
@@ -201,10 +223,40 @@ export function buildWater(ponds, sunDir, depth) {
     shared.uDepthOn.value = depthTex && reflect ? 1 : 0;
   };
   if (depth) setFoamDepth(depth.depthTexture, depth.resolution, depth.near, depth.far);
+  // Each frame: the ponds most worth a live mirror (in view, within 900 m, biggest
+  // for their distance) show it; they take turns re-rendering, a newly promoted one
+  // at once (so a single captured frame is complete).
+  const frustum = new THREE.Frustum(), pv = new THREE.Matrix4();
+  let frame = 0;
+  // Returns how many ponds are in view (the depth pre-pass is skipped at zero).
+  const updateMirrors = (camera) => {
+    if (!reflect) return meshes.length;
+    camera.updateMatrixWorld();
+    frustum.setFromProjectionMatrix(pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const cand = [];
+    for (const r of meshes) {
+      const sph = r.userData.sphere;
+      const d = Math.max(1, sph.center.distanceTo(camera.position) - sph.radius * 0.5);
+      if (d < 900 && frustum.intersectsSphere(sph)) cand.push({ r, score: sph.radius / d });
+      else { r.material.uniforms.uMirror.value = 0; r.userData.live = false; r.userData.refresh = false; }
+    }
+    cand.sort((a, b) => b.score - a.score);
+    const n = Math.min(MAX_LIVE_MIRRORS, cand.length);
+    frame++;
+    cand.forEach(({ r }, i) => {
+      const on = i < n;
+      r.userData.refresh = on && (!r.userData.live || frame % n === i);
+      r.userData.live = on;
+      r.material.uniforms.uMirror.value = on ? 1 : 0;
+    });
+    return cand.length;
+  };
   return {
     meshes, waterMeshes: meshes,
     waterUpdate: (t) => { shared.uTime.value = t; },
     setSun: (dir) => shared.uSunDir.value.copy(dir).normalize(),
+    setSky: (tex) => { shared.uSky.value = tex; },
+    updateMirrors,
     setFoamDepth,
   };
 }

@@ -345,6 +345,7 @@ export class GolfScene {
         }
       }
       this._waterSetSun?.(this.sunDir);
+      this._waterSetSky?.(equirect);
       if (this.bounds) this._placeSkybox();                     // course already loaded
       if (this._activeHole) this._fitShadows(this._activeHole); // re-aim shadows to HDRI sun
       this.environmentStatus = { state: 'ready', sky: name };
@@ -405,6 +406,7 @@ export class GolfScene {
       revision: this._visualCaptureCourseRevision,
     };
     this._treeWind = this._grassWind = this._waterUpdate = this._waterMeshList = this._terrain = null; // drop stale per-course refs
+    this._waterMirrors = this._waterSetSky = this._waterSetSun = null;
     this._foamOn = false;
     this._treeField = null; this._placedTrees = null; this._allTreeSpots = null; this._grassField = null;
     this._fairwayGrassMesh = this._fairwayGrassWind = this._fairwayGrassCenter = this._fgGeo = this._fgGroup = this._fairwayZoneColorFn = null;
@@ -545,7 +547,9 @@ export class GolfScene {
     this._placeSkybox();
     // ponds at their real (hydro-flattened) water line; the terrain mesh carves a bed
     // under each (water-shore.js)
-    this._ponds = RENDER_CONFIG.water ? coursePonds(geo.surfaces, (x, y) => this.hAt(x, y)) : [];
+    // (plus the lakes around the course, sent as non-fingerprinted scenery)
+    const lakes = (geo.scenery?.water || []).map((w) => ({ kind: 'water', poly: w.poly }));
+    this._ponds = RENDER_CONFIG.water ? coursePonds([...(geo.surfaces || []), ...lakes], (x, y) => this.hAt(x, y)) : [];
     const terrain = this._terrainMesh(b);
     group.add(terrain);
     // countryside past the course edge (no more floating slab); purely visual
@@ -718,9 +722,11 @@ export class GolfScene {
       // z-fight — same precedence the height sampler uses.
       const cutouts = this._hdMacros.map((m) => m.bounds);
       const grp = new THREE.Group();
-      grp.add(buildCoarseTerrain({ grid: this.elev, cutouts, material: turfMat }));
+      // the pond beds are carved into the 1 m patches too (render-only, as above)
+      const carve = (grid) => (this._ponds?.length ? { ...grid, heights: carveBeds(grid.heights, grid, this._ponds) } : grid);
+      grp.add(buildCoarseTerrain({ grid: this._ponds?.length ? { ...this.elev, heights } : this.elev, cutouts, material: turfMat }));
       this._hdPatches.forEach((patch, k) => {
-        grp.add(buildHdTerrain({ grid: patch, material: turfMat, uvBounds: b, skipBounds: cutouts.slice(0, k) }));
+        grp.add(buildHdTerrain({ grid: carve(patch), material: turfMat, uvBounds: b, skipBounds: cutouts.slice(0, k) }));
       });
       return grp;
     }
@@ -915,7 +921,10 @@ export class GolfScene {
       const depth = foamEnabled
         ? { depthTexture: this.waterDepth.depthTexture, resolution: this.waterDepth.resolution, near: this.camera.near, far: this.camera.far }
         : null;
-      const { meshes, waterMeshes, waterUpdate, setSun } = buildWater(this._ponds || [], this.sunDir, depth);
+      const { meshes, waterMeshes, waterUpdate, setSun, setSky, updateMirrors } = buildWater(this._ponds || [], this.sunDir, depth);
+      setSky(this._equirect || null);
+      this._waterSetSky = setSky;
+      this._waterMirrors = updateMirrors;
       this._foamOn = foamEnabled && !!(waterMeshes && waterMeshes.length);
       meshes.forEach((m) => group.add(m));
       this._waterUpdate = waterUpdate;
@@ -1714,7 +1723,8 @@ export class GolfScene {
     if (this._fairwayGrassWind) this._fairwayGrassWind(frameTime);
     if (this._flagU) this._flagU.value = frameTime;
     if (this._waterUpdate) this._waterUpdate(frameTime);
-    if (this.waterDepth && this._foamOn && this._terrain) this.waterDepth.prepass(this._terrain, this.camera);
+    const pondsInView = this._waterMirrors ? this._waterMirrors(this.camera) : 1;
+    if (this.waterDepth && this._foamOn && this._terrain && pondsInView) this.waterDepth.prepass(this._terrain, this.camera);
     this.postfx.render();
     if (fixed) {
       this._lastVisualCapture = {

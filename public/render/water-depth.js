@@ -32,18 +32,25 @@ export function makeWaterDepth(renderer) {
   setSize(size.x, size.y);
 
   // Only the TERRAIN sits under the water, so render just that mesh into the depth
-  // target — one draw call. No water to hide (it isn't drawn), no material override
-  // (the terrain's own program writes depth fine), so the turf shader is untouched.
+  // target. Its turf material is swapped for a depth-only one for this one render
+  // (the turf shader was the whole cost: ~3.5 ms a frame for depth alone); the
+  // material objects are restored untouched, so nothing recompiles.
+  const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
+  const swapped = [];
   function prepass(terrain, camera) {
     if (!terrain) return;
+    terrain.traverse((o) => { if (o.isMesh) { swapped.push(o, o.material); o.material = depthOnly; } });
     const prevTarget = renderer.getRenderTarget();
     renderer.setRenderTarget(target);
     renderer.clear(true, true, false);
-    renderer.render(terrain, camera);
-    renderer.setRenderTarget(prevTarget);
+    try { renderer.render(terrain, camera); } finally {
+      renderer.setRenderTarget(prevTarget);
+      for (let i = 0; i < swapped.length; i += 2) swapped[i].material = swapped[i + 1];
+      swapped.length = 0;
+    }
   }
 
-  function dispose() { target.dispose(); depthTexture.dispose(); }
+  function dispose() { target.dispose(); depthTexture.dispose(); depthOnly.dispose(); }
 
   return { depthTexture, resolution, prepass, setSize, dispose };
 }
