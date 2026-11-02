@@ -53,7 +53,7 @@ const SCENERY_ENABLED = process.env.BIRDIE_ENRICH !== '0';
 const courseCache = createCourseCache({ dataDir: DATA_DIR });
 // Cloud course service (BIRDIE_CLOUD_URL): courses and their scenery are downloaded
 // as verified packages instead of being built here. Unset = no cloud request ever.
-const CLOUD = cloudConfigFromEnv();
+const CLOUD = cloudConfigFromEnv(process.env, console, { file: path.join(DATA_DIR, 'cloud.json') });
 const cloudClient = CLOUD ? createCloudClient(CLOUD) : null;
 
 const game = new Game();

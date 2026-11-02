@@ -316,3 +316,20 @@ test('server: with BIRDIE_CLOUD_URL a picked course comes from the cloud and is 
   assert.equal(index.entries['osm-way-31337'].origin, 'cloud');
   assert.ok(cloud.requests.includes('GET /v1/courses/osm-way-31337'));
 });
+
+test('the desktop can keep its cloud in cloud.json; the environment wins', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { cloudConfigFromEnv } = require('../lib/cloud-client');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'birdie-cloudjson-'));
+  const file = path.join(dir, 'cloud.json');
+  const quiet = { warn() {} };
+  assert.equal(cloudConfigFromEnv({}, quiet, { file }), null, 'no file, no env: no cloud');
+  fs.writeFileSync(file, JSON.stringify({ url: 'https://birdie.example.vercel.app/', buildToken: 'tok' }));
+  assert.deepEqual(cloudConfigFromEnv({}, quiet, { file }), { baseUrl: 'https://birdie.example.vercel.app', buildToken: 'tok' });
+  assert.deepEqual(cloudConfigFromEnv({ BIRDIE_CLOUD_URL: 'https://other.example' }, quiet, { file }), { baseUrl: 'https://other.example', buildToken: null });
+  fs.writeFileSync(file, '{not json');
+  assert.equal(cloudConfigFromEnv({}, quiet, { file }), null);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
