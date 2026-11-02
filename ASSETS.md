@@ -44,6 +44,18 @@ regenerable, too large for history). None of this data is committed to the repo.
   `branches_diff` is the bark. Used the same card technique for a feathery deciduous
   canopy (rounded), mixed ~30% into the conifer stand for an Augusta-style mixed tree line.
 
+## 3D trees v2 (2026-11 photoreal pass)
+- `public/assets/trees/leaves_{diff,alpha}.jpg` — the scanned single-leaf atlas of
+  "Island Tree 01" by Poly Haven (CC0). Source: https://polyhaven.com/a/island_tree_01
+- `public/assets/trees/oak_bark.jpg` — that model's `branches_diff`, downsized to 512 px.
+- `public/assets/trees/pine_twig_{diff,alpha}.jpg` — the two needle sprays of "Pine Tree
+  01" by Poly Haven (CC0), cropped onto one 512 px sheet. Source:
+  https://polyhaven.com/a/pine_tree_01
+- `public/assets/trees/pine_bark.jpg` — that model's `bark_diff`, downsized to 512 px.
+- `public/render/leaf-atlas.js` composes these (plus the fir sprigs above) into the
+  runtime leaf-cluster / sprig atlas; the branch skeletons are generated in code
+  (`public/render/tree-gen.js`). Birch bark is drawn on a canvas.
+
 ## 3D trees (2026-11 graphics upgrade) — no new files
 - The instanced 3D trees (`public/render/trees.js`) draw their leaf-cluster and
   needle-spray atlases **procedurally on a canvas at load** (no downloaded imagery),

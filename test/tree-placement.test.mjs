@@ -104,7 +104,7 @@ test('crown shape picks the tree type: narrow crowns are conifers, broad ones br
   for (let i = 0; i < 40; i++) {
     const x = i * 37, y = i * 53;
     assert.ok(['fir', 'pine'].includes(speciesForCrown(x, y, 16, 2.5)), 'spruce-like crown');
-    assert.ok(['oak', 'birch'].includes(speciesForCrown(x, y, 12, 6)), 'oak-like crown');
+    assert.ok(['oak', 'birch', 'maple'].includes(speciesForCrown(x, y, 12, 6)), 'broadleaf crown');
   }
 });
 

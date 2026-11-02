@@ -376,6 +376,7 @@ function courseGeometry() {
   const hd = activeHd.length ? activeHd.map(publicHdMetadata) : null;
   return {
     name,
+    origin: game.course.origin || null,
     surfaces,
     boundary,
     holes,

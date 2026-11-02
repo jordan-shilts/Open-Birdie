@@ -1148,6 +1148,9 @@ export class GolfScene {
   // steer clear of water/bunkers/greens, so generic placement stays plausible.
   _flowerSpots(geo) {
     if (!RENDER_CONFIG.flowers) return [];
+    // azalea beds are a Southern planting (Augusta, the Carolinas); a course north of
+    // ~37°N (Minnesota, the Northeast, the UK) has none
+    if (geo.origin && Math.abs(geo.origin.lat) > 37) return [];
     // tree lines, not deep woods; with real (canopy) trees nearly every tree near play is
     // an edge tree, so keep a sparse sample — a bed under every trunk reads as planted
     const trees = this._treeSpots(geo).filter((t, i) => t.edge !== false && (!t.h || i % 6 === 0));
