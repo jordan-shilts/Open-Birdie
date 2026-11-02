@@ -521,6 +521,15 @@ scene.setFreeCamCallback((on) => {
 });
 $('btn-free').onclick = () => scene.enterFreeCam(scene.camMode !== 'free');
 
+// Hole flyover (render/flyover.js): the Flyover button or F; any key or click skips it.
+$('btn-flyover').onclick = () => { if (!animating) scene.flyover.start(); };
+window.addEventListener('keydown', (e) => {
+  if (String(e.key || '').toLowerCase() !== 'f' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if (animating || $('course-modal').style.display !== 'none') return;
+  if (scene.flyover.start()) e.preventDefault();
+});
+
 let aimT = null;
 $('aim-slider').oninput = (e) => {
   const v = +e.target.value;

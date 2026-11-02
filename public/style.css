@@ -114,6 +114,15 @@ body {
 }
 #freecam-hint b { color: var(--accent); }
 
+/* hole flyover (render/flyover.js): dip-to-black overlay over the 3D view + skip hint */
+.flyover-fade { position: absolute; inset: 0; z-index: 6; background: #05080a; opacity: 0; pointer-events: none; }
+.flyover-hint {
+  position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%); z-index: 7;
+  background: rgba(13, 21, 16, 0.72); color: rgba(242, 241, 236, 0.9); border-radius: 9px;
+  padding: 6px 13px; font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none;
+}
+.flyover-hint b { color: #ffd400; }
+
 /* ---------- shot data cards ---------- */
 #shotpanel { position: fixed; left: 16px; top: 74px; z-index: 10; width: 234px; }
 .dcard-row { display: flex; gap: 8px; margin-bottom: 8px; }

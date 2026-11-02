@@ -37,6 +37,7 @@ import {
   disjointQueryDisposition,
   normalizePerformanceRequest,
 } from './capture-performance.js';
+import { HoleFlyover } from './flyover.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, z, -y); // sim -> three
 
@@ -193,6 +194,7 @@ export class GolfScene {
     this._qualityHoldUntil = 0;
     this._downshifted = false;
     this.setQuality(quality, { rebuild: false });
+    this.flyover = new HoleFlyover(this); // hole flyover camera (flyover.js)
     this._animationLoopLive = true;
     this._captureFixedTime = null;
     this.renderer.setAnimationLoop(this._liveFrame);
@@ -1646,6 +1648,7 @@ export class GolfScene {
     // frozen camera that playShot parked behind the ball.
     if (this.camMode === 'idle') this._idleTargets();
     else if (this.camMode === 'free') { this._freeStep(dt); this._freeTargets(); }
+    this.flyover.update(dt); // owns the camera while camMode === 'flyover'
 
     // The flight camera's targets are already smooth (flight-camera.js), so track them
     // tighter than the address/orbit easing — a loose look-lerp lets a 70 m/s ball

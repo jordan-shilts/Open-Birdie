@@ -5,6 +5,11 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Hole flyover** — the **Flyover** button or **F** flies the current hole like a TV broadcast:
+  a dip to black, low behind the tee, a climb to 40–60 m along the hole line (doglegs included)
+  looking ahead, a descent toward the flag, then a cut back to the address view. 8–14 s by hole
+  length on centripetal Catmull-Rom curves with an eased cruise; it lifts over tree crowns and
+  terrain, and any key or click skips it (`public/render/flyover.js`).
 - **Real trees from canopy height data** — `tools/add-canopy-trees.mjs` streams the Meta & WRI 1 m
   global canopy height map (CC BY 4.0) for a course and writes `course.canopy`: every tree's position,
   height and crown radius (distinct crowns, plus a fill for closed woods). The renderer places and sizes
