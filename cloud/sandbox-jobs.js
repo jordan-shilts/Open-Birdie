@@ -60,7 +60,7 @@ function createSandboxJobs({
   const api = async () => sandboxApi || (await import('@vercel/sandbox')).Sandbox;
   const iso = () => new Date(now()).toISOString();
   const view = (job) => {
-    const { sandbox, sandboxStopped, ...rest } = job;
+    const { sandbox, sandboxStopped, internal, ...rest } = job;
     return { ...rest, pollMs: POLL_MS };
   };
 
@@ -85,6 +85,9 @@ function createSandboxJobs({
       await store.putRecord(jobKey(id), job);
     }
     if (!RUNNING.has(job.status) && job.sandbox && !job.sandboxStopped) {
+      if (job.status === 'failed' && job.internal) {
+        log.error(`[cloud] build ${job.key} (${job.id}) failed: ${job.internal.code} ${job.internal.message} @ ${job.internal.at}`);
+      }
       // the build is over: stop its machine now, not at the session timeout
       try { await (await (await api()).get({ name: job.sandbox, resume: false })).stop(); }
       catch (error) { log.warn(`[cloud] could not stop sandbox ${job.sandbox}: ${error.message}`); }

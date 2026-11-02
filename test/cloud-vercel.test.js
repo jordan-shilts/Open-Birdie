@@ -140,6 +140,16 @@ test('a finished build stops its sandbox once; a silent one is marked failed', a
   await jobs.get(job.id);
   assert.deepEqual(sandboxApi.stopped, [`birdie-build-${job.id.slice(0, 8)}`]);
   assert.equal(await jobs.activeFor(KEY), null);
+  // a failed build's private cause is logged once and never served
+  const logged = [];
+  const quietJobs = createSandboxJobs({ store, sandboxApi, env: { BLOB_READ_WRITE_TOKEN: 'x' }, now: () => t, log: { error: (m) => logged.push(m), warn() {} } });
+  const failedJob = (await quietJobs.submit(KEY, { key: KEY })).job;
+  const failedRecord = await store.getRecord(jobKey(failedJob.id));
+  await store.putRecord(jobKey(failedJob.id), { ...failedRecord, status: 'failed', internal: { code: 'OVERPASS_429', message: 'too many requests', at: 'x' } });
+  const served = await quietJobs.get(failedJob.id);
+  assert.equal(served.internal, undefined);
+  await quietJobs.get(failedJob.id);
+  assert.equal(logged.filter((m) => /OVERPASS_429 too many requests/.test(m)).length, 1);
   // a build that stops writing its record for 10 minutes has died
   const second = (await jobs.submit(KEY, { key: KEY })).job;
   t += 11 * 60 * 1000;

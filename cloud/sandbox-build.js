@@ -64,7 +64,14 @@ async function main() {
   } catch (error) {
     console.error(`[cloud] build ${job.key} failed: ${error && (error.code || '')} ${error && error.message}`);
     const described = describeFailure(error);
-    await save({ status: 'failed', stage: 'failed', message: described.message, error: described, finishedAt: new Date().toISOString() }, true);
+    // `internal` never leaves the store through the API (sandbox-jobs.js view()); the
+    // API logs it once, so the cause is in the function logs after the sandbox is gone
+    const internal = {
+      code: String((error && (error.code || error.name)) || 'ERROR').slice(0, 80),
+      message: String((error && error.message) || error).slice(0, 500),
+      at: String((error && error.stack) || '').split('\n').slice(1, 4).map((l) => l.trim()).join(' | ').slice(0, 400),
+    };
+    await save({ status: 'failed', stage: 'failed', message: described.message, error: described, internal, finishedAt: new Date().toISOString() }, true);
     process.exitCode = 1;
   } finally {
     clearInterval(heartbeat);
