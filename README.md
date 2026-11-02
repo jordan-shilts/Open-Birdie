@@ -96,8 +96,27 @@ layer arrives. It is saved with the course, so this happens once per course.
 | `BIRDIE_OVERPASS_URLS` | (unset) | comma-separated Overpass interpreter URLs to try before the built-in public mirrors (overpass-api.de, maps.mail.ru, kumi.systems, private.coffee) — useful when they are all at capacity or you run your own |
 | `BIRDIE_ENRICH` | 1 | set to `0` to stop fetching missing scenery (buildings, trees, aerial photo) in the background |
 | `BIRDIE_CACHE_MAX_MB` | 1024 | size cap of the local course cache; the least recently played courses are deleted past it (never the one being played) and are downloaded again when picked. `0` = no cap |
+| `BIRDIE_CLOUD_URL` | (unset) | base URL of an Open-Birdie cloud course service (see [Cloud courses](#cloud-courses)). Unset = everything is built on this computer and no cloud request is ever made |
+| `BIRDIE_CLOUD_BUILD_TOKEN` | (unset) | lets this app ask the cloud to build a course it does not have yet (must match the service's token); without it, such courses are built locally |
 
 Gimme distance: `POST /api/settings {"gimmeYd": feet}` (UI toggle coming later).
+
+## Cloud courses
+
+Point the app at an Open-Birdie cloud course service and courses are downloaded when you pick
+them instead of being built on your computer, already complete with buildings, real trees and
+the max-quality aerial photo:
+
+```bash
+BIRDIE_CLOUD_URL=https://<your-service> BIRDIE_CLOUD_BUILD_TOKEN=<token> npm start
+```
+
+- A course the cloud has is downloaded (every file checked against its sha256) into the local
+  cache, which stays under `BIRDIE_CACHE_MAX_MB`.
+- A course the cloud does not have yet is built there (needs the build token); the course picker
+  shows the build's progress, the course is playable as soon as its base data is ready, and its
+  scenery appears when the cloud has added it.
+- If the cloud cannot be reached, the course is built on this computer as before.
 
 ## Dev tools
 

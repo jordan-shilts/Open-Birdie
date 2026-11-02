@@ -20,6 +20,15 @@ All notable changes to Open-Birdie are documented here.
   verify every file before writing anything and write the course JSON last. `lib/course-cache.js` keeps the
   local cache under `BIRDIE_CACHE_MAX_MB` (default 1024): least recently played courses are evicted, never
   the active one; surface overrides, legacy caches and locally compiled HD bundles are never touched.
+- **Courses from the cloud** (`lib/cloud-client.js`) — with `BIRDIE_CLOUD_URL` set, a course that is not cached
+  locally is downloaded as a package (each file verified against its sha256, presigned redirects followed) and
+  installed into the bounded cache, then activated through the normal path. If the cloud lacks it, the cloud is
+  asked to build it (`BIRDIE_CLOUD_BUILD_TOKEN`) and its progress shows in the course picker; the course is
+  playable as soon as the cloud publishes the base package, and buildings/trees/aerial follow as the cloud adds
+  them (`scenery` event). Cached courses get their scenery from the cloud package too, re-projected exactly when
+  the local copy was built from a different OSM snapshot. An unreachable cloud or a failed verification falls
+  back to building on this computer; a cloud verdict that the course is not playable is shown as is. Without
+  `BIRDIE_CLOUD_URL` nothing changes and no cloud request is made.
 - **Real trees from canopy height data** — `tools/add-canopy-trees.mjs` streams the Meta & WRI 1 m
   global canopy height map (CC BY 4.0) for a course and writes `course.canopy`: every tree's position,
   height and crown radius (distinct crowns, plus a fill for closed woods). The renderer places and sizes

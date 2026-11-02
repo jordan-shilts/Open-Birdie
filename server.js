@@ -9,6 +9,12 @@ const fs = require('fs');
 const path = require('path');
 const { OpenConnectServer, toOpenConnectClub } = require('./lib/openconnect');
 const { searchCourses, loadCourse, listCached, loadCached } = require('./lib/course');
+const {
+  cloudConfigFromEnv,
+  cloudSceneryProviders,
+  createCloudClient,
+  createCloudCourseSource,
+} = require('./lib/cloud-client');
 const { createCourseActivationManager } = require('./lib/course-activation');
 const { createCourseCache } = require('./lib/course-cache');
 const {
@@ -44,6 +50,10 @@ const SCENERY_ENABLED = process.env.BIRDIE_ENRICH !== '0';
 // Bounded local course cache (BIRDIE_CACHE_MAX_MB, default 1024): least recently
 // played courses are deleted past the cap, never the active one.
 const courseCache = createCourseCache({ dataDir: DATA_DIR });
+// Cloud course service (BIRDIE_CLOUD_URL): courses and their scenery are downloaded
+// as verified packages instead of being built here. Unset = no cloud request ever.
+const CLOUD = cloudConfigFromEnv();
+const cloudClient = CLOUD ? createCloudClient(CLOUD) : null;
 
 const game = new Game();
 const sseClients = new Set();
@@ -121,6 +131,8 @@ async function acquireActivationCourse(request, { abortDifferent, source }) {
     abortDifferent,
     source,
     ...(preloadedCourse ? { preloadedCourse } : {}),
+    // not cached here: try the cloud's package before building it locally
+    ...(cloudCourses ? { remote: cloudCourses.acquire } : {}),
   });
 }
 
@@ -168,9 +180,24 @@ function trimCourseCache(...extraKeys) {
   catch (error) { console.warn(`[cache] trim failed: ${error.message}`); }
 }
 
+const cloudCourses = cloudClient ? createCloudCourseSource({
+  client: cloudClient,
+  dataDir: DATA_DIR,
+  onProgress: (progress) => broadcast('course-progress', progress),
+  onInstalled({ key, manifest }) {
+    courseCache.record(key, { origin: 'cloud', packageId: manifest.packageId, lastUsed: Date.now() });
+    trimCourseCache(key);
+  },
+}) : null;
+
 const sceneryEnricher = SCENERY_ENABLED ? createSceneryEnricher({
   cacheDir: path.join(DATA_DIR, 'courses'),
-  providers: localSceneryProviders(),
+  // With a cloud, scenery comes from the course's cloud package; buildings and the
+  // single-request aerial can still be fetched here if the cloud cannot supply
+  // them, but canopy (geotiff) only ever comes from the cloud.
+  providers: cloudClient
+    ? cloudSceneryProviders({ client: cloudClient, fallback: localSceneryProviders({ canopy: false }) })
+    : localSceneryProviders(),
   onLayer(event) {
     applyActiveScenery(event);
     const key = packageKeyFor(event.course.source);
@@ -466,6 +493,9 @@ function readBody(req) {
 
 if (SPEED_SCALE !== 1) console.log(`[OC] BIRDIE_SPEED_SCALE=${SPEED_SCALE} — scaling incoming ball speed`);
 async function bootstrap() {
+  if (cloudClient) {
+    console.log(`[cloud] courses come from ${new URL(cloudClient.baseUrl).host}${cloudClient.canBuild ? ' (can request builds)' : ''}`);
+  }
   const usage = courseCache.scan();
   if (usage.courses) {
     const limit = Number.isFinite(usage.limitBytes) ? `${Math.round(usage.limitBytes / 1048576)} MB` : 'no limit';
