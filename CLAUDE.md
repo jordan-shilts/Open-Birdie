@@ -1,7 +1,9 @@
 # Open-Birdie — agent orientation
 
 Open-data golf simulator: Node/Electron/Three.js, SSE server, real launch-monitor
-integration (Open Connect). Zero runtime deps beyond `pngjs` + `three`. Shipping (v0.8.0).
+integration (Open Connect). Runtime deps: `pngjs` + `three`, plus `3d-tiles-renderer` (loaded only
+with a Google Map Tiles key). Heavy data tools (`geotiff`, `sharp`) stay out of the desktop runtime:
+the cloud course service (`cloud/`) uses them. Shipping (v0.8.0).
 
 ## Resuming work — read these first
 - **`docs/HANDOFF.md`** — the single source of truth for the current "make it look like a
