@@ -15,7 +15,11 @@ test('exposure + env intensity are numbers in sane range', () => {
   assert.ok(RENDER_CONFIG.environmentIntensity > 0 && RENDER_CONFIG.environmentIntensity <= 2);
 });
 
-test('sun direction override defaults to auto (null)', () => {
+test('sun azimuth follows the HDRI; altitude is pinned low enough for long, readable shadows', () => {
   assert.equal(RENDER_CONFIG.sunAzimuthDeg, null);
-  assert.equal(RENDER_CONFIG.sunAltitudeDeg, null);
+  assert.ok(RENDER_CONFIG.sunAltitudeDeg >= 20 && RENDER_CONFIG.sunAltitudeDeg <= 60, `altitude ${RENDER_CONFIG.sunAltitudeDeg}`);
+});
+
+test('daylight is sun-dominant: the sun outweighs the sky fill', () => {
+  assert.ok(RENDER_CONFIG.sunIntensity / RENDER_CONFIG.environmentIntensity >= 6);
 });

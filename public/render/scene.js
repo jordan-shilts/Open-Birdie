@@ -19,7 +19,7 @@ import { makeTurfMaterial, makeSandMaterial } from './turf.js';
 import { srgbToLinear, averageLinearColor } from './macro-tint.js';
 import { densifyRing, drapeRing } from './drape.js';
 import { buildHdTerrain, buildCoarseTerrain } from './hd-terrain.js';
-import { makeTerrainSampler } from './terrain-grid.js';
+import { makeTerrainSampler, smoothGridNormals } from './terrain-grid.js';
 import { repairGridEdges } from './grid-repair.js';
 import { RENDER_CONFIG } from './config.js';
 import { isPlayFraming, ballReadScale, pinReadScale } from './framing.js';
@@ -530,7 +530,7 @@ export class GolfScene {
     }
     // Crisp bunker meshes (sharp sand edges). Same guard — purely visual.
     if (RENDER_CONFIG.crispBunkers) {
-      try { this._addSurfacePatches(group, ['bunker'], (bb, an) => makeSandMaterial(bb, an, this._turfInputs?.bunkerMask, this.sunDir)); }
+      try { this._addSurfacePatches(group, ['bunker'], (bb, an) => makeSandMaterial(bb, an, this._turfInputs?.bunkerMask, this.sunDir, this._courseDry || 0)); }
       catch (e) { console.warn('[render] bunker patches skipped:', e && e.message); }
     }
     // Bunker rakes — iconic human-scale prop. Purely visual, so same load guard.
@@ -609,7 +609,13 @@ export class GolfScene {
     geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geom.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     geom.setIndex(idx);
-    geom.computeVertexNormals();
+    const shadeM = RENDER_CONFIG.terrainShadeSmoothM ?? 0;
+    if (g && shadeM > 0) {
+      // shade from smoothed heights: lidar noise otherwise blotches smooth mown turf
+      geom.setAttribute('normal', new THREE.BufferAttribute(smoothGridNormals(g.heights, nx, ny, g.cellM, shadeM), 3));
+    } else {
+      geom.computeVertexNormals();
+    }
 
     const tex = new THREE.CanvasTexture(this._paintSplat(b));
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -736,6 +742,11 @@ export class GolfScene {
       const ctx = cv.getContext('2d');
       ctx.filter = `blur(${RENDER_CONFIG.macroTintBlurPx ?? 2}px)`;
       ctx.drawImage(comp, 0, 0);
+      // three.js sizes a texture's GPU storage once, at first upload, so growing the
+      // canvas from its 1x1 placeholder overflowed every update ("Offset overflows
+      // texture" GL error) and the tint stayed flat grey. dispose() frees the GPU copy;
+      // the same texture object (still bound in the shader) re-uploads at w x h.
+      m.low.dispose();
       m.low.needsUpdate = true;
       console.log(`[render] aerial tint built ${w}x${h}, playable mean rgb(${m.avg.x.toFixed(3)}, ${m.avg.y.toFixed(3)}, ${m.avg.z.toFixed(3)})`);
     } catch (e) { console.warn('[render] tint build failed — neutral tint kept:', e && e.message); }
@@ -815,7 +826,8 @@ export class GolfScene {
     // mown surfaces — uniform base color; mow stripes are added physically in the
     // turf shader (mask-gated) so they survive the tiled grass detail.
     fillKind(['fairway'], this._pal.fairwayA, 1.2);
-    fillKind(['tee'], this._pal.tee, 1.5);
+    // tees painted near-crisp: a 1.5 px blur bled a light halo past the tee box edge
+    fillKind(['tee'], this._pal.tee, 0.4);
     // P2a: the green splat is painted near-crisp (0.35) so it doesn't bleed ~0.45 m of
     // green PAST the polygon; the in-shader fwidth composite overrides the base colour
     // AT the edge, but where gCrisp==0 (just outside) it falls back to this splat, so a
@@ -878,9 +890,10 @@ export class GolfScene {
     return meshes;
   }
 
-  // On-course tree spots (tree-placement.js): explicit OSM trees, then every woods
-  // edge, then the woods interior nearest the holes — under the quality cap. Kept
-  // off mown ground, greens, sand and water. Cached per course load.
+  // On-course tree spots (tree-placement.js): real trees from canopy data when the
+  // course has them, else explicit OSM trees, every woods edge, then the woods
+  // interior nearest the holes — under the quality cap. Kept off mown ground,
+  // greens, sand and water. Cached per course load.
   _treeSpots(geo) {
     if (this._placedTrees) return this._placedTrees;
     const block = (geo.surfaces || [])
@@ -899,6 +912,7 @@ export class GolfScene {
       holeLines: (geo.holes || []).map((h) => h.line).filter(Boolean),
       cap: RENDER_CONFIG.treeCap, density: RENDER_CONFIG.treeDensity ?? 1,
       courseDry: this._courseDry || 0, blocked,
+      canopy: geo.canopy || null,
     });
     return this._placedTrees;
   }
@@ -934,7 +948,9 @@ export class GolfScene {
     if (!RENDER_CONFIG.foliageTrees) return;
     const coreSpots = this._treeSpots(geo); // on-course trees (no horizon band)
     const spots = coreSpots.slice();
-    if (RENDER_CONFIG.horizonTrees) {
+    // the invented horizon band only stands in for real surroundings; canopy data
+    // already places the real trees around the course
+    if (RENDER_CONFIG.horizonTrees && !(geo.canopy && geo.canopy.length)) {
       for (const h of this._horizonSpots(geo, this.bounds)) spots.push({ ...h, species: speciesAt(h.x, h.y, this._courseDry || 0, 7) });
     }
     if (!spots.length) return;
@@ -956,7 +972,9 @@ export class GolfScene {
       buildGrounding(near, hAt, V).meshes.forEach((m) => group.add(m));
     }
     if (RENDER_CONFIG.pineStraw) {
-      buildPineStraw(near.slice(0, 2500), hAt, V).meshes.forEach((m) => group.add(m));
+      // pine straw only falls from conifers: a real (measured) broadleaf gets none
+      const straw = near.filter((p) => !p.h || p.species === 'pine' || p.species === 'fir');
+      buildPineStraw(straw.slice(0, 2500), hAt, V).meshes.forEach((m) => group.add(m));
     }
   }
 
@@ -1130,7 +1148,9 @@ export class GolfScene {
   // steer clear of water/bunkers/greens, so generic placement stays plausible.
   _flowerSpots(geo) {
     if (!RENDER_CONFIG.flowers) return [];
-    const trees = this._treeSpots(geo).filter((t) => t.edge !== false); // tree lines, not deep woods
+    // tree lines, not deep woods; with real (canopy) trees nearly every tree near play is
+    // an edge tree, so keep a sparse sample — a bed under every trunk reads as planted
+    const trees = this._treeSpots(geo).filter((t, i) => t.edge !== false && (!t.h || i % 6 === 0));
     if (!trees.length) return [];
     const spots = [], rnd = mulberry32(91), CAP = RENDER_CONFIG.flowerCap;
     for (const t of trees) {

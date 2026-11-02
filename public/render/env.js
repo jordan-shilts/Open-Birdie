@@ -25,11 +25,15 @@ export async function loadHDRIEnvironment(renderer) {
   pmrem.dispose();
 
   const { data, width, height } = equirect.image;
-  // sun direction: explicit config override (D2) wins, else estimate from the HDRI
+  // sun direction: each config override (D2) wins on its own axis, else the HDRI's
+  // estimate — so the altitude can be set (long, crisp shadows) while the azimuth
+  // still follows the sky's bright side
   const ovAz = RENDER_CONFIG.sunAzimuthDeg, ovAlt = RENDER_CONFIG.sunAltitudeDeg;
-  const sph = (ovAz != null && ovAlt != null)
-    ? { azimuth: THREE.MathUtils.degToRad(ovAz), altitude: THREE.MathUtils.degToRad(ovAlt) }
-    : sunSphericalFromEquirect(data, width, height);
+  const est = (ovAz != null && ovAlt != null) ? null : sunSphericalFromEquirect(data, width, height);
+  const sph = {
+    azimuth: ovAz != null ? THREE.MathUtils.degToRad(ovAz) : est.azimuth,
+    altitude: ovAlt != null ? THREE.MathUtils.degToRad(ovAlt) : est.altitude,
+  };
   const sunDir = sunVec(sph.azimuth, Math.max(sph.altitude, THREE.MathUtils.degToRad(8))); // floor so shadows read
   const horizonColor = horizonColorFromEquirect(data, width, height);
   const hl = horizonLinearFromEquirect(data, width, height);

@@ -6,16 +6,20 @@ export const RENDER_CONFIG = {
   groundedSky: false, // off with a puresky HDRI (it has no ground detail to project — was a white band)
   aerialFog: true,
   // Tier 0 tunables (rebalanced empirically in Task 7)
-  toneMappingExposure: 0.6,
-  environmentIntensity: 1.0,
-  sunIntensity: 2.0,
+  // Sun-dominant daylight (2026-11): the sky dome was the main light (env 1.0 vs sun
+  // 2.0), which flattened the course into soft, shadowless haze and turned every
+  // undulation into a blotch. A real clear day is lit by the sun: crisp tree shadows,
+  // bright even turf. Sky stays as fill.
+  toneMappingExposure: 0.7,
+  environmentIntensity: 0.4,
+  sunIntensity: 5.0,
   fogDensity: 0.00035, // aerial-perspective fog (atmosphere.js curve: linear + quadratic) to the HDRI horizon
   groundApron: true,   // countryside ring past the course edge + horizon haze band (horizon.js)
   skyboxHeight: 30, // GroundedSkybox projection height (world meters); tuned in Task 7
   // Sun direction: null = auto-estimate from the HDRI's brightest texel.
   // Set BOTH (degrees) to override when the estimate is wrong on a diffuse HDRI (D2).
   sunAzimuthDeg: null,
-  sunAltitudeDeg: null,
+  sunAltitudeDeg: 36, // either axis can be set alone; 36 deg gives long, readable tree shadows
   hdriFile: 'puresky_4k.hdr',
   // Material-first ground (2026-07-04 plan): the aerial TINTS the lit turf instead of
   // replacing it; the raw photo only crossfades in at TRUE far range. Weights are the
@@ -65,6 +69,9 @@ export const RENDER_CONFIG = {
   foregroundGrassHeight: 0.08,  // m — short fairway-cut blade (exaggerated to read at distance)
   foregroundGrassFadeNear: 12,  // m from camera: full size nearer than this
   foregroundGrassFadeFar: 22,   // m from camera: collapsed to nothing past this
+  terrainShadeSmoothM: 2.5, // shade the terrain from heights smoothed this much (m); 0 = raw lidar normals (noisy blotches on mown turf)
+  mowStripeM: 4.5, // fairway mow-band width (m): a fairway triplex cuts ~2.5-3 m passes, read as ~4-5 m light/dark bands
+  turfClean: 1.0, // 0..1: clean manicured parkland turf (less stacked noise/straw/near photo tint); links scale it out via courseDry
   gtao: true, // contact AO (grounding). If the turf goes black, GTAO's normal pass recompiled the onBeforeCompile shader without vMapUv — fall back to SSAO via a material-override prepass.
   colorGrade: true, // cinematic grade + vignette pass (after OutputPass)
   water: true, // animated water: analytic ripples + fresnel + sun glitter (else static plane)

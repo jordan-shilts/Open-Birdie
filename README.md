@@ -101,11 +101,26 @@ node tools/test-shot.js --speed 150 --vla 13 --spin 2700 --axis -4
 node tools/test-load.js "Course name"   # test course download/parse
 ```
 
+Make a cached course look like the real place (run in this order; each only adds scenery and
+leaves the HD fingerprint alone, except refresh-elevation):
+
+```bash
+node tools/add-buildings.mjs      data/courses/<slug>.json   # OSM building footprints, clubhouse
+node tools/add-course-aerial.mjs  data/courses/<slug>.json   # 0.3-0.6 m USGS aerial photo (US)
+node tools/add-canopy-trees.mjs   data/courses/<slug>.json   # every real tree, with height and crown
+node tools/refresh-elevation.mjs  data/courses/<slug>.json   # re-fetch lidar if a load fell back
+```
+
 ## Open data credits
 
 - Course geometry © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors,
   via [Overpass API](https://overpass-api.de/) and [Nominatim](https://nominatim.org/)
-- Elevation: [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (Mapzen terrarium)
+- Elevation: [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (Mapzen terrarium) and
+  [USGS 3DEP](https://www.usgs.gov/3d-elevation-program) lidar (public domain)
+- Aerial imagery: [USGS NAIP / NAIPPlus](https://www.usgs.gov/centers/eros/science/usgs-eros-archive-aerial-photography-national-agriculture-imagery-program-naip) (public domain)
+- Tree positions and heights: Meta and World Resources Institute (WRI),
+  [High Resolution Canopy Height Maps](https://registry.opendata.aws/dataforgood-fb-forests/),
+  licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (used by `tools/add-canopy-trees.mjs`)
 
 ## Known limitations / roadmap
 
@@ -130,6 +145,7 @@ The Software is provided **"AS IS", without warranty of any kind**, and the auth
 **no liability** for any damages, personal injury, or damage to equipment or property arising
 from its use. **You** are responsible for your own safety and for complying with the terms of
 service / EULAs of your launch monitor, its first-party software, and every third-party data
-source the app contacts (OpenStreetMap/ODbL, Overpass, Nominatim, AWS Terrain Tiles).
+source the app contacts (OpenStreetMap/ODbL, Overpass, Nominatim, AWS Terrain Tiles, USGS,
+Meta/WRI canopy data).
 
 Read the full terms in **[DISCLAIMER.md](DISCLAIMER.md)**

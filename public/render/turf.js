@@ -4,6 +4,7 @@
 // bright CC0 sand on a bunker mask — all on the single terrain mesh.
 import * as THREE from 'three';
 import { ASSETS } from './assets.js';
+import { RENDER_CONFIG } from './config.js';
 
 const loader = new THREE.TextureLoader();
 function tiled(url, srgb, repX, repY, aniso) {
@@ -22,7 +23,7 @@ function tiled(url, srgb, repX, repY, aniso) {
 // aux (optional): the soft AUX surface mask (B = bunker, ~1.8 m blur) — darkens the
 // steep sand face just inside the edge so bunkers read as dished hazards with a
 // grass lip, not flat decals.
-export function makeSandMaterial(bounds, aniso, aux = null, sunDir = null) {
+export function makeSandMaterial(bounds, aniso, aux = null, sunDir = null, courseDry = 1) {
   const extX = bounds.maxX - bounds.minX, extY = bounds.maxY - bounds.minY;
   const tileM = 2.0, repX = extX / tileM, repY = extY / tileM;
   const map = tiled(ASSETS.turf.sand, true, repX, repY, aniso);
@@ -34,21 +35,28 @@ export function makeSandMaterial(bounds, aniso, aux = null, sunDir = null) {
     envMapIntensity: 0.5,
     polygonOffset: true, polygonOffsetFactor: -1.2, polygonOffsetUnits: -1.2,
   });
-  mat.color = new THREE.Color(1.02, 0.97, 0.84); // muted greige native sand (real links/waste sand
-  // is a grey-tan crushed material ~#b7a98b, NOT bright white — verified vs Chambers Bay photos)
+  // muted greige native sand on links (real links/waste sand is a grey-tan crushed
+  // material ~#b7a98b, NOT bright white — verified vs Chambers Bay photos), but bright
+  // white silica on parkland courses (Hazeltine, Augusta) — blended by courseDry
+  const dry = Math.min(1, Math.max(0, courseDry));
+  mat.color = new THREE.Color(1.62, 1.60, 1.52).lerp(new THREE.Color(1.02, 0.97, 0.84), dry);
   mat.userData.disposeTextures = [map, normalMap, roughnessMap];
   if (aux) {
     mat.onBeforeCompile = (shader) => {
       shader.uniforms.uAux = { value: aux };
       shader.uniforms.uAuxExt = { value: new THREE.Vector2(extX, extY) };
       shader.uniforms.uSunDir3 = { value: sunDir || new THREE.Vector3(0.4, 0.8, -0.4) };
+      shader.uniforms.uSandWhite = { value: 1 - dry };
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec2 vCourseUv;')
         .replace('#include <uv_vertex>', '#include <uv_vertex>\nvCourseUv = uv;');
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform sampler2D uAux; uniform vec2 uAuxExt; uniform vec3 uSunDir3;\nvarying vec2 vCourseUv;')
+        .replace('#include <common>', '#include <common>\nuniform sampler2D uAux; uniform vec2 uAuxExt; uniform vec3 uSunDir3; uniform float uSandWhite;\nvarying vec2 vCourseUv;')
         .replace('#include <map_fragment>', `#include <map_fragment>
           {
+            // parkland silica sand is near-white: drain most of the tan texture hue
+            float sL = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(sL) * vec3(1.03, 1.02, 0.97), 0.75 * uSandWhite);
             // 1 at the sand edge -> 0 about a metre in: the steep face under the lip.
             // DIRECTIONAL so the hazard reads as a dish, not a mound: the edge nearest
             // the sun is shadowed by its lip, the far face (tilted at the sun) is lit.
@@ -67,7 +75,7 @@ export function makeSandMaterial(bounds, aniso, aux = null, sunDir = null) {
             diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.92, 0.95, 0.88), shade * 0.5);
           }`);
     };
-    mat.customProgramCacheKey = () => 'sand-lip-v2';
+    mat.customProgramCacheKey = () => 'sand-lip-v3';
   }
   return mat;
 }
@@ -107,8 +115,12 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
     shader.uniforms.uBunker = { value: bunkerMaskTex };
     shader.uniforms.uSand = { value: sand };
     shader.uniforms.uExt = { value: new THREE.Vector2(extX, extY) };
-    shader.uniforms.uStripeM = { value: 7.0 }; // mow-band width (m) — a touch wider reads better from the orbit cam
+    shader.uniforms.uStripeM = { value: RENDER_CONFIG.mowStripeM ?? 7.0 }; // mow-band width (m)
     shader.uniforms.uCourseDry = { value: courseDry }; // P1b: 0 lush parkland .. 1 dry links
+    // Clean manicured turf (2026-11): how far parkland turf drops the stacked noise,
+    // straw patches, near photo tint and desaturation. Scaled by (1 - courseDry), so
+    // links keep their tuned tan character. 0 = the previous look.
+    shader.uniforms.uTurfClean = { value: (RENDER_CONFIG.turfClean ?? 1) * (1 - courseDry) };
     // P2a: crisp-edge inputs — the RAW mask + per-surface palette (linear). The shader
     // composites the surface BASE COLOUR per-fragment gated by a fwidth mask so the
     // green/tan boundary is a crisp ~1px mow line, not the soft splat/tint/collar sum.
@@ -185,6 +197,9 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
               float keep = 0.62 / (1.0 + 2.4 * length(chroma));
               vec3 tint = clamp(tL + chroma * keep, 0.62, 1.32);
               float tw = mvalid * edgeW * mix(uMacroWeights.x, uMacroWeights.y, tintFar);
+              // clean turf: the 2.5 m/px tint carries capture-day tree shadows and smears
+              // them as dark blotches near the player; keep it for the mid/far colour drift
+              tw *= mix(1.0, mix(0.3, 0.85, tintFar), uTurfClean);
               // Greens keep their authored colour; mown fairway keeps its mow structure —
               // pull the tint back on BOTH so the manicured signal (stripes, green
               // treatment) isn't washed flat by the photo. The photo PLACES the surface;
@@ -200,7 +215,9 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
               vec3 photo = texture2D(uMacro, mUv).rgb * (0.86 + 0.30 * dl);
               // P1b: on dry courses lower the far-photo weight so the lit TAN turf carries
               // the overview instead of the green summer aerial washing back over it.
-              grass = mix(grass, photo, mvalid * edgeW * uMacroPhotoFar * photoFar * (1.0 - 0.7 * uCourseDry));
+              // clean turf: the capture-day aerial (dry patches, baked tree blobs the 3D trees
+              // now duplicate) reads as dirt at range, so parkland keeps about half of it
+              grass = mix(grass, photo, mvalid * edgeW * uMacroPhotoFar * photoFar * (1.0 - 0.7 * uCourseDry) * mix(1.0, 0.5, uTurfClean));
             } }` : '';
     if (macro) {
       shader.uniforms.uMacro = { value: macro.albedo };
@@ -223,7 +240,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
         uniform sampler2D uDetail; uniform vec2 uDetailRepeat;
         uniform sampler2D uMask; uniform sampler2D uBunker; uniform sampler2D uSand;
         uniform sampler2D uMaskRaw; uniform vec3 uPalGreenA; uniform vec3 uSunDir3;
-        uniform vec2 uExt; uniform float uStripeM; uniform float uCourseDry;
+        uniform vec2 uExt; uniform float uStripeM; uniform float uCourseDry; uniform float uTurfClean;
         // Procedural turf grain — evaluated from world XZ so it stays crisp at ANY
         // zoom. A tiled grass photo mip-blurs to a flat average from the elevated
         // orbit camera (the "Minecraft" smoothness); world-space value noise doesn't.
@@ -283,10 +300,11 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           vec3 collarCol = clamp(uPalGreenA * vec3(1.25, 1.15, 0.90), 0.0, 1.0);
           vec3 baseCol = mix(diffuseColor.rgb, collarCol, collarBand);
           baseCol = mix(baseCol, uPalGreenA, gCrisp);
-          vec3 grass = baseCol * (0.72 + 0.48 * dl);
+          // clean turf: the blade photo adds fine tooth, not a blotchy value swing
+          vec3 grass = baseCol * mix(0.72 + 0.48 * dl, 0.88 + 0.24 * dl, uTurfClean);
           // inject a little of the blade's own chroma so a zone isn't one flat tint
           // (green/yellow flecks); clamped so dark blade pixels can't blow up the hue
-          grass *= mix(vec3(1.0), clamp(gd / max(dl, 0.1), 0.6, 1.5), 0.16);
+          grass *= mix(vec3(1.0), clamp(gd / max(dl, 0.1), 0.6, 1.5), mix(0.16, 0.07, uTurfClean));
           vec4 mk = texture2D(uMask, vMapUv);
           float m = mk.r;                 // mown gate — semantics unchanged
           float g = mk.g;                 // green gate — packed channel (.g = greens only)
@@ -331,7 +349,9 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           // and BURIED the mow stripes — the opposite of manicured. Tame fine+broad,
           // keep the large zone (it survives the orbit-cam mip-collapse and carries the
           // lush/dry character below). Clean base + bold stripes = the "pro sim" read.
-          grass *= 1.0 + 0.26 * fine + 0.12 * broad + 0.20 * zone; // GENTLE — stacked mottling read as churned "warzone" mud on hilly holes
+          // clean turf keeps a quarter: manicured parkland grass is even, and the
+          // stacked mottling read as dirty felt at the hitting view
+          grass *= 1.0 + (0.26 * fine + 0.12 * broad + 0.20 * zone) * mix(1.0, 0.1, uTurfClean); // GENTLE — stacked mottling read as churned "warzone" mud on hilly holes
           // big regions also shift the grass CHARACTER — lush deep-green <-> dry
           // yellow-green — so different parts of the course read as different grass,
           // not one uniform tone stamped edge to edge.
@@ -339,10 +359,10 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           // noise warm-endpoint toward neutral by uCourseDry — else the tan base x warm
           // multiplier double-counts and overshoots past the target gold-tan.
           vec3 warmEnd = mix(vec3(1.13, 1.03, 0.74), vec3(1.0, 1.0, 0.96), uCourseDry * 0.7);
-          grass *= mix(vec3(0.93, 1.0, 0.9), warmEnd,
-                       clamp(zone * 1.7 + 0.5, 0.0, 1.0)); // lush green <-> golden tan-fescue patches
-          grass.r *= 1.0 + 0.10 * broad;                        // finer warm/cool drift on top
-          grass.b *= 1.0 - 0.07 * broad;
+          grass *= mix(vec3(1.0), mix(vec3(0.93, 1.0, 0.9), warmEnd,
+                       clamp(zone * 1.7 + 0.5, 0.0, 1.0)), mix(1.0, 0.15, uTurfClean)); // lush green <-> golden tan-fescue patches
+          grass.r *= 1.0 + 0.10 * broad * mix(1.0, 0.3, uTurfClean); // finer warm/cool drift on top
+          grass.b *= 1.0 - 0.07 * broad * mix(1.0, 0.3, uTurfClean);
           // Mowing stripes — the dominant "manicured" signal, fairway/green only.
           // Softer smoothstep ramps give the mower-sheen gradient (not hard bars). A
           // BOLD primary set reads as light/dark bands from the orbit camera; a fainter,
@@ -370,12 +390,14 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           float teeK = smoothstep(0.35, 0.65, aux.r) * mCrisp;
           // Tees are cut short and cross-mown, not striped like a fairway: drop the bold
           // fairway bands there and lay a fine checker instead (below).
-          grass *= 1.0 + (0.38 * stripe + 0.17 * stripe2) * max(mCrisp, cls.r) * (1.0 - 0.85 * g - 0.6 * collarBand) * (1.0 - 0.92 * teeK) * sFade * (1.0 - 0.7 * uCourseDry);
+          // clean turf: real stripes are a sheen, not paint — with a sun-dominant key the
+          // bold set read as glaring pale bars, so parkland runs them at ~45%
+          grass *= 1.0 + (0.38 * stripe + 0.17 * stripe2) * mix(1.0, 0.45, uTurfClean) * max(mCrisp, cls.r) * (1.0 - 0.85 * g - 0.6 * collarBand) * (1.0 - 0.92 * teeK) * sFade * (1.0 - 0.7 * uCourseDry);
           {
             float tb1 = sin((wx * 0.71 + wy * 0.71) * (3.14159265 / 1.6));
             float tb2 = sin((wx * -0.71 + wy * 0.71) * (3.14159265 / 1.6));
             grass *= 1.0 + 0.05 * ((smoothstep(-0.5, 0.5, tb1) - 0.5) + (smoothstep(-0.5, 0.5, tb2) - 0.5)) * teeK * sFade;
-            grass *= mix(1.0, 0.84, teeK);      // the tee palette reads hot next to the darker rough
+            grass *= mix(1.0, mix(0.84, 0.94, uTurfClean), teeK); // the tee palette reads hot next to the darker rough
           }
           // GREEN (v29): calm fine grain + a SUBTLE checker mow + a gentle contour roll,
           // all gated by the SOFT edge (gEdge) so the putting-surface character fades
@@ -400,7 +422,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           float gy = tFbm(sp + vec2(0.0, 0.07)) - tFbm(sp - vec2(0.0, 0.07));
           vec2 sunDir = normalize(vec2(0.55, -0.84));      // HDRI sun's horizontal bearing
           float rake = clamp((gx * sunDir.x + gy * sunDir.y) * 7.0, -0.6, 0.6);
-          grass *= 1.0 + 0.09 * rake;                      // GENTLE — 0.22 was carving dark shade-bands into the hills
+          grass *= 1.0 + 0.09 * rake * mix(1.0, 0.25, uTurfClean); // GENTLE — 0.22 was carving dark shade-bands into the hills
           // ---- ROUGH / FIRST CUT / BANKS / LIPS (2026-11 material pass) ----------------
           // Everything not mown, not green, not sand is ROUGH (physics agrees: unlabelled
           // ground plays as rough). It was the same flat tint as the mown corridor; now it
@@ -422,7 +444,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
             float clumpFade = 1.0 - smoothstep(18.0, 55.0, viewD);
             if (clumpFade > 0.0 && roughK > 0.0) {   // coherent branch: skip the fbm far out
               float tuft = smoothstep(0.30, 0.78, tFbm(vec2(wx, wy) * 1.45 + 4.1));
-              grass *= 1.0 + (0.30 * tuft - 0.12) * roughK * (1.0 - firstCut) * clumpFade;
+              grass *= 1.0 + (0.30 * tuft - 0.12) * roughK * (1.0 - firstCut) * clumpFade * mix(1.0, 0.3, uTurfClean);
             }
             #endif
             float straw = smoothstep(0.50, 0.80, tFbm(vec2(wy, wx) * 0.065 + 21.0));
@@ -430,8 +452,8 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
             float macroR2 = tFbm(vec2(wy, wx) * 0.021 + 2.0) - 0.47;
             vec3 dryTint = mix(vec3(1.20, 1.08, 0.70), vec3(1.06, 1.03, 0.92), uCourseDry);
             float roughOnly = roughK * (1.0 - firstCut);
-            grass *= mix(vec3(1.0), dryTint, straw * 0.55 * roughOnly);           // straw / olive patches
-            grass *= 1.0 + (0.34 * macroR + 0.18 * macroR2) * roughK;             // broad drift, to the horizon
+            grass *= mix(vec3(1.0), dryTint, straw * 0.55 * roughOnly * mix(1.0, 0.05, uTurfClean)); // straw / olive patches (links; watered parkland rough stays green)
+            grass *= 1.0 + (0.34 * macroR + 0.18 * macroR2) * roughK * mix(1.0, 0.2, uTurfClean); // broad drift, to the horizon
             grass *= mix(1.0, 0.86, roughOnly);                                   // rough sits darker than the cut
             grass *= mix(1.0, 1.06, firstCut);                                    // first cut: a step lighter, cleaner
             // wet banks: darker, cooler, lusher grass within ~2 m of water
@@ -454,7 +476,8 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           // Pull the radioactive kelly-green toward muted, warm tan-green fescue (Bandon
           // links is firm golden-tan, not astroturf emerald). Desaturate + warm.
           float gLum = dot(grass, vec3(0.299, 0.587, 0.114));
-          grass = mix(grass, vec3(gLum * 0.85) * vec3(1.1, 1.0, 0.8), 0.4); // *0.85 darkens so desaturating doesn't LIGHTEN the green to pale
+          // clean parkland turf keeps its colour: the 40% pull is a links tan-fescue tune
+          grass = mix(grass, vec3(gLum * mix(0.85, 0.92, uTurfClean)) * vec3(1.1, 1.0, 0.8), mix(0.4, 0.22, uTurfClean)); // *0.85 darkens so desaturating doesn't LIGHTEN the green to pale
           ${macroBlend}
           // Soft highlight rolloff: light mown/aerial areas + mow-stripe peaks were
           // washing out to pale rectangles. Compress grass values above ~0.66.

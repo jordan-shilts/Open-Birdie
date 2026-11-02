@@ -64,3 +64,50 @@ export function makeTerrainSampler(base, patches = []) {
     },
   };
 }
+
+// Vertex normals (three.js frame: x east, y up, z = -north) for a row-major height
+// grid, taken from a gaussian-smoothed copy of the heights. Raw lidar carries ~0.1 m
+// of grass and sensor noise per cell; on a 1-2 m grid that is several degrees of
+// random slope, which the sun turns into blotchy light/dark patches across smooth
+// mown turf. Smoothing only the shading keeps every vertex where the data put it.
+export function smoothGridNormals(heights, nx, ny, cellM, sigmaM = 2) {
+  const sigma = sigmaM / cellM;
+  let h = heights;
+  if (sigma > 0.25) {
+    const rad = Math.max(1, Math.ceil(sigma * 2.5));
+    const kernel = [];
+    let sum = 0;
+    for (let k = -rad; k <= rad; k++) { const w = Math.exp(-(k * k) / (2 * sigma * sigma)); kernel.push(w); sum += w; }
+    for (let k = 0; k < kernel.length; k++) kernel[k] /= sum;
+    const tmp = new Float32Array(nx * ny), out = new Float32Array(nx * ny);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        let v = 0;
+        for (let k = -rad; k <= rad; k++) v += heights[j * nx + Math.min(nx - 1, Math.max(0, i + k))] * kernel[k + rad];
+        tmp[j * nx + i] = v;
+      }
+    }
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        let v = 0;
+        for (let k = -rad; k <= rad; k++) v += tmp[Math.min(ny - 1, Math.max(0, j + k)) * nx + i] * kernel[k + rad];
+        out[j * nx + i] = v;
+      }
+    }
+    h = out;
+  }
+  const normals = new Float32Array(nx * ny * 3);
+  for (let j = 0; j < ny; j++) {
+    const j0 = Math.max(0, j - 1), j1 = Math.min(ny - 1, j + 1);
+    for (let i = 0; i < nx; i++) {
+      const i0 = Math.max(0, i - 1), i1 = Math.min(nx - 1, i + 1);
+      const dx = (h[j * nx + i1] - h[j * nx + i0]) / (Math.max(1, i1 - i0) * cellM);
+      const dy = (h[j1 * nx + i] - h[j0 * nx + i]) / (Math.max(1, j1 - j0) * cellM); // +north
+      // surface y = h(x, z) with z = -north, so dh/dz = -dy: normal (-dx, 1, dy)
+      const len = Math.hypot(dx, 1, dy);
+      const k = (j * nx + i) * 3;
+      normals[k] = -dx / len; normals[k + 1] = 1 / len; normals[k + 2] = dy / len;
+    }
+  }
+  return normals;
+}

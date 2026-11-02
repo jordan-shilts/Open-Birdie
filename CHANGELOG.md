@@ -5,6 +5,18 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Real trees from canopy height data** — `tools/add-canopy-trees.mjs` streams the Meta & WRI 1 m
+  global canopy height map (CC BY 4.0) for a course and writes `course.canopy`: every tree's position,
+  height and crown radius (distinct crowns, plus a fill for closed woods). The renderer places and sizes
+  trees from it instead of guessing woods fills; crown shape picks conifer vs broadleaf. Hazeltine:
+  7,854 real trees. Non-fingerprinted scenery (`lib/canopy-trees.js`, `tree-placement.js`, `trees.js`).
+- **`tools/refresh-elevation.mjs`** re-fetches a cached course's lidar terrain.
+- **Clean parkland turf + sun-dominant daylight** — the sky dome was the main light (env 1.0 vs sun 2.0),
+  so courses read as soft, shadowless haze with blotchy grass; the sun now keys the scene (5.0 vs 0.4, sun
+  altitude 36°) with crisp tree shadows. Parkland turf drops the stacked noise, straw patches, near-camera
+  aerial tint and links desaturation (`turfClean`, scaled out on dry courses), tees are painted crisp,
+  stripes are a softer 4.5 m sheen, parkland sand is white silica, and terrain shading uses lightly smoothed
+  normals (`terrainShadeSmoothM`).
 - **Graphics upgrade (branch `feat/graphics-upgrade`)** — instanced 3D trees with near/mid/far LODs, wind
   and filled woods (`trees.js`, `tree-placement.js`); a rough / first-cut / tee / wet-bank / sun-aware
   bunker-lip ground pass (`turf.js`); a countryside apron + horizon haze and an aerial-perspective fog curve
@@ -135,6 +147,12 @@ All notable changes to Open-Birdie are documented here.
   clean lush fairway rather than churned mud (`turf.js`, `scene.js` `COLORS`).
 
 ### Fixed
+- **Part of a course silently lost its lidar relief** — each 3DEP tile got one 12 s attempt; a slow reply
+  dropped that whole area to the smoothed ~10 m terrain (Hazeltine holes 1, 9, 10, 18). Base tiles now get
+  a 40 s deadline, 3 attempts with backoff, and a warning if one still fails (`lib/lidar.js`, `lib/elevation.js`).
+- **Aerial colour tint stayed flat grey** — three.js sizes texture storage once, so growing the tint canvas
+  from its 1x1 placeholder overflowed every upload; the texture is now disposed and re-uploaded (`scene.js`).
+- **`add-buildings.mjs` could hang forever** on a silent mirror; it now uses the shared Overpass client.
 - **Courses load when the usual map servers are busy** — every built-in Overpass mirror was at
   capacity or silent, so new courses failed to load. Added the maps.mail.ru mirror (it answers,
   but slowly) and gave each request time to finish: 45 s for lookups, 100 s for the feature query
