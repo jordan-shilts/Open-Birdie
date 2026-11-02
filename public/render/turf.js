@@ -459,6 +459,8 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
             // wet banks: darker, cooler, lusher grass within ~2 m of water
             float bank = clamp(aux.g * 2.2, 0.0, 1.0) * (1.0 - gCrisp);
             grass *= mix(vec3(1.0), vec3(0.74, 0.84, 0.80), bank * 0.85);
+            // the pond bed (carved under the water, seen through the shallows) is silt
+            grass = mix(grass, vec3(0.085, 0.075, 0.045), smoothstep(0.6, 0.92, aux.g));
             // bunker lips: the grass face just outside the crisp sand edge, shaded on the
             // edge nearest the sun (it slopes away from it) and lit on the far edge
             float lip = clamp(aux.b * 2.0, 0.0, 1.0) * (1.0 - bCrisp);

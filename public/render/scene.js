@@ -14,6 +14,7 @@ import { buildPineStraw, buildFlowers, vegetationTexturePixelChecksums } from '.
 import { buildRakes } from './props.js';
 import { buildGrass } from './grass.js';
 import { buildWater } from './water.js';
+import { coursePonds, carveBeds } from './water-shore.js';
 import { makeWaterDepth } from './water-depth.js';
 import { makeTurfMaterial, makeSandMaterial } from './turf.js';
 import { srgbToLinear, averageLinearColor } from './macro-tint.js';
@@ -500,6 +501,9 @@ export class GolfScene {
     const b = this._bounds(geo);
     this.bounds = b;
     this._placeSkybox();
+    // ponds at their real (hydro-flattened) water line; the terrain mesh carves a bed
+    // under each (water-shore.js)
+    this._ponds = RENDER_CONFIG.water ? coursePonds(geo.surfaces, (x, y) => this.hAt(x, y)) : [];
     const terrain = this._terrainMesh(b);
     group.add(terrain);
     // countryside past the course edge (no more floating slab); purely visual
@@ -586,13 +590,18 @@ export class GolfScene {
     const cellX = g ? g.cellM : (b.maxX - b.minX);
     const cellY = g ? g.cellM : (b.maxY - b.minY);
 
+    // render-only pond beds: physics keeps the lidar surface (water is a hazard by
+    // surface type, not depth)
+    const heights = g && this._ponds?.length
+      ? carveBeds(g.heights, { nx, ny, minX, minY, cellM: g.cellM }, this._ponds)
+      : g?.heights;
     const pos = new Float32Array(nx * ny * 3);
     const uv = new Float32Array(nx * ny * 2);
     for (let j = 0; j < ny; j++) {
       for (let i = 0; i < nx; i++) {
         const k = j * nx + i;
         pos[k * 3] = minX + i * cellX;
-        pos[k * 3 + 1] = g ? g.heights[k] : 0;
+        pos[k * 3 + 1] = g ? heights[k] : 0;
         pos[k * 3 + 2] = -(minY + j * cellY);
         uv[k * 2] = i / (nx - 1);
         uv[k * 2 + 1] = j / (ny - 1);
@@ -612,7 +621,7 @@ export class GolfScene {
     const shadeM = RENDER_CONFIG.terrainShadeSmoothM ?? 0;
     if (g && shadeM > 0) {
       // shade from smoothed heights: lidar noise otherwise blotches smooth mown turf
-      geom.setAttribute('normal', new THREE.BufferAttribute(smoothGridNormals(g.heights, nx, ny, g.cellM, shadeM), 3));
+      geom.setAttribute('normal', new THREE.BufferAttribute(smoothGridNormals(heights, nx, ny, g.cellM, shadeM), 3));
     } else {
       geom.computeVertexNormals();
     }
@@ -857,14 +866,18 @@ export class GolfScene {
   // Animated water (config.water) or the static fallback plane.
   _addWater(geo, group) {
     if (RENDER_CONFIG.water) {
+      // the terrain depth pre-pass (clear shallows at the bank) re-renders the whole
+      // terrain — only pay for it with water
       const foamEnabled = !!this.waterDepth && this.quality?.preset?.waterFoam !== false;
-      const { meshes, waterMeshes, waterUpdate, setFoamDepth } = buildWater(geo.surfaces, (x, y) => this.hAt(x, y), this.sunDir, foamEnabled);
-      // the foam depth pre-pass re-renders the whole terrain — only pay for it with water
+      const depth = foamEnabled
+        ? { depthTexture: this.waterDepth.depthTexture, resolution: this.waterDepth.resolution, near: this.camera.near, far: this.camera.far }
+        : null;
+      const { meshes, waterMeshes, waterUpdate, setSun } = buildWater(this._ponds || [], this.sunDir, depth);
       this._foamOn = foamEnabled && !!(waterMeshes && waterMeshes.length);
       meshes.forEach((m) => group.add(m));
       this._waterUpdate = waterUpdate;
+      this._waterSetSun = setSun;
       this._waterMeshList = waterMeshes;
-      if (foamEnabled) setFoamDepth(this.waterDepth.depthTexture, this.waterDepth.resolution, this.camera.near, this.camera.far);
     } else {
       this._waterMeshes(geo).forEach((m) => group.add(m));
     }
@@ -878,9 +891,9 @@ export class GolfScene {
     });
     for (const s of geo.surfaces) {
       if (s.kind !== 'water' || s.poly.length < 3) continue;
-      const shape = new THREE.Shape(s.poly.map(([x, y]) => new THREE.Vector2(x, -y)));
+      const shape = new THREE.Shape(s.poly.map(([x, y]) => new THREE.Vector2(x, y)));
       const g2 = new THREE.ShapeGeometry(shape);
-      g2.rotateX(-Math.PI / 2); // (x, -y) plane -> (x, z=-y... ) lays flat, y up
+      g2.rotateX(-Math.PI / 2); // sim (x, y) -> three (x, 0, -y): lays flat, y up
       let level = Infinity;
       for (const [x, y] of s.poly) level = Math.min(level, this.hAt(x, y));
       const m = new THREE.Mesh(g2, mat);
