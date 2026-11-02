@@ -469,7 +469,7 @@ test('HD holes: built after the scenery for courses with manifests; a package wi
   const job = (await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 31 } } })).json.job;
   await waitFor(async () => (await svc.api('GET', `/v1/jobs/${job.id}`)).json.status === 'done');
   assert.deepEqual(calls, [{ courseId: 'osm:way:31', holes: [4, 7], buildings: 1 }], 'once, with the scenery already on the course');
-  assert.deepEqual((await svc.api('GET', `/v1/jobs/${job.id}`)).json.hd, { built: [4, 7], skipped: [] }, 'the job says which HD holes were built');
+  assert.deepEqual((await svc.api('GET', `/v1/jobs/${job.id}`)).json.hd, { built: [4, 7], skipped: [], packaged: [] }, 'the job says which HD holes were built (the fake builds none for real)');
   // no HD manifests: no HD step
   const other = (await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 32 } } })).json.job;
   await waitFor(async () => (await svc.api('GET', `/v1/jobs/${other.id}`)).json.status === 'done');

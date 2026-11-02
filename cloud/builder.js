@@ -106,6 +106,7 @@ function createCourseBuilder({
       const have = new Set(present.status === 'valid' ? present.descriptors.map((d) => d.hole) : []);
       hdManifests = hdManifests.filter((m) => !have.has(m.hole));
     }
+    let hdReport = null;
     if (hdManifests.length) {
       const hdOutcome = await hd.build({
         course,
@@ -115,20 +116,23 @@ function createCourseBuilder({
       });
       log.log(`[cloud] ${key}: HD holes ${hdOutcome.built.map((b) => b.hole).join(', ') || 'none'}` +
         `${hdOutcome.failed.length ? `, skipped ${hdOutcome.failed.map((f) => `${f.hole} (${f.code})`).join(', ')}` : ''}`);
-      // in the job record, so whoever asked can see what was skipped and why
-      update({
-        hd: {
-          built: hdOutcome.built.map((b) => b.hole),
-          skipped: hdOutcome.failed.map((f) => ({ hole: f.hole, code: f.code, message: String(f.message || '').slice(0, 160) })),
-        },
-      });
+      hdReport = {
+        built: hdOutcome.built.map((b) => b.hole),
+        skipped: hdOutcome.failed.map((f) => ({ hole: f.hole, code: f.code, message: String(f.message || '').slice(0, 160) })),
+      };
     }
 
     progress('publish', 'publishing the complete course', 95);
     const final = await publishPackage(store, buildCoursePackage({
       dataDir, source, complete: true, sceneryFailed: outcome.failed, now, generator,
     }));
-    update({ packageId: final.packageId, complete: true });
+    // In the job record: what this build added and skipped (and why), and every HD hole
+    // the published package carries; a manifest read right after an overwrite can lag.
+    update({
+      packageId: final.packageId,
+      complete: true,
+      ...(hdReport || (final.hd && final.hd.length) ? { hd: { ...(hdReport || { built: [], skipped: [] }), packaged: (final.hd || []).map((h) => h.hole) } } : {}),
+    });
     log.log(`[cloud] ${key}: complete package ${final.packageId.slice(0, 12)} — ` +
       `buildings ${final.scenery.buildings ?? '-'}, trees ${final.scenery.canopyTrees ?? '-'}, aerial ${final.scenery.aerial ?? '-'}` +
       `${outcome.failed.length ? `, failed: ${outcome.failed.join(', ')}` : ''}`);

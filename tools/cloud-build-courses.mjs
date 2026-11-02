@@ -102,7 +102,7 @@ export async function buildOne(client, course, {
       const manifest = await client.getManifest(key);
       return {
         course, key, status: manifest && manifest.complete ? 'built' : 'failed',
-        bytes: manifest && manifest.totalBytes, hd: manifest ? packageHdHoles(manifest) : [], hdWanted,
+        bytes: manifest && manifest.totalBytes, hd: (job.hd && job.hd.packaged) || (manifest ? packageHdHoles(manifest) : []), hdWanted,
         hdSkipped: (job.hd && job.hd.skipped) || [], ms: now() - started,
       };
     }
