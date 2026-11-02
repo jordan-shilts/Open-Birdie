@@ -1,11 +1,11 @@
 'use strict';
-// Pure/offline tests for the LIDAR patch sampler. The network fetch (fetchPatch)
-// is verified separately against the live 3DEP service, not here — npm test
-// stays offline and deterministic.
+// Pure/offline tests for the LIDAR patch sampler, and fetchPatch's retry rules
+// against a fake 3DEP service (injected fetchImpl) — npm test stays offline and
+// deterministic. The live service is verified separately.
 
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { makePatchSampler } = require('../lib/lidar');
+const { fetchPatch, makePatchSampler } = require('../lib/lidar');
 
 // 2x2 patch over a 100x100 mercator square. Row 0 is the top (y = ymax).
 //   top row    (y=ymax): [TL=0,  TR=10]
@@ -38,4 +38,49 @@ test('returns null when any corner is NoData', () => {
     heights: new Float32Array([-3.5e38, 5, 6, 7]),
   });
   assert.strictEqual(nd(0.5, 0.5), null);
+});
+
+// ---------- fetchPatch retries ----------
+
+const bbox = { west: -93.6, south: 44.8, east: -93.59, north: 44.81 };
+const meta = { width: 2, height: 2, extent: { xmin: 0, ymin: 0, xmax: 1, ymax: 1 } };
+function fake3dep(script) {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    const kind = url.includes('f=json') ? 'meta' : 'image';
+    calls.push(kind);
+    const step = script(kind, calls.filter((k) => k === kind).length);
+    if (step instanceof Error) throw step;
+    if (typeof step === 'number') return { ok: false, status: step };
+    return kind === 'meta'
+      ? { ok: true, json: async () => meta }
+      : { ok: true, arrayBuffer: async () => new Float32Array(step).buffer };
+  };
+  return { calls, fetchImpl };
+}
+
+test('a slow or dropped 3DEP request is retried and the patch returned', async () => {
+  const { calls, fetchImpl } = fake3dep((kind, n) => (kind === 'meta' && n === 1 ? new Error('socket hang up') : [1, 2, 3, 4]));
+  const patch = await fetchPatch(bbox, { fetchImpl, attempts: 3, backoffMs: 1 });
+  assert.ok(patch);
+  assert.deepStrictEqual(Array.from(patch.heights), [1, 2, 3, 4]);
+  assert.deepStrictEqual(calls, ['meta', 'meta', 'image']);
+});
+
+test('after the last attempt it gives up with null, never throws', async () => {
+  const { calls, fetchImpl } = fake3dep(() => 503);
+  assert.strictEqual(await fetchPatch(bbox, { fetchImpl, attempts: 3, backoffMs: 1 }), null);
+  assert.strictEqual(calls.length, 3);
+});
+
+test('no lidar there (all NoData) is final: not retried', async () => {
+  const { calls, fetchImpl } = fake3dep(() => [-3.5e38, -3.5e38, -3.5e38, -3.5e38]);
+  assert.strictEqual(await fetchPatch(bbox, { fetchImpl, attempts: 3, backoffMs: 1 }), null);
+  assert.deepStrictEqual(calls, ['meta', 'image']);
+});
+
+test('one attempt by default (the original best-effort contract)', async () => {
+  const { calls, fetchImpl } = fake3dep(() => 503);
+  assert.strictEqual(await fetchPatch(bbox, { fetchImpl }), null);
+  assert.strictEqual(calls.length, 1);
 });

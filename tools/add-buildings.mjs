@@ -6,12 +6,11 @@
 //
 //   node tools/add-buildings.mjs data/courses/<slug>.json
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 
-const OVERPASS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
-];
+// The same mirror list, deadlines and retries as course loading (lib/course.js),
+// so a hung public mirror cannot stall this tool forever.
+const { overpass } = createRequire(import.meta.url)('../lib/course.js');
 
 const file = process.argv[2];
 if (!file) { console.error('usage: node tools/add-buildings.mjs <course.json>'); process.exit(1); }
@@ -33,21 +32,10 @@ const s = toLat(minY - padM), n = toLat(maxY + padM), w = toLon(minX - padM), e 
 
 const q = `[out:json][timeout:90];(way["building"](${s},${w},${n},${e});relation["building"](${s},${w},${n},${e}););out tags geom;`;
 
-async function overpass(query) {
-  let lastErr;
-  for (const endpoint of OVERPASS) {
-    try {
-      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Open-Birdie/0.8 (buildings)' }, body: 'data=' + encodeURIComponent(query) });
-      if (res.ok) return res.json();
-      lastErr = new Error(`Overpass ${res.status} @ ${new URL(endpoint).host}`);
-    } catch (err) { lastErr = err; }
-  }
-  throw lastErr;
-}
 
 const proj = (c) => [+((c.lon - lon0) * mPerLon).toFixed(2), +((c.lat - lat0) * mPerLat).toFixed(2)];
 
-const osm = await overpass(q);
+const osm = await overpass(q, { timeoutMs: 100_000 });
 const buildings = [];
 for (const el of osm.elements || []) {
   const tags = el.tags || {};

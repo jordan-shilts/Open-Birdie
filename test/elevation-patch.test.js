@@ -130,11 +130,15 @@ test('fetch3depBase assembles a 1m grid from 3DEP tiles (offline)', async () => 
   assert.ok(grid.heights.every((v) => approx(v, 70, 1e-3)), `got ${grid.heights[0]}`);
 });
 
-test('fetch3depBase returns null when every tile fetch fails (caller uses coarse)', async () => {
-  const failFetch = async () => ({ ok: false, status: 500 });
+test('fetch3depBase returns null when every tile fetch fails (caller uses coarse)', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  let calls = 0;
+  const failFetch = async () => { calls++; return { ok: false, status: 500 }; };
   const grid = await fetch3depBase({
     lat0: 47, lon0: -122, mPerLat: 111132, mPerLon: 75000, minX: 0, minY: 0, maxX: 50, maxY: 50, cellM: 1,
-    baseM: 30, baseH: () => 0, fetchImpl: failFetch,
+    baseM: 30, baseH: () => 0, fetchImpl: failFetch, backoffMs: 1,
   });
   assert.equal(grid, null);
+  assert.equal(calls, 3, 'the one tile was tried three times');
+  assert.match(console.warn.mock.calls[0].arguments[0], /1 of 1 3DEP lidar tiles failed after 3 attempts/);
 });

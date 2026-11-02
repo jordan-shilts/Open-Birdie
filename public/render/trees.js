@@ -18,6 +18,7 @@ import * as THREE from 'three';
 import { ASSETS } from './assets.js';
 import { RENDER_CONFIG } from './config.js';
 import { coverageMipChain } from './alpha-mips.js';
+import { realTreeSize } from './tree-placement.js';
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -449,6 +450,8 @@ export class TreeField {
       const rec = RECIPES[name] || RECIPES.oak;
       const r = rng(seed += 101);
       const clumps = rec.clumps(r);
+      // crown radius of this species model at scale 1, for sizing real (measured) trees
+      const crownR = Math.max(...clumps.map((cl) => Math.hypot(cl.c[0], cl.c[2]) + cl.r));
       const sharedSp = { ...this.shared, uTreeH: { value: rec.H } };
       // materials
       const leafCol = new THREE.Color(rec.leaf);
@@ -524,8 +527,14 @@ export class TreeField {
       for (let i = 0; i < n; i++) {
         const s0 = list[i];
         const h = hAt(s0.x, s0.y);
-        const s = (RENDER_CONFIG.treeScale || 1) * (s0.s || 1);
-        const w = s * (0.85 + rr() * 0.3), ht = s * (0.88 + rr() * 0.3);
+        let w, ht;
+        if (s0.h > 0) {
+          // a real tree (course.canopy): its measured height and crown radius
+          ({ w, ht } = realTreeSize(s0, rec.H, crownR, rr(), rr()));
+        } else {
+          const s = (RENDER_CONFIG.treeScale || 1) * (s0.s || 1);
+          w = s * (0.85 + rr() * 0.3); ht = s * (0.88 + rr() * 0.3);
+        }
         q.setFromAxisAngle(up, rr() * Math.PI * 2);
         sc.set(w, ht, w);
         const p = V(s0.x, s0.y, h - 0.15);

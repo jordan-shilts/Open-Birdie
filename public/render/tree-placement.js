@@ -117,17 +117,41 @@ export function fillWoods(poly, { spacing = 7.5, seed = 1, blocked = null } = {}
   return out;
 }
 
+// Species from a real crown's shape: narrow, tall crowns read as conifers and broad
+// ones as broadleaves. Within each, stands still cluster by the same noise as
+// speciesAt, so neighbours mostly match.
+export function speciesForCrown(x, y, h, r, courseDry = 0) {
+  const ratio = r / Math.max(1, h);
+  const stand = speciesAt(x, y, courseDry, 0);
+  if (ratio < 0.22) return courseDry > 0.5 || stand === 'pine' ? 'pine' : 'fir';
+  if (ratio < 0.3) return stand === 'pine' || stand === 'fir' ? stand : 'oak';
+  return stand === 'birch' ? 'birch' : 'oak';
+}
+
+// Instance scale for a real tree of height h and crown radius r, given the species
+// model's height and crown radius at scale 1. Width follows the crown but stays
+// within a plausible ratio of the height so a noisy radius never squashes a model.
+// a, b in [0, 1) add a few percent of variation.
+export function realTreeSize({ h, r }, modelH, modelCrownR, a = 0.5, b = 0.5) {
+  const ht = (h / modelH) * (0.95 + a * 0.1);
+  const fromCrown = r > 0 && modelCrownR > 0 ? r / modelCrownR : ht;
+  const w = Math.min(ht * 1.6, Math.max(ht * 0.55, fromCrown)) * (0.94 + b * 0.12);
+  return { w, ht };
+}
+
+// Real trees within this distance of a hole line are the ones a golfer walks past:
+// they get contact shadows and litter, like OSM trees and woods edges.
+const NEAR_PLAY_M = 60;
+
 // All course tree spots, prioritised under a cap: explicit OSM trees, then every
 // woods EDGE tree (the visible faces), then interior trees nearest the holes.
 // holeLines: [[x,y],...][] used to rank interior trees; courseDry picks species.
-export function placeCourseTrees({ trees = [], woods = [], holeLines = [], cap = 9000, density = 1, courseDry = 0, blocked = null } = {}) {
+// canopy: real trees [[x, y, heightM, crownRadiusM], ...] (course.canopy, from canopy
+// height data). When present they replace the woods fill, which only guesses where
+// trees stand; OSM tree points are kept only where no real tree is within 3 m.
+export function placeCourseTrees({ trees = [], woods = [], holeLines = [], cap = 9000, density = 1, courseDry = 0, blocked = null, canopy = null } = {}) {
   const spacing = 7.5 / Math.sqrt(Math.max(0.15, density));
   const rnd = mulberry32(1234);
-  const explicit = trees.map(([x, y]) => ({ x, y, s: 0.85 + rnd() * 0.5, edge: true }));
-  const edge = [], interior = [];
-  woods.forEach((w, k) => {
-    for (const p of fillWoods(w, { spacing, seed: 7919 * (k + 1), blocked })) (p.edge ? edge : interior).push(p);
-  });
   const lineDist = (p) => {
     let d = Infinity;
     for (const line of holeLines) {
@@ -137,6 +161,12 @@ export function placeCourseTrees({ trees = [], woods = [], holeLines = [], cap =
     }
     return d;
   };
+  if (canopy && canopy.length) return placeRealTrees({ canopy, trees, holeLines, cap, courseDry, blocked, rnd, lineDist });
+  const explicit = trees.map(([x, y]) => ({ x, y, s: 0.85 + rnd() * 0.5, edge: true }));
+  const edge = [], interior = [];
+  woods.forEach((w, k) => {
+    for (const p of fillWoods(w, { spacing, seed: 7919 * (k + 1), blocked })) (p.edge ? edge : interior).push(p);
+  });
   if (interior.length && holeLines.length) {
     for (const p of interior) p.d = lineDist(p);
     interior.sort((a, b) => a.d - b.d);
@@ -147,4 +177,40 @@ export function placeCourseTrees({ trees = [], woods = [], holeLines = [], cap =
     delete p.d;
   }
   return all;
+}
+
+function placeRealTrees({ canopy, trees, holeLines, cap, courseDry, blocked, rnd, lineDist }) {
+  const real = [];
+  const cells = new Map(); // 3 m hash grid for the OSM de-duplication
+  const cellKey = (cx, cy) => `${cx},${cy}`;
+  for (const [x, y, h, r] of canopy) {
+    if (!(h > 0) || (blocked && blocked(x, y))) continue;
+    const p = { x, y, h, r, s: 1 };
+    real.push(p);
+    const k = cellKey(Math.floor(x / 3), Math.floor(y / 3));
+    if (!cells.has(k)) cells.set(k, []);
+    cells.get(k).push(p);
+  }
+  const nearReal = (x, y) => {
+    const cx = Math.floor(x / 3), cy = Math.floor(y / 3);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (const p of cells.get(cellKey(cx + dx, cy + dy)) || []) if (Math.hypot(p.x - x, p.y - y) < 3) return true;
+      }
+    }
+    return false;
+  };
+  const explicit = trees
+    .filter(([x, y]) => !nearReal(x, y) && !(blocked && blocked(x, y)))
+    .map(([x, y]) => ({ x, y, s: 0.85 + rnd() * 0.5 }));
+  const all = [...real, ...explicit];
+  for (const p of all) p.d = holeLines.length ? lineDist(p) : 0;
+  all.sort((a, b) => a.d - b.d);
+  const kept = all.slice(0, Math.max(0, cap));
+  for (const p of kept) {
+    p.edge = p.d <= NEAR_PLAY_M;
+    p.species = p.h ? speciesForCrown(p.x, p.y, p.h, p.r, courseDry) : speciesAt(p.x, p.y, courseDry, 0);
+    delete p.d;
+  }
+  return kept;
 }

@@ -358,6 +358,8 @@ function courseGeometry() {
   const activePackage = activationManager.current();
   if (!game.course || !activePackage) return null;
   const { name, surfaces, boundary, holes, trees, woods, buildings, elevation } = game.course;
+  // real trees [[x, y, heightM, crownRadiusM], ...] from canopy height data (non-fingerprinted scenery)
+  const canopy = game.course.canopy?.trees || null;
   // Course-wide aerial: bounds only (the image is fetched from /api/course-aerial);
   // never leak the server file path. Drapes the whole course as the ground photo.
   // classes: advertise the runtime NDVI classmap ONLY when it's fresh — i.e. it was
@@ -380,6 +382,7 @@ function courseGeometry() {
     trees,
     woods,
     buildings,
+    canopy,
     aerial,
     elevation,
     hd,
