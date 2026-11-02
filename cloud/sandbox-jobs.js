@@ -52,7 +52,9 @@ function createSandboxJobs({
   log = console,
 } = {}) {
   if (!store || typeof store.getRecord !== 'function') throw new TypeError('Sandbox jobs need a Vercel Blob store');
-  const api = () => sandboxApi || require('@vercel/sandbox').Sandbox;
+  // import(), not require(): the SDK's CommonJS build requires an ES-module-only
+  // dependency, which Node 22 on Vercel refuses ("require() of ES Module").
+  const api = async () => sandboxApi || (await import('@vercel/sandbox')).Sandbox;
   const iso = () => new Date(now()).toISOString();
   const view = (job) => {
     const { sandbox, sandboxStopped, ...rest } = job;
@@ -81,7 +83,7 @@ function createSandboxJobs({
     }
     if (!RUNNING.has(job.status) && job.sandbox && !job.sandboxStopped) {
       // the build is over: stop its machine now, not at the session timeout
-      try { await (await api().get({ name: job.sandbox, resume: false })).stop(); }
+      try { await (await (await api()).get({ name: job.sandbox, resume: false })).stop(); }
       catch (error) { log.warn(`[cloud] could not stop sandbox ${job.sandbox}: ${error.message}`); }
       job.sandboxStopped = true;
       await store.putRecord(jobKey(id), job);
@@ -123,7 +125,7 @@ function createSandboxJobs({
     try {
       const credentials = await blobCredentials();
       const name = `birdie-build-${job.id.slice(0, 8)}`;
-      sandbox = await api().create({
+      sandbox = await (await api()).create({
         name,
         source: { type: 'git', url: env.BIRDIE_CLOUD_REPO || DEFAULT_REPO, revision: env.BIRDIE_CLOUD_REF || DEFAULT_REF, depth: 1 },
         image: 'vercel/sandbox/node:22',
