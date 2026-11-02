@@ -63,6 +63,7 @@ export const RENDER_CONFIG = {
   // which has its own fescue). The vertex shader collapses blades past the fade radius, so a
   // patch placed around the address point reads as real foreground grass at the orbit camera
   // without re-triggering the sub-pixel smear in the mid/far field (reality-tested out there).
+  grassField: true, // real blades around the camera on every mown + rough surface (grass-field.js); replaces the ball patch below
   foregroundGrass: true,
   foregroundGrassRadius: 18,    // m — patch radius around the ball/address point (tight = dense)
   foregroundGrassCap: 24000,    // spot clumps (× ~4 blades); the fade culls everything far

@@ -13,6 +13,7 @@ import { buildGrounding } from './grounding.js';
 import { buildPineStraw, buildFlowers, vegetationTexturePixelChecksums } from './vegetation.js';
 import { buildRakes } from './props.js';
 import { buildGrass } from './grass.js';
+import { GrassField } from './grass-field.js';
 import { buildWater } from './water.js';
 import { coursePonds, carveBeds } from './water-shore.js';
 import { makeWaterDepth } from './water-depth.js';
@@ -364,7 +365,7 @@ export class GolfScene {
     };
     this._treeWind = this._grassWind = this._waterUpdate = this._waterMeshList = this._terrain = null; // drop stale per-course refs
     this._foamOn = false;
-    this._treeField = null; this._placedTrees = null; this._allTreeSpots = null;
+    this._treeField = null; this._placedTrees = null; this._allTreeSpots = null; this._grassField = null;
     this._fairwayGrassMesh = this._fairwayGrassWind = this._fairwayGrassCenter = this._fgGeo = this._fgGroup = this._fairwayZoneColorFn = null;
     // HD bundles (one per built hole) each own their textures. hdAssets may be an
     // array, a single legacy bundle, or null — normalize, then free any bundle from
@@ -523,6 +524,7 @@ export class GolfScene {
     catch (e) { console.warn('[render] buildings skipped:', e && e.message); }
     this._addGrass(geo, group);
     this._addFlowers(geo, group);
+    this._addGrassField(group);
     this._addFairwayGrass(geo, group);
     // LIDAR green meshes are a visual enhancement — never let a bug here break
     // the course load (the picker, physics, base render must still work). With an
@@ -1089,6 +1091,24 @@ export class GolfScene {
     return spots;
   }
 
+  // Real grass blades around the camera on every mown and rough surface (grass-field.js).
+  _addGrassField(group) {
+    if (!RENDER_CONFIG.grassField || !this.elev || !this._turfInputs) return;
+    try {
+      const hdBounds = this._hdPatches.map((p) => ({ minX: p.minX, minY: p.minY, maxX: p.minX + (p.nx - 1) * p.cellM, maxY: p.minY + (p.ny - 1) * p.cellM }));
+      this._grassField = new GrassField({
+        turf: this._turfInputs, elev: this.elev, hAt: (x, y) => this.hAt(x, y), hdBounds,
+        scale: Math.min(1, (this.quality?.preset?.grassScale ?? 0.5) * 2),
+      });
+      // the course teardown disposes materials' userData textures
+      for (const m of this._grassField.group.children) m.material.userData.disposeTextures = [this._grassField.height];
+      group.add(this._grassField.group);
+    } catch (e) {
+      console.warn('[render] grass field skipped:', e && e.message);
+      this._grassField = null;
+    }
+  }
+
   _addGrass(geo, group) {
     const spots = this._grassSpots(geo);
     if (!spots.length) return;
@@ -1103,7 +1123,7 @@ export class GolfScene {
   // the orbit camera and never re-triggers the mid/far sub-pixel smear. Re-anchored when the
   // ball moves to a new lie (debounced in _frame).
   _addFairwayGrass(geo, group) {
-    if (!RENDER_CONFIG.foregroundGrass) return;
+    if (!RENDER_CONFIG.foregroundGrass || this._grassField) return;   // the camera grass field covers it
     this._fgGeo = geo; this._fgGroup = group;
     this._fairwayZoneColorFn = this._fairwayZoneColor(geo);
     this._placeFairwayGrass();
@@ -1687,6 +1707,7 @@ export class GolfScene {
     this._haze?.update(this.camera);
     if (this._treeWind) this._treeWind(frameTime);
     if (this._treeField) this._treeField.update(this.camera, frameTime);
+    if (this._grassField) this._grassField.update(this.camera, frameTime);
     if (this._grassWind) this._grassWind(frameTime);
     if (RENDER_CONFIG.foregroundGrass && this.camMode === 'idle' && this._fairwayGrassCenter) {
       const fdx = this.ballSim.x - this._fairwayGrassCenter.x, fdy = this.ballSim.y - this._fairwayGrassCenter.y;
