@@ -17,7 +17,7 @@
 
 const crypto = require('node:crypto');
 const { normalizeCourseSource } = require('../lib/course-identity');
-const { packageKeyFor, parsePackageKey } = require('../lib/course-package');
+const { packageKeyFor, parsePackageKey } = require('../lib/course-key');
 const { blobKey, manifestKey } = require('./store');
 
 const MAX_BODY_BYTES = 16 * 1024;
@@ -89,7 +89,7 @@ function createCloudService({
   store,
   queue,
   buildToken = null,
-  fileMode = store && store.kind === 's3' ? 'redirect' : 'proxy',
+  fileMode = store && (store.kind === 's3' || store.kind === 'vercel-blob') ? 'redirect' : 'proxy',
   presignSeconds = 900,
   now = Date.now,
   log = console,
@@ -120,7 +120,7 @@ function createCloudService({
     const key = courseKey(raw);
     const manifest = await store.getJson(manifestKey(key));
     if (manifest) return send(res, 200, manifest, { 'Cache-Control': 'no-cache' });
-    const job = queue.activeFor(key);
+    const job = await queue.activeFor(key);
     return send(res, 404, { error: 'not_found', key, ...(job ? { job } : {}) });
   }
 
@@ -137,7 +137,7 @@ function createCloudService({
     }
     let submitted;
     try {
-      submitted = queue.submit(key, { key, courseId: source.courseId, request, force });
+      submitted = await queue.submit(key, { key, courseId: source.courseId, request, force });
     } catch (error) {
       if (error.code === 'QUEUE_FULL') throw new HttpError(429, 'queue_full', error.message);
       throw error;
@@ -151,7 +151,7 @@ function createCloudService({
     if (!HEX64.test(sha256)) throw new HttpError(400, 'bad_sha256');
     const objectKey = blobKey(key, sha256);
     if (fileMode === 'redirect' && typeof store.blobUrl === 'function') {
-      const url = store.blobUrl(objectKey, { expiresSec: presignSeconds });
+      const url = await store.blobUrl(objectKey, { expiresSec: presignSeconds });
       if (url) {
         res.writeHead(302, { Location: url, 'Cache-Control': 'no-store' });
         return res.end();
@@ -181,7 +181,7 @@ function createCloudService({
       }
       if (req.method === 'GET' && (m = /^\/v1\/courses\/([^/]+)$/.exec(p))) return await getCourse(res, m[1]);
       if (req.method === 'GET' && (m = /^\/v1\/jobs\/([^/]+)$/.exec(p))) {
-        const job = queue.get(decodeURIComponent(m[1]));
+        const job = await queue.get(decodeURIComponent(m[1]));
         return job ? send(res, 200, job) : send(res, 404, { error: 'not_found' });
       }
       return send(res, 404, { error: 'not_found' });

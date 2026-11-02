@@ -1,0 +1,80 @@
+'use strict';
+// One course build inside a Vercel Sandbox (started by cloud/sandbox-jobs.js): the
+// same builder as the long-running service (cloud/builder.js), publishing to the
+// Vercel Blob store and reporting progress into the job record the API serves.
+//
+//   JOB_ID=<uuid> BUILD_PAYLOAD=<base64 JSON {key, courseId, request, force}> node cloud/sandbox-build.js
+//
+// Blob credentials come from the environment (BLOB_READ_WRITE_TOKEN, or
+// VERCEL_OIDC_TOKEN + BLOB_STORE_ID), handed over by the API that started the build.
+
+const os = require('node:os');
+const path = require('node:path');
+
+// lib/course.js fixes its cache dir when first required: builds stage here.
+if (!process.env.BIRDIE_DATA_DIR) process.env.BIRDIE_DATA_DIR = path.join(os.tmpdir(), 'birdie-cloud-staging');
+
+const { createCourseBuilder } = require('./builder');
+const { describeFailure } = require('./jobs');
+const { activeJobKey, createVercelBlobStore, jobKey } = require('./vercel-blob-store');
+
+const SAVE_EVERY_MS = 3000;
+const HEARTBEAT_MS = 30 * 1000;
+
+async function main() {
+  const id = process.env.JOB_ID;
+  const payload = JSON.parse(Buffer.from(process.env.BUILD_PAYLOAD || '', 'base64').toString('utf8'));
+  const store = createVercelBlobStore();
+  const job = (await store.getRecord(jobKey(id))) || { id, key: payload.key, courseId: payload.courseId };
+
+  // Progress lands in the job record at most every few seconds; status changes at once.
+  let lastSave = 0, timer = null;
+  const write = () => store.putRecord(jobKey(id), job).catch((error) => console.warn(`[cloud] job record not saved: ${error.message}`));
+  const save = (fields = {}, immediately = false) => {
+    Object.assign(job, fields, { updatedAt: new Date().toISOString() });
+    if (!immediately && Date.now() - lastSave < SAVE_EVERY_MS) {
+      timer = timer || setTimeout(() => { timer = null; lastSave = Date.now(); write(); }, SAVE_EVERY_MS);
+      return Promise.resolve();
+    }
+    lastSave = Date.now();
+    return write();
+  };
+  const heartbeat = setInterval(() => save({}, true), HEARTBEAT_MS);
+
+  const { loadCourse } = require('../lib/course');
+  const { localSceneryProviders } = require('../lib/course-enrichment');
+  let sharp = null;
+  try { sharp = require('sharp'); }
+  catch (error) { console.warn(`[cloud] sharp unavailable (${error.message}); single-request aerial`); }
+  const aerialQuality = sharp ? 'tiled' : 'single';
+  const build = createCourseBuilder({
+    dataDir: process.env.BIRDIE_DATA_DIR,
+    store,
+    loadCourse,
+    providers: localSceneryProviders({ aerialQuality, sharp, canopy: true }),
+    aerialQuality,
+  });
+
+  await save({ status: 'running', stage: 'starting', message: 'building the course', startedAt: job.startedAt || new Date().toISOString() }, true);
+  try {
+    await build(payload, { update: (fields) => { save({ status: 'running', ...fields }); }, signal: new AbortController().signal });
+    await save({ status: 'done', stage: 'done', message: 'done', pct: 100, finishedAt: new Date().toISOString() }, true);
+  } catch (error) {
+    console.error(`[cloud] build ${job.key} failed: ${error && (error.code || '')} ${error && error.message}`);
+    const described = describeFailure(error);
+    await save({ status: 'failed', stage: 'failed', message: described.message, error: described, finishedAt: new Date().toISOString() }, true);
+    process.exitCode = 1;
+  } finally {
+    clearInterval(heartbeat);
+    if (timer) clearTimeout(timer);
+    try {
+      const pointer = await store.getRecord(activeJobKey(job.key));
+      if (pointer && pointer.id === id) await store.deleteRecord(activeJobKey(job.key));
+    } catch (_) { /* a stale pointer is harmless: the API checks the job it names */ }
+  }
+}
+
+main().catch((error) => {
+  console.error(`[cloud] sandbox build crashed: ${error && error.stack}`);
+  process.exit(1);
+});

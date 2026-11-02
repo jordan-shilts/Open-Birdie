@@ -10,7 +10,6 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { createS3Client } = require('./s3');
 
 const OBJECT_KEY = /^courses\/osm-(node|way|relation)-[1-9][0-9]{0,15}\/(manifest\.json|blobs\/[a-f0-9]{64})$/;
 
@@ -80,6 +79,7 @@ function storeFromEnv(env = process.env, { fetchImpl } = {}) {
   if (env.S3_BUCKET) {
     const missing = ['S3_ENDPOINT', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'].filter((name) => !env[name]);
     if (missing.length) throw new Error(`S3_BUCKET is set but ${missing.join(', ')} ${missing.length > 1 ? 'are' : 'is'} missing`);
+    const { createS3Client } = require('./s3');   // not needed by the Vercel deployment
     return createS3Store(createS3Client({
       endpoint: env.S3_ENDPOINT,
       bucket: env.S3_BUCKET,
