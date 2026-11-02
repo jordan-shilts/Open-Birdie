@@ -15,6 +15,14 @@ export const RENDER_CONFIG = {
   sunIntensity: 5.0,
   fogDensity: 0.00035, // aerial-perspective fog (atmosphere.js curve: linear + quadratic) to the HDRI horizon
   groundApron: true,   // countryside ring past the course edge + horizon haze band (horizon.js)
+  // Google Photorealistic 3D Tiles around the course (google-tiles.js). Only ever loads when
+  // the server has the user's GOOGLE_MAPS_API_KEY; false = never, even with a key. While they
+  // show, the apron + haze band above hide.
+  googleTiles: true,
+  googleTilesErrorTarget: 20,  // screen-space error (px) to refine to — Google's recommended 20; Low graphics x1.5
+  googleTilesCacheMB: 320,     // loaded-tile memory budget (LRU); Low graphics halves it
+  googleTilesClipEdgeM: 6,     // dithered seam width just inside the course rectangle, where our terrain takes over
+  googleTilesGain: 1.5,        // lift for the unlit photogrammetry under ACES at exposure 0.7 (untuned: no key to test with)
   skyboxHeight: 30, // GroundedSkybox projection height (world meters); tuned in Task 7
   // Sun direction: null = auto-estimate from the HDRI's brightest texel.
   // Set BOTH (degrees) to override when the estimate is wrong on a diffuse HDRI (D2).

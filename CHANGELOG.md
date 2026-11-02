@@ -10,6 +10,14 @@ All notable changes to Open-Birdie are documented here.
   looking ahead, a descent toward the flag, then a cut back to the address view. 8–14 s by hole
   length on centripetal Catmull-Rom curves with an eased cruise; it lifts over tree crowns and
   terrain, and any key or click skips it (`public/render/flyover.js`).
+- **Optional Google 3D surroundings** — with your own Map Tiles API key in `GOOGLE_MAPS_API_KEY`,
+  Google Photorealistic 3D Tiles fill in the real houses, trees and lakes around the course
+  (`3d-tiles-renderer`, loaded only when a key is set). Inside the course rectangle our own
+  terrain, trees and buildings win (a dithered seam), the tiles are lifted or lowered to meet our
+  terrain (raycast heights around the edge), our countryside apron and horizon band step aside,
+  fog still fades them into the haze, and the Google logo + data attributions show next to the
+  course credit. No key: no requests to Google and no change. A bad key logs one warning
+  (`public/render/google-tiles.js`, `lib/google-tiles-config.js`).
 - **Real trees from canopy height data** — `tools/add-canopy-trees.mjs` streams the Meta & WRI 1 m
   global canopy height map (CC BY 4.0) for a course and writes `course.canopy`: every tree's position,
   height and crown radius (distinct crowns, plus a fill for closed woods). The renderer places and sizes

@@ -38,6 +38,7 @@ import {
   normalizePerformanceRequest,
 } from './capture-performance.js';
 import { HoleFlyover } from './flyover.js';
+import { GoogleTiles } from './google-tiles.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, z, -y); // sim -> three
 
@@ -195,6 +196,7 @@ export class GolfScene {
     this._downshifted = false;
     this.setQuality(quality, { rebuild: false });
     this.flyover = new HoleFlyover(this); // hole flyover camera (flyover.js)
+    this.googleTiles = new GoogleTiles(this); // optional Google 3D tiles around the course (google-tiles.js; inert without a key)
     this._animationLoopLive = true;
     this._captureFixedTime = null;
     this.renderer.setAnimationLoop(this._liveFrame);
@@ -545,6 +547,7 @@ export class GolfScene {
 
     this.courseGroup = group;
     this.scene.add(group);
+    this.googleTiles.setCourse(geo); // re-fit (or drop) Google's surroundings for this course
   }
 
   async compileVisualCaptureShaders() {
@@ -1683,6 +1686,7 @@ export class GolfScene {
     if (this._flagU) this._flagU.value = frameTime;
     if (this._waterUpdate) this._waterUpdate(frameTime);
     if (this.waterDepth && this._foamOn && this._terrain) this.waterDepth.prepass(this._terrain, this.camera);
+    this.googleTiles.update(); // Google tile LOD/visibility for the camera just placed
     this.postfx.render();
     if (fixed) {
       this._lastVisualCapture = {
