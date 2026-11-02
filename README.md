@@ -65,6 +65,8 @@ Everything runs on this PC; no firewall changes needed. (If GSPconnect ever runs
 | Next ▶ / Pick up | advance to the next hole; pick up to concede a hole you aren't finishing |
 | Hole pills / HOLE | tap a played hole to review it on the scorecard |
 | Scorecard | scores, round-complete summary, restart / new round |
+| Graphics | cycle Auto / High / Low (High: live pond mirrors, grass blades, full tree detail) |
+| Sky | cycle Morning / Midday / Golden hour (sky photo + matching sun and haze) |
 | F11 | toggle fullscreen |
 
 Putts are detected automatically when on the green (low speed + low launch).
@@ -121,6 +123,7 @@ node tools/refresh-elevation.mjs  data/courses/<slug>.json   # re-fetch lidar if
 - Tree positions and heights: Meta and World Resources Institute (WRI),
   [High Resolution Canopy Height Maps](https://registry.opendata.aws/dataforgood-fb-forests/),
   licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (used by `tools/add-canopy-trees.mjs`)
+- Skies, leaves, needles and bark: [Poly Haven](https://polyhaven.com) (CC0) — see `ASSETS.md`
 
 ## Known limitations / roadmap
 
