@@ -96,7 +96,7 @@ test('a build gets its own sandbox running this repository, with the Blob creden
   assert.equal(job.sandbox, undefined, 'internal fields stay out of the API');
   assert.equal(job.pollMs, 10_000, 'the desktop is asked to poll gently (each poll is a Blob read)');
   const [params] = sandboxApi.created;
-  assert.deepEqual(params.source, { type: 'git', url: 'https://github.com/jordan-shilts/Open-Birdie.git', revision: 'feat/photoreal-pass', depth: 1 });
+  assert.equal(params.source, undefined, 'the build clones the repository itself, into a known folder');
   assert.equal(params.persistent, false);
   assert.equal(params.image, 'vercel/sandbox/node:22', 'a managed image (runtimes are deprecated)');
   assert.ok(params.timeout <= 45 * 60 * 1000, 'fits a Hobby sandbox session');
@@ -104,6 +104,9 @@ test('a build gets its own sandbox running this repository, with the Blob creden
   assert.equal(cmd.detached, true);
   assert.deepEqual(cmd.args, ['-c', BUILD_SCRIPT]);
   assert.equal(cmd.env.BLOB_READ_WRITE_TOKEN, 'rw-token');
+  assert.equal(cmd.env.BIRDIE_REPO, 'https://github.com/jordan-shilts/Open-Birdie.git');
+  assert.equal(cmd.env.BIRDIE_REF, 'feat/photoreal-pass');
+  assert.match(BUILD_SCRIPT, /git clone .*"\$BIRDIE_REF" "\$BIRDIE_REPO" open-birdie\ncd open-birdie\n/);
   assert.equal(cmd.env.JOB_ID, job.id);
   assert.equal(cmd.env.BIRDIE_OVERPASS_URLS, 'https://o.example/api/interpreter');
   assert.deepEqual(JSON.parse(Buffer.from(cmd.env.BUILD_PAYLOAD, 'base64')), { key: KEY, courseId: 'osm:relation:9892305', request: {}, force: false });

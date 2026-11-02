@@ -24,11 +24,14 @@ const POLL_MS = 10 * 1000;
 const RUNNING = new Set(['queued', 'running']);
 const JOB_ID = /^[0-9a-f-]{36}$/;
 
-// Inside the sandbox: only the service's own dependencies (cloud/package.json), not
-// the desktop app's Electron toolchain — then the build.
+// Inside the sandbox: clone the repository into a folder of our own (where a
+// sandbox's `source` checkout lands differs between images), install only the
+// service's own dependencies (cloud/package.json, not the desktop app's Electron
+// toolchain), then build.
 const BUILD_SCRIPT = [
   'set -e',
-  'cd /vercel/sandbox',
+  'git clone --quiet --depth 1 --branch "$BIRDIE_REF" "$BIRDIE_REPO" open-birdie',
+  'cd open-birdie',
   'cp cloud/package.json package.json',
   'rm -f package-lock.json',
   'npm install --omit=dev --no-audit --no-fund --loglevel=error',
@@ -127,7 +130,6 @@ function createSandboxJobs({
       const name = `birdie-build-${job.id.slice(0, 8)}`;
       sandbox = await (await api()).create({
         name,
-        source: { type: 'git', url: env.BIRDIE_CLOUD_REPO || DEFAULT_REPO, revision: env.BIRDIE_CLOUD_REF || DEFAULT_REF, depth: 1 },
         image: 'vercel/sandbox/node:22',
         resources: { vcpus: 4 },
         timeout: SESSION_MS,
@@ -144,6 +146,8 @@ function createSandboxJobs({
         args: ['-c', BUILD_SCRIPT],
         env: {
           ...credentials,
+          BIRDIE_REPO: env.BIRDIE_CLOUD_REPO || DEFAULT_REPO,
+          BIRDIE_REF: env.BIRDIE_CLOUD_REF || DEFAULT_REF,
           JOB_ID: job.id,
           BUILD_PAYLOAD: Buffer.from(JSON.stringify(payload)).toString('base64'),
           ...(env.BIRDIE_OVERPASS_URLS ? { BIRDIE_OVERPASS_URLS: env.BIRDIE_OVERPASS_URLS } : {}),
