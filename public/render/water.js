@@ -11,8 +11,7 @@
 // dark water body (across a pond the trees and sky mirror; looking down you see into
 // it); where the terrain depth pre-pass says the water is shallow it clears over the
 // silty bed. Fog applies like any other surface.
-// Low quality (no mirror): a MeshStandardMaterial plane with the same ripples,
-// reflecting the HDRI sky.
+// Low quality (no mirror): the same shader reflecting the sky photo alone.
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { RENDER_CONFIG } from './config.js';
@@ -144,32 +143,23 @@ function mirrorPond(geom, shared) {
 let inMirror = false;
 const MAX_LIVE_MIRRORS = 2;
 
-// ---------------------------------------------------------------- sky-only fallback
-function addRippleShader(material, shared) {
-  material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, shared);
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\n varying vec3 vWorldPos;')
-      .replace('#include <begin_vertex>',
-        '#include <begin_vertex>\n vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>
-        uniform float uTime, uChop; uniform vec3 uSunDir, uSunColor, uDeep;
-        varying vec3 vWorldPos; vec3 gWaterWN;
-        ${RIPPLE}`)
-      .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
-        gWaterWN = rippleNormal(vWorldPos.xz, uTime, uChop);
-        normal = normalize((viewMatrix * vec4(gWaterWN, 0.0)).xyz);`)
-      .replace('#include <opaque_fragment>', `{
-          vec3 V = normalize(cameraPosition - vWorldPos);
-          float fres = pow(clamp(1.0 - max(dot(V, gWaterWN), 0.0), 0.0, 1.0), 3.0);
-          outgoingLight = mix(outgoingLight * 0.6 + uDeep * 0.5, outgoingLight, fres);
-          vec3 H = normalize(uSunDir + V);
-          outgoingLight += uSunColor * pow(max(dot(gWaterWN, H), 0.0), 220.0) * 1.6;
-        }
-        #include <opaque_fragment>`);
-  };
-  material.customProgramCacheKey = () => 'water-sky-v2';
+// ---------------------------------------------------------------- sky-only ponds
+// Low graphics: the same pond shader on a plain mesh, never live (uMirror stays 0), so
+// it reflects the sky photo with the ripples and glitter at no extra render cost.
+function skyPond(geom, shared) {
+  const m = new THREE.ShaderMaterial({
+    name: 'PondSky',
+    uniforms: {
+      color: { value: new THREE.Color(0xc4d0cc) }, tDiffuse: { value: null }, textureMatrix: { value: new THREE.Matrix4() },
+      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      ...shared, uMirror: { value: 0 },
+    },
+    vertexShader: POND_VERT,
+    fragmentShader: POND_FRAG,
+    fog: true,
+    transparent: true,
+  });
+  return new THREE.Mesh(geom, m);
 }
 
 // ponds: water-shore.js coursePonds (grown outline + water level per pond);
@@ -193,8 +183,6 @@ export function buildWater(ponds, sunDir, depth) {
     uCamNear: { value: 0.3 },
     uCamFar: { value: 12000 },
   };
-  const skyMat = reflect ? null : new THREE.MeshStandardMaterial({ color: 0x1d3a3a, roughness: 0.1, metalness: 0, envMapIntensity: 1.1 });
-  if (skyMat) addRippleShader(skyMat, shared);
 
   for (const p of ponds) {
     // shape in sim (x, y); a -90deg turn about x maps it to three (x, 0, -y) —
@@ -205,10 +193,9 @@ export function buildWater(ponds, sunDir, depth) {
     const g = new THREE.ShapeGeometry(shape);
     // a hair over the flattened water line: the bank where it rises out draws the shore
     const level = p.level + 0.03;
-    const m = reflect ? mirrorPond(g, shared) : new THREE.Mesh(g, skyMat);
+    const m = reflect ? mirrorPond(g, shared) : skyPond(g, shared);
     m.rotation.x = -Math.PI / 2;
     m.position.y = level;
-    if (!reflect) m.receiveShadow = true;
     m.updateMatrixWorld(true);
     g.computeBoundingSphere();
     m.userData.sphere = g.boundingSphere.clone().applyMatrix4(m.matrixWorld);
