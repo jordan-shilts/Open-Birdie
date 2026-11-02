@@ -58,7 +58,7 @@ test('the featured list resolves; a featured id brings its name and box; names a
 test('a course the cloud has complete is skipped; otherwise it is built and followed to the end', async () => {
   const key = 'osm-relation-9892305';
   const done = fakeClient({ built: { [key]: { complete: true, totalBytes: 5 } } });
-  const skipped = await buildOne(done, HAZELTINE, { sleep: noWait, log: () => {} });
+  const skipped = await buildOne(done, HAZELTINE, { hdHolesFor: () => [], sleep: noWait, log: () => {} });
   assert.equal(skipped.status, 'built');
   assert.equal(skipped.skipped, true);
   assert.ok(!done.calls.some(([op]) => op === 'build'));
@@ -73,7 +73,7 @@ test('a course the cloud has complete is skipped; otherwise it is built and foll
     ] },
   });
   const waits = [];
-  const result = await buildOne(client, HAZELTINE, { sleep: async (ms) => { waits.push(ms); }, log: (l) => lines.push(l) });
+  const result = await buildOne(client, HAZELTINE, { hdHolesFor: () => [], sleep: async (ms) => { waits.push(ms); }, log: (l) => lines.push(l) });
   assert.equal(result.status, 'built');
   assert.equal(result.bytes, 11 * 1048576);
   const [, , body] = client.calls.find(([op]) => op === 'build');
@@ -81,6 +81,26 @@ test('a course the cloud has complete is skipped; otherwise it is built and foll
   assert.equal(body.name, HAZELTINE.name);
   assert.equal(lines.length, 3, 'one line per change, not per poll');
   assert.ok(waits.every((ms) => ms >= 5000), 'polls at the pace the cloud asks for, never hammering it');
+});
+
+test('a built course with HD manifests here but no HD holes in its package is upgraded', async () => {
+  const key = 'osm-relation-9892305';
+  const hdHolesFor = () => [16, 17, 18];
+  const upgraded = fakeClient({
+    built: { [key]: { complete: true, totalBytes: 11, hd: [] } },
+    jobs: { [key]: [{ status: 'running' }, { status: 'done' }] },
+  });
+  const r = await buildOne(upgraded, HAZELTINE, { hdHolesFor, sleep: noWait, log: () => {} });
+  const [, , body] = upgraded.calls.find(([op]) => op === 'build');
+  assert.equal(body.hd, true, 'asks for the HD holes');
+  assert.equal(body.force, undefined, 'an upgrade, not a rebuild');
+  assert.equal(r.status, 'built');
+  // a package that has them is done; a course without manifests never asks
+  const done = fakeClient({ built: { [key]: { complete: true, totalBytes: 12, hd: [{ hole: 16, bundleId: 'b' }] } } });
+  assert.equal((await buildOne(done, HAZELTINE, { hdHolesFor, sleep: noWait, log: () => {} })).skipped, true);
+  const plain = fakeClient({ jobs: { 'osm-way-5': [{ status: 'running' }, { status: 'done' }] } });
+  await buildOne(plain, { name: 'Plain', osmType: 'way', osmId: 5, bbox: null }, { hdHolesFor: () => [], sleep: noWait, log: () => {} });
+  assert.equal(plain.calls.find(([op]) => op === 'build')[2].hd, undefined);
 });
 
 test('one failure does not stop the rest, and concurrency is respected', async () => {

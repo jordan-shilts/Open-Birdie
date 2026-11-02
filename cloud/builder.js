@@ -6,7 +6,9 @@
 //     waiting on this build can start playing;
 //  2. its scenery — OSM buildings, Meta/WRI canopy trees (geotiff) and the
 //     max-quality tiled NAIP aerial (sharp), buildings first (lib/course-enrichment.js);
-//  3. published again as the complete package.
+//  3. its 1 m HD holes, when the repository has hole manifests for the course
+//     (`hd`, cloud/hd-holes.js);
+//  4. published again as the complete package.
 // The course is staged in BIRDIE_DATA_DIR (a scratch dir) and removed afterwards.
 // A build whose staging is gone (restart) resumes from the published package.
 
@@ -43,6 +45,9 @@ function createCourseBuilder({
   loadCourse,
   providers,
   aerialQuality = 'tiled',
+  // { manifestsFor(courseId) -> hole manifests, build({course, manifests, onHole, log})
+  //   -> {built, failed} } (cloud/hd-holes.js), or null for no HD holes
+  hd = null,
   generator = 'open-birdie-cloud',
   keepStaging = false,
   now = () => new Date(),
@@ -91,6 +96,19 @@ function createCourseBuilder({
       onStart: (layer) => progress('scenery', `adding ${LAYER_LABELS[layer]}`, LAYER_PCT[layer]),
       onLayer: async ({ course: enriched, artifacts }) => persistSceneryUpdate({ cacheDir, course: enriched, artifacts }),
     });
+
+    // 1 m HD holes go into dataDir/hd-courses, where the package below picks them up
+    const hdManifests = hd ? hd.manifestsFor(source.courseId) : [];
+    if (hdManifests.length) {
+      const hdOutcome = await hd.build({
+        course,
+        manifests: hdManifests,
+        log,
+        onHole: (hole, i, total) => progress('hd', `adding 1 m terrain: hole ${hole} (${i + 1} of ${total})`, 85 + Math.round((i / total) * 9)),
+      });
+      log.log(`[cloud] ${key}: HD holes ${hdOutcome.built.map((b) => b.hole).join(', ') || 'none'}` +
+        `${hdOutcome.failed.length ? `, skipped ${hdOutcome.failed.map((f) => `${f.hole} (${f.code})`).join(', ')}` : ''}`);
+    }
 
     progress('publish', 'publishing the complete course', 95);
     const final = await publishPackage(store, buildCoursePackage({

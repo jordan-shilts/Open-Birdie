@@ -82,8 +82,14 @@ function parseBuildRequest(body) {
     }
     Object.assign(request, { lat, lon });
   }
-  return { source, request, force: body.force === true };
+  // hd: the repository has 1 m HD hole manifests for this course (the caller checked):
+  // a complete package without HD holes is upgraded rather than served as ready
+  return { source, request, force: body.force === true, hd: body.hd === true };
 }
+
+const hasHdHoles = (manifest) => (Array.isArray(manifest.hd)
+  ? manifest.hd.length > 0
+  : (manifest.files || []).some((f) => f.role === 'hd'));
 
 function createCloudService({
   store,
@@ -129,11 +135,12 @@ function createCloudService({
     const auth = String(req.headers.authorization || '');
     const given = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length).trim() : '';
     if (!given || !sameSecret(given, buildToken)) throw new HttpError(401, 'unauthorized');
-    const { source, request, force } = parseBuildRequest(await readJsonBody(req));
+    const { source, request, force, hd } = parseBuildRequest(await readJsonBody(req));
     const key = packageKeyFor(source);
     if (!force) {
       const manifest = await store.getJson(manifestKey(key));
-      if (isReady(manifest)) return send(res, 200, { status: 'ready', key, manifest });
+      // an HD upgrade resumes from this package: only the HD holes are new work
+      if (isReady(manifest) && !(hd && !hasHdHoles(manifest))) return send(res, 200, { status: 'ready', key, manifest });
     }
     let submitted;
     try {

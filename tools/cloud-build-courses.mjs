@@ -25,6 +25,13 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { buildRequestBody, cloudConfigFromEnv, createCloudClient } = require('../lib/cloud-client');
 const { packageKeyFor } = require('../lib/course-key');
 const { normalizeCourseSource } = require('../lib/course-identity');
+const { hdManifestsFor } = require('../cloud/hd-holes');
+
+// The holes this repository has 1 m HD manifests for (tools/hd-course/manifests);
+// the cloud compiles them into the course's package.
+const repoHdHoles = (course) => hdManifestsFor(normalizeCourseSource(course).courseId).map((m) => m.hole);
+const packageHdHoles = (manifest) => (Array.isArray(manifest.hd) ? manifest.hd.map((h) => h.hole) : []);
+const holesText = (holes) => holes.join(', ');
 
 const BUILD_TIMEOUT_MS = 45 * 60 * 1000;   // a Hobby sandbox session is at most 45 min
 const MIN_POLL_MS = 5000;
@@ -58,21 +65,31 @@ export async function resolveCourse(entry, { search, featured = [] }) {
 const label = (c) => `${(c.name || `${c.osmType}/${c.osmId}`).split(',')[0]} (${c.osmType}/${c.osmId})`;
 const mb = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
 
-// One course: skip it when the cloud has the complete package (unless force), else ask
-// for a build and follow the job until it ends. Returns { course, key, status, ... }.
+// One course: skip it when the cloud has the complete package (with HD holes, when
+// the repository has HD manifests for it) unless force; else ask for a build (an HD
+// upgrade resumes from the package) and follow the job until it ends.
+// Returns { course, key, status, ... }.
 export async function buildOne(client, course, {
-  force = false, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), now = Date.now, log = console.log,
+  force = false, hdHolesFor = repoHdHoles,
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)), now = Date.now, log = console.log,
 } = {}) {
   const key = packageKeyFor(normalizeCourseSource({ osmType: course.osmType, osmId: course.osmId }));
+  const hdWanted = hdHolesFor(course);
   const started = now();
+  const done = (manifest) => manifest && manifest.complete && (!hdWanted.length || packageHdHoles(manifest).length > 0);
   if (!force) {
     const manifest = await client.getManifest(key);
-    if (manifest && manifest.complete) return { course, key, status: 'built', skipped: true, bytes: manifest.totalBytes };
+    if (done(manifest)) return { course, key, status: 'built', skipped: true, bytes: manifest.totalBytes, hd: packageHdHoles(manifest) };
+    if (manifest && manifest.complete) log(`  ${label(course)}: adding the 1 m HD holes ${holesText(hdWanted)}`);
   }
-  const body = { ...buildRequestBody({ name: course.name, bbox: course.bbox }, course), ...(force ? { force: true } : {}) };
+  const body = {
+    ...buildRequestBody({ name: course.name, bbox: course.bbox }, course),
+    ...(force ? { force: true } : {}),
+    ...(hdWanted.length ? { hd: true } : {}),
+  };
   const reply = await client.requestBuild(body);
-  if (reply.status === 'ready' && reply.manifest && reply.manifest.complete) {
-    return { course, key, status: 'built', skipped: true, bytes: reply.manifest.totalBytes };
+  if (reply.status === 'ready' && done(reply.manifest)) {
+    return { course, key, status: 'built', skipped: true, bytes: reply.manifest.totalBytes, hd: packageHdHoles(reply.manifest) };
   }
   let job = reply.job;
   if (!job) return { course, key, status: 'failed', message: 'the cloud started no build' };
@@ -82,7 +99,10 @@ export async function buildOne(client, course, {
     if (line !== last) { log(`  ${label(course)}: ${line}`); last = line; }
     if (job.status === 'done') {
       const manifest = await client.getManifest(key);
-      return { course, key, status: manifest && manifest.complete ? 'built' : 'failed', bytes: manifest && manifest.totalBytes, ms: now() - started };
+      return {
+        course, key, status: manifest && manifest.complete ? 'built' : 'failed',
+        bytes: manifest && manifest.totalBytes, hd: manifest ? packageHdHoles(manifest) : [], hdWanted, ms: now() - started,
+      };
     }
     if (job.status === 'failed') {
       return { course, key, status: 'failed', message: (job.error && job.error.message) || job.message, ms: now() - started };
@@ -151,7 +171,10 @@ async function main(argv) {
     for (const c of courses) {
       const key = packageKeyFor(normalizeCourseSource(c));
       const m = await client.getManifest(key).catch((e) => ({ error: e.message }));
-      const what = !m ? 'not built' : m.error ? `unknown (${m.error})` : m.complete ? `built, ${mb(m.totalBytes)}` : 'base only (scenery still being added)';
+      const wanted = repoHdHoles(c);
+      const have = m && !m.error ? packageHdHoles(m) : [];
+      const hd = have.length ? `, HD holes ${holesText(have)}` : wanted.length ? `, HD holes ${holesText(wanted)} not built yet` : '';
+      const what = !m ? 'not built' : m.error ? `unknown (${m.error})` : m.complete ? `built, ${mb(m.totalBytes)}${hd}` : 'base only (scenery still being added)';
       console.log(`  ${label(c)}: ${what}`);
     }
     return;
@@ -163,8 +186,10 @@ async function main(argv) {
   const results = await buildCourses(client, courses, { concurrency: args.concurrency, force: args.force });
   console.log('\nSummary');
   for (const r of results) {
+    const hd = r.hd && r.hd.length ? `, HD holes ${holesText(r.hd)}`
+      : r.hdWanted && r.hdWanted.length ? ', no HD holes (see the cloud logs)' : '';
     const what = r.status === 'built'
-      ? `${r.skipped ? 'already built' : `built in ${Math.round((r.ms || 0) / 60000)} min`}${r.bytes ? `, ${mb(r.bytes)}` : ''}`
+      ? `${r.skipped ? 'already built' : `built in ${Math.round((r.ms || 0) / 60000)} min`}${r.bytes ? `, ${mb(r.bytes)}` : ''}${hd}`
       : `FAILED: ${r.message}`;
     console.log(`  ${label(r.course)}: ${what}`);
   }

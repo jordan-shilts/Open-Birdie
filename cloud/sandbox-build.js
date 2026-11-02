@@ -15,6 +15,7 @@ const path = require('node:path');
 if (!process.env.BIRDIE_DATA_DIR) process.env.BIRDIE_DATA_DIR = path.join(os.tmpdir(), 'birdie-cloud-staging');
 
 const { createCourseBuilder } = require('./builder');
+const { buildHdHoles, hdManifestsFor } = require('./hd-holes');
 const { describeFailure } = require('./jobs');
 const { activeJobKey, createVercelBlobStore, jobKey } = require('./vercel-blob-store');
 
@@ -68,6 +69,7 @@ async function main() {
     loadCourse,
     providers: localSceneryProviders({ aerialQuality, sharp, canopy: true }),
     aerialQuality,
+    hd: { manifestsFor: hdManifestsFor, build: buildHdHoles },
   });
 
   await save({ status: 'running', stage: 'starting', message: 'building the course', startedAt: job.startedAt || new Date().toISOString() }, true);

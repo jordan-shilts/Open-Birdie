@@ -3,6 +3,7 @@
   "course": {
     "name": "Chambers Bay",
     "cacheVersion": 4,
+    "courseId": "osm:way:26787026",
     "fingerprint": "bd4fce5f8f4d4fbccd0aaa40c9630ef89018a1d4ad2b7f1bf29387ab2c39c0ff"
   },
   "hole": 9,

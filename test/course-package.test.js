@@ -118,6 +118,9 @@ test('a package carries the course (gzip), aerial, classmap and matching HD bund
   const hdPaths = paths.filter((p) => p.startsWith('hd/'));
   assert.equal(hdPaths.length, 6, 'manifest, provenance and the four assets of the one bundle');
   assert.ok(hdPaths.every((p) => /^hd\/[a-f0-9]{64}\//.test(p)));
+  assert.equal(manifest.hd.length, 1, 'the manifest says which HD holes it carries');
+  assert.equal(manifest.hd[0].hole, 1);
+  assert.equal(`hd/${manifest.hd[0].bundleId}/manifest.json`, hdPaths.find((p) => p.endsWith('/manifest.json')));
   for (const { entry, bytes } of files) {
     assert.equal(entry.size, bytes.length);
     assert.equal(entry.sha256, sha256(bytes));

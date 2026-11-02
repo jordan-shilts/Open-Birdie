@@ -13,8 +13,10 @@
   },
   "dependencies": {
     "@vercel/blob": "2.8.2",
+    "ajv": "8.20.0",
     "geotiff": "3.0.5",
     "pngjs": "7.0.0",
+    "proj4": "2.20.9",
     "sharp": "0.35.2"
   },
   "license": "MIT"

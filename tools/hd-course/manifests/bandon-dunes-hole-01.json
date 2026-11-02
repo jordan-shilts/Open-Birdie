@@ -3,6 +3,7 @@
   "course": {
     "name": "Bandon Dunes Golf Resort",
     "cacheVersion": 3,
+    "courseId": "osm:way:362513477",
     "fingerprint": "5cc7fad9f7bd234c2d2113a2a6905d7dece28260aff8ecc8741e999ef390709d"
   },
   "hole": 1,
