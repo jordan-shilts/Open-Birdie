@@ -86,7 +86,8 @@ function createSandboxJobs({
     }
     if (!RUNNING.has(job.status) && job.sandbox && !job.sandboxStopped) {
       if (job.status === 'failed' && job.internal) {
-        log.error(`[cloud] build ${job.key} (${job.id}) failed: ${job.internal.code} ${job.internal.message} @ ${job.internal.at}`);
+        log.error(`[cloud] build ${job.key} (${job.id}) failed: ${job.internal.code} ${job.internal.message} @ ${job.internal.at}` +
+          `${job.internal.log && job.internal.log.length ? ` | before: ${job.internal.log.join(' / ')}` : ''}`);
       }
       // the build is over: stop its machine now, not at the session timeout
       try { await (await (await api()).get({ name: job.sandbox, resume: false })).stop(); }

@@ -23,6 +23,19 @@ const { activeJobKey, createVercelBlobStore, jobKey } = require('./vercel-blob-s
 const SAVE_EVERY_MS = 15 * 1000;
 const HEARTBEAT_MS = 60 * 1000;
 
+// The last warnings and errors, kept for a failed build's record: the sandbox and its
+// logs are gone once the API stops it, and the cause is often logged a step earlier
+// than the error that ends the build (an Overpass mirror refusing, say).
+const recentLog = [];
+for (const level of ['warn', 'error']) {
+  const write = console[level].bind(console);
+  console[level] = (...args) => {
+    recentLog.push(args.map((a) => (a instanceof Error ? a.message : String(a))).join(' ').slice(0, 300));
+    if (recentLog.length > 12) recentLog.shift();
+    write(...args);
+  };
+}
+
 async function main() {
   const id = process.env.JOB_ID;
   const payload = JSON.parse(Buffer.from(process.env.BUILD_PAYLOAD || '', 'base64').toString('utf8'));
@@ -70,6 +83,7 @@ async function main() {
       code: String((error && (error.code || error.name)) || 'ERROR').slice(0, 80),
       message: String((error && error.message) || error).slice(0, 500),
       at: String((error && error.stack) || '').split('\n').slice(1, 4).map((l) => l.trim()).join(' | ').slice(0, 400),
+      log: recentLog.slice(0, -1),   // what led up to it (the last line is the failure itself)
     };
     await save({ status: 'failed', stage: 'failed', message: described.message, error: described, internal, finishedAt: new Date().toISOString() }, true);
     process.exitCode = 1;
