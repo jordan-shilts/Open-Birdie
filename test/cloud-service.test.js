@@ -237,6 +237,7 @@ function fakePipeline() {
   const tiled = crypto.randomBytes(6000); tiled[0] = 0xff; tiled[1] = 0xd8;
   const providers = {
     buildings: async () => { await gate; return { status: 'ok', buildings: [{ poly: [[1, 1], [2, 1], [2, 2]], heightM: 5, clubhouse: true }] }; },
+    water: async () => ({ status: 'ok', water: [{ kind: 'water', poly: [[30, 30], [50, 30], [50, 45]], name: 'Lake Test' }] }),
     canopy: async () => ({ status: 'ok', canopy: { source: 'test', trees: [[3, 3, 10, 2], [4, 4, 12, 3]] } }),
     aerial: async () => ({ status: 'ok', buf: tiled, bounds: { minX: -80, minY: -180, maxX: 70, maxY: 70 }, quality: 'tiled' }),
   };
@@ -308,7 +309,7 @@ test('service: token-gated builds publish a playable package first, then the com
   assert.equal(done.complete, true);
   const final = (await svc.api('GET', '/v1/courses/osm:way:77')).json;
   assert.equal(final.complete, true);
-  assert.deepEqual(final.scenery, { buildings: 1, canopyTrees: 2, aerial: 'tiled', classmap: false, failed: [] });
+  assert.deepEqual(final.scenery, { buildings: 1, water: 1, canopyTrees: 2, aerial: 'tiled', classmap: false, failed: [] });
   assert.deepEqual(svc.pipeline.loads, ['osm:way:77']);
   assert.equal(fs.existsSync(path.join(STAGING, 'courses', 'osm-way-77.json')), false, 'staging cleaned up');
 
@@ -382,7 +383,8 @@ test('end to end: the desktop plays the base package, then the cloud scenery arr
   const enriching = enrichCourseScenery(course, { providers, aerialQuality: 'tiled', log: quiet });
   setTimeout(() => svc.pipeline.open(), 50);
   const outcome = await enriching;
-  assert.deepEqual(outcome.applied, ['buildings', 'canopy', 'aerial']);
+  assert.deepEqual(outcome.applied, ['buildings', 'water', 'canopy', 'aerial']);
+  assert.equal(course.scenery.water[0].name, 'Lake Test');
   assert.equal(course.canopy.trees.length, 2);
   assert.equal(course.aerial.quality, 'tiled');
   assert.equal(course.aerial.file, 'osm-way-4.aerial.jpg');
@@ -433,6 +435,20 @@ test('a build whose staging is gone resumes from the published package; failed l
   assert.equal((await restarted.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 21 } } })).json.status, 'ready', 'fresh: not retried yet');
   await store.putJson(manifestKey('osm-way-21'), { ...final, createdAt: '2020-01-01T00:00:00.000Z' });
   assert.equal((await restarted.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 21 } } })).status, 202, 'an hour later the failed layer is retried');
+});
+
+test('a complete package from before a scenery layer existed is upgraded on the next request', async (t) => {
+  const store = createFsStore(tempDir('birdie-store-'));
+  const pipeline = fakePipeline();
+  pipeline.open();
+  const svc = await startService({ store, pipeline });
+  t.after(() => svc.close());
+  const job = (await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 23 } } })).json.job;
+  await waitFor(async () => (await svc.api('GET', `/v1/jobs/${job.id}`)).json.status === 'done');
+  const current = await store.getJson(manifestKey('osm-way-23'));
+  const { water, ...older } = current.scenery;
+  await store.putJson(manifestKey('osm-way-23'), { ...current, scenery: older });
+  assert.equal((await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 23 } } })).status, 202);
 });
 
 test('a desktop rides out a cloud restart in the middle of a build', async (t) => {

@@ -294,8 +294,9 @@ test('fetchCourseAerialTiled mosaics exact-size tiles with sharp and falls back 
 test('missing layers: empty lists count, aerial upgrades only for the tiled tier, "none" expires', () => {
   const now = Date.parse('2026-11-02T00:00:00Z');
   const course = baseCourse();
-  assert.deepEqual(missingSceneryLayers(course, { now }), ['buildings', 'canopy', 'aerial']);
+  assert.deepEqual(missingSceneryLayers(course, { now }), ['buildings', 'water', 'canopy', 'aerial']);
   course.buildings = [];
+  course.scenery = { water: [] };
   course.canopy = { trees: [] };
   course.aerial = { file: 'osm-way-77.aerial.jpg', bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 } };
   assert.deepEqual(missingSceneryLayers(course, { now }), []);
@@ -309,14 +310,15 @@ test('missing layers: empty lists count, aerial upgrades only for the tiled tier
   assert.equal(hasSceneryLayer(course, 'aerial', { now }), false, 'asked again after 30 days');
 });
 
-test('layers run buildings -> canopy -> aerial, canopy sees the buildings, classmap follows a new aerial', async () => {
+test('layers run buildings -> water -> canopy -> aerial, canopy sees both masks, classmap follows a new aerial', async () => {
   const course = baseCourse();
   const calls = [];
   const outcome = await enrichCourseScenery(course, {
     log: quiet,
     providers: {
       async buildings() { calls.push('buildings'); return { status: 'ok', buildings: [{ poly: [[0, 0], [1, 0], [1, 1]], heightM: 5 }] }; },
-      async canopy(c) { calls.push(`canopy:${c.buildings.length}`); return { status: 'ok', canopy: { trees: [[1, 2, 10, 3]] } }; },
+      async water() { calls.push('water'); return { status: 'ok', water: [{ kind: 'water', poly: [[30, 30], [40, 30], [40, 40]], name: 'Lake' }] }; },
+      async canopy(c) { calls.push(`canopy:${c.buildings.length}:${c.scenery.water.length}`); return { status: 'ok', canopy: { trees: [[1, 2, 10, 3]] } }; },
       async aerial() { calls.push('aerial'); return { status: 'ok', buf: fakeJpeg(), bounds: { minX: -1, minY: -1, maxX: 1, maxY: 1 }, quality: 'single' }; },
       async classify(c) {
         calls.push('classify');
@@ -329,10 +331,13 @@ test('layers run buildings -> canopy -> aerial, canopy sees the buildings, class
   });
   assert.deepEqual(calls, [
     'buildings', 'saved:buildings:',
-    'canopy:1', 'saved:canopy:',
+    'water', 'saved:water:',
+    'canopy:1:1', 'saved:canopy:',
     'aerial', 'classify', 'saved:aerial:osm-way-77.aerial.jpg,osm-way-77.classmap.png',
   ]);
-  assert.deepEqual(outcome.applied, ['buildings', 'canopy', 'aerial']);
+  assert.deepEqual(outcome.applied, ['buildings', 'water', 'canopy', 'aerial']);
+  assert.deepEqual(course.scenery.water[0].kind, 'water');
+  assert.equal(course.surfaces.length, 1, 'never added to the fingerprinted surfaces');
   assert.equal(course.enrichment.buildings.count, 1);
   assert.equal(course.aerial.file, 'osm-way-77.aerial.jpg');
 });
@@ -349,6 +354,7 @@ test('the enricher saves each layer to the cache JSON without changing the HD fi
     log: quiet,
     providers: {
       buildings: async () => ({ status: 'ok', buildings: [] }),
+      water: async () => ({ status: 'ok', water: [{ kind: 'water', poly: [[60, 60], [70, 60], [70, 70]], name: null }] }),
       canopy: async () => ({ status: 'ok', canopy: { source: 'test', trees: [[3, 4, 12, 2]] } }),
       aerial: async () => ({ status: 'ok', buf: fakeJpeg(3000), bounds: { minX: -110, minY: -110, maxX: 110, maxY: 110 }, quality: 'single' }),
     },
@@ -356,15 +362,17 @@ test('the enricher saves each layer to the cache JSON without changing the HD fi
     onProgress: (p) => progress.push(p),
   });
   const outcome = await enricher.schedule({ source: course.source, course });
-  assert.deepEqual(outcome.applied, ['buildings', 'canopy', 'aerial']);
-  assert.deepEqual(layers.map((l) => l[1]), ['buildings', 'canopy', 'aerial']);
+  assert.deepEqual(outcome.applied, ['buildings', 'water', 'canopy', 'aerial']);
+  assert.deepEqual(layers.map((l) => l[1]), ['buildings', 'water', 'canopy', 'aerial']);
   const saved = JSON.parse(fs.readFileSync(path.join(cacheDir, 'osm-way-77.json'), 'utf8'));
   assert.deepEqual(saved.buildings, []);
+  assert.equal(saved.scenery.water.length, 1);
+  assert.deepEqual(saved.surfaces, course.surfaces);
   assert.equal(saved.canopy.trees.length, 1);
   assert.equal(saved.aerial.file, 'osm-way-77.aerial.jpg');
   assert.equal(fs.readFileSync(path.join(cacheDir, 'osm-way-77.aerial.jpg')).length, 3000);
   assert.deepEqual({ v1: courseFingerprintV1(saved), v2: courseFingerprintV2(saved) }, before, 'scenery is not fingerprinted');
-  assert.deepEqual(progress.filter((p) => !p.done).map((p) => p.layer), ['buildings', 'canopy', 'aerial']);
+  assert.deepEqual(progress.filter((p) => !p.done).map((p) => p.layer), ['buildings', 'water', 'canopy', 'aerial']);
   assert.equal(progress.at(-1).done, true);
   assert.deepEqual(fs.readdirSync(cacheDir).filter((f) => f.includes('.tmp.')), [], 'no temporaries left');
   // A second run has nothing to do.
@@ -373,7 +381,7 @@ test('the enricher saves each layer to the cache JSON without changing the HD fi
 
 test('a failed layer waits out its cooldown; "no imagery" is remembered on disk', async () => {
   const cacheDir = tempDir('birdie-scenery-');
-  const course = baseCourse({ buildings: [] });
+  const course = baseCourse({ buildings: [], scenery: { water: [] } });
   let now = 1_000_000;
   let canopyCalls = 0;
   const enricher = createSceneryEnricher({

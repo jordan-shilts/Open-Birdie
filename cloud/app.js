@@ -21,6 +21,9 @@ const { packageKeyFor, parsePackageKey } = require('../lib/course-package');
 const { blobKey, manifestKey } = require('./store');
 
 const MAX_BODY_BYTES = 16 * 1024;
+// scenery summary keys a complete package must have (a layer added in a newer
+// version is missing from older packages: they are re-enriched on request)
+const SCENERY_KEYS = Object.freeze(['buildings', 'water', 'canopyTrees', 'aerial']);
 const RETRY_FAILED_LAYERS_MS = 60 * 60 * 1000;
 const HEX64 = /^[a-f0-9]{64}$/;
 
@@ -104,9 +107,10 @@ function createCloudService({
   }
 
   // A complete package is final, except that layers which failed get another try
-  // once the package is an hour old.
+  // once the package is an hour old, and layers it predates get added.
   function isReady(manifest) {
     if (!manifest || !manifest.complete) return false;
+    if (!SCENERY_KEYS.every((key) => manifest.scenery && key in manifest.scenery)) return false;
     const failed = (manifest.scenery && manifest.scenery.failed) || [];
     if (!failed.length) return true;
     return now() - Date.parse(manifest.createdAt) < RETRY_FAILED_LAYERS_MS;

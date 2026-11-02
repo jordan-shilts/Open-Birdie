@@ -38,6 +38,13 @@ All notable changes to Open-Birdie are documented here.
   per course, a small in-memory queue, resume from the published package after a restart, failed layers retried
   after an hour, and packages from before a new scenery layer upgraded on request. `cloud/Dockerfile`
   (`node:22-slim`) and a README section on deploying to Railway (service + bucket), R2, Supabase or MinIO.
+- **Lakes and ponds around the course** — course data only carries water mapped near the course itself, so a lake
+  OSM maps as a multipolygon beside the holes (Lake Hazeltine, by 16–18) was missing and showed as the flat,
+  hydro-flattened lidar ground. A new scenery layer (`lib/water-fetch.js`) fetches every `natural=water` /
+  `water=lake|pond|reservoir` / `landuse=reservoir` area over the elevation grid, assembles relation outlines from
+  their outer ways, projects them with the course origin, clips them to the grid and drops outlines already in
+  `course.surfaces`. Stored as `course.scenery.water` (never `surfaces`: drawn, not played, not fingerprinted),
+  served as `sceneryWater` in `/api/course-geometry`; canopy trees are masked on it.
 - **Real trees from canopy height data** — `tools/add-canopy-trees.mjs` streams the Meta & WRI 1 m
   global canopy height map (CC BY 4.0) for a course and writes `course.canopy`: every tree's position,
   height and crown radius (distinct crowns, plus a fill for closed woods). The renderer places and sizes

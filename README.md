@@ -79,10 +79,11 @@ routing lines to be playable; the loader tells you if they're missing. First loa
 geometry + elevation (10–90 s) and caches it in `data/courses/` — afterwards it's instant
 and works offline.
 
-Once a course is playable, its missing scenery follows in the background — real buildings
-(OpenStreetMap), every real tree (canopy height map; needs the optional `geotiff` package or the
-cloud service) and the course-wide aerial photo (USGS, US only) — and appears on screen as each
-layer arrives. It is saved with the course, so this happens once per course.
+Once a course is playable, its missing scenery follows in the background — real buildings and
+the lakes and ponds around the course (OpenStreetMap), every real tree (canopy height map; needs
+the optional `geotiff` package or the cloud service) and the course-wide aerial photo (USGS, US
+only) — and appears on screen as each layer arrives. It is saved with the course, so this happens
+once per course.
 
 ## Configuration
 

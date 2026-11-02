@@ -210,6 +210,7 @@ test('origin transform is exact per axis and the identity for one origin', () =>
 test('cloud scenery fills a cached course, re-projected when its origin differs', async (t) => {
   const cloudCourse = testCourse(77, {
     buildings: [{ poly: [[100, 100], [110, 100], [110, 110]], heightM: 6, kind: 'yes', name: null, clubhouse: true }],
+    scenery: { water: [{ kind: 'water', poly: [[200, 0], [260, 0], [260, 50], [200, 50]], name: 'Lake Cloud' }] },
     canopy: { source: 'cloud', trees: [[50, 60, 14, 4]] },
   });
   const pkg = packageFor(cloudCourse);
@@ -226,8 +227,9 @@ test('cloud scenery fills a cached course, re-projected when its origin differs'
   // same origin: values pass through untouched; the classmap comes with the aerial
   const local = testCourse(77);
   const outcome = await enrichCourseScenery(local, { providers, log: quiet });
-  assert.deepEqual(outcome.applied, ['buildings', 'canopy', 'aerial']);
+  assert.deepEqual(outcome.applied, ['buildings', 'water', 'canopy', 'aerial']);
   assert.deepEqual(local.buildings, cloudCourse.buildings);
+  assert.deepEqual(local.scenery.water, cloudCourse.scenery.water);
   assert.deepEqual(local.canopy.trees, [[50, 60, 14, 4]]);
   assert.equal(local.aerial.quality, 'tiled');
   assert.equal(local.aerial.classFile, 'osm-way-77.classmap.png');
@@ -239,6 +241,7 @@ test('cloud scenery fills a cached course, re-projected when its origin differs'
   const dy = 0.0001 * 111132.95;
   assert.ok(Math.abs(moved.buildings[0].poly[0][1] - (100 - dy)) < 0.02, `y ${moved.buildings[0].poly[0][1]}`);
   assert.ok(Math.abs(moved.canopy.trees[0][1] - (60 - dy)) < 0.02);
+  assert.ok(Math.abs(moved.scenery.water[0].poly[2][1] - (50 - dy)) < 0.02);
   assert.ok(Math.abs(moved.aerial.bounds.minY - (-180 - dy)) < 0.02);
   assert.deepEqual(moved.aerial.classBounds, moved.aerial.bounds);
 });
@@ -262,6 +265,7 @@ test('cloud scenery waits for an incomplete package; an unreachable cloud falls 
     providers, log: quiet, onReport: (layer, message) => reports.push(message),
   });
   assert.deepEqual(outcome.applied, ['buildings', 'canopy', 'aerial']);
+  assert.deepEqual(outcome.skipped, ['water'], 'this package predates nearby water and there is no fallback');
   assert.deepEqual(local.canopy.trees, [[1, 1, 9, 2]]);
   assert.ok(cloud.requests.includes('POST /v1/courses'), 'an incomplete package nudges a build');
   assert.ok(reports.includes('Waiting for the cloud to finish this course…'));
@@ -273,13 +277,14 @@ test('cloud scenery waits for an incomplete package; an unreachable cloud falls 
     client: createCloudClient({ baseUrl: down.url, timeoutMs: 2000 }),
     fallback: {
       buildings: async () => { used.push('buildings'); return { status: 'ok', buildings: [] }; },
+      water: async () => { used.push('water'); return { status: 'ok', water: [] }; },
       aerial: async () => { used.push('aerial'); return { status: 'none' }; },
     },
     log: quiet,
   });
   const lonely = testCourse(67);
   const result = await enrichCourseScenery(lonely, { providers: offline, log: quiet });
-  assert.deepEqual(used, ['buildings', 'aerial']);
+  assert.deepEqual(used, ['buildings', 'water', 'aerial']);
   assert.deepEqual(result.skipped, ['canopy'], 'no canopy without the cloud on a cloud desktop');
 });
 
