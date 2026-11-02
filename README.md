@@ -95,6 +95,7 @@ layer arrives. It is saved with the course, so this happens once per course.
 | `BIRDIE_NO_WATCH` | (unset) | set to `1` to skip auto-starting the Uneekor VIEW feed bridge |
 | `BIRDIE_OVERPASS_URLS` | (unset) | comma-separated Overpass interpreter URLs to try before the built-in public mirrors (overpass-api.de, maps.mail.ru, kumi.systems, private.coffee) — useful when they are all at capacity or you run your own |
 | `BIRDIE_ENRICH` | 1 | set to `0` to stop fetching missing scenery (buildings, trees, aerial photo) in the background |
+| `BIRDIE_CACHE_MAX_MB` | 1024 | size cap of the local course cache; the least recently played courses are deleted past it (never the one being played) and are downloaded again when picked. `0` = no cap |
 
 Gimme distance: `POST /api/settings {"gimmeYd": feet}` (UI toggle coming later).
 

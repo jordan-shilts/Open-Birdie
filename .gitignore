@@ -9,6 +9,8 @@ data/courses/*.json
 # course aerial photos / NDVI classmaps written beside the cache by the data tools
 data/courses/*.jpg
 data/courses/*.png
+# bounded course cache index (sizes + last played)
+data/course-cache.json
 
 # HD compiler build workspace + generated hole bundles
 # (regenerate from open 3DEP/NAIP data; too large for normal git history)

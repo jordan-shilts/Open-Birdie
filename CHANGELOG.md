@@ -14,6 +14,12 @@ All notable changes to Open-Birdie are documented here.
   (no NAIP outside the US) is remembered; a failed fetch is retried after 10 minutes. `BIRDIE_ENRICH=0`
   turns it off. The tools are now thin wrappers over `lib/buildings-fetch.js`, `lib/canopy-fetch.js` and
   `lib/aerial.js` (`fetchCourseAerialTiled`); orchestration is `lib/course-enrichment.js`.
+- **Course packages + a bounded local cache** — `lib/course-package.js` defines a portable course package:
+  a manifest (key, source, fingerprints, scenery summary, `complete`, `packageId`, and every file's size,
+  sha256 and content type) plus the gzipped course JSON, aerial, classmap and matching HD bundles. Installs
+  verify every file before writing anything and write the course JSON last. `lib/course-cache.js` keeps the
+  local cache under `BIRDIE_CACHE_MAX_MB` (default 1024): least recently played courses are evicted, never
+  the active one; surface overrides, legacy caches and locally compiled HD bundles are never touched.
 - **Real trees from canopy height data** — `tools/add-canopy-trees.mjs` streams the Meta & WRI 1 m
   global canopy height map (CC BY 4.0) for a course and writes `course.canopy`: every tree's position,
   height and crown radius (distinct crowns, plus a fill for closed woods). The renderer places and sizes

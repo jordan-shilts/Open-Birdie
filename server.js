@@ -10,6 +10,7 @@ const path = require('path');
 const { OpenConnectServer, toOpenConnectClub } = require('./lib/openconnect');
 const { searchCourses, loadCourse, listCached, loadCached } = require('./lib/course');
 const { createCourseActivationManager } = require('./lib/course-activation');
+const { createCourseCache } = require('./lib/course-cache');
 const {
   applySceneryUpdate,
   createSceneryEnricher,
@@ -18,6 +19,7 @@ const {
 const { serveCourseArtRequest } = require('./lib/course-art-http');
 const { createCourseDiagnostic, sanitizePublicText } = require('./lib/course-diagnostics');
 const { normalizeCourseSource } = require('./lib/course-identity');
+const { packageKeyFor, parsePackageKey } = require('./lib/course-package');
 const { prepareCourseCandidate } = require('./lib/resolved-course-package');
 const { Game, CLUB_FULL } = require('./lib/game');
 const { serveHdAsset, publicHdMetadata, pickDescriptor } = require('./lib/hd-http');
@@ -39,6 +41,9 @@ const ART_DIR = process.env.BIRDIE_ART_DIR || path.join(__dirname, 'build', 'cou
 // Background scenery (buildings, real trees, aerial photo) for every course that is
 // missing it. BIRDIE_ENRICH=0 turns it off (offline play, tests, visual capture).
 const SCENERY_ENABLED = process.env.BIRDIE_ENRICH !== '0';
+// Bounded local course cache (BIRDIE_CACHE_MAX_MB, default 1024): least recently
+// played courses are deleted past the cap, never the active one.
+const courseCache = createCourseCache({ dataDir: DATA_DIR });
 
 const game = new Game();
 const sseClients = new Set();
@@ -151,10 +156,27 @@ function applyActiveScenery({ courseId, layer, course }) {
   broadcast('scenery', { courseId, courseRevision: current.courseRevision, layers: [layer] });
 }
 
+// Keep the cache under its cap; the active course (and any extra key, e.g. one
+// being installed) is never evicted.
+function trimCourseCache(...extraKeys) {
+  const keep = [...extraKeys];
+  const current = activationManager.current();
+  if (current) {
+    try { keep.push(packageKeyFor(parsePackageKey(current.courseId))); } catch (_) { /* no key form */ }
+  }
+  try { courseCache.enforce({ protect: keep }); }
+  catch (error) { console.warn(`[cache] trim failed: ${error.message}`); }
+}
+
 const sceneryEnricher = SCENERY_ENABLED ? createSceneryEnricher({
   cacheDir: path.join(DATA_DIR, 'courses'),
   providers: localSceneryProviders(),
-  onLayer: applyActiveScenery,
+  onLayer(event) {
+    applyActiveScenery(event);
+    const key = packageKeyFor(event.course.source);
+    courseCache.record(key); // the course grew
+    trimCourseCache(key);
+  },
   onProgress: (progress) => broadcast('course-progress', progress),
 }) : null;
 
@@ -196,6 +218,9 @@ const activationManager = createCourseActivationManager({
       contentRevision: resolvedPackage.contentRevision,
     });
     broadcast('state', game.state());
+    const key = packageKeyFor(candidate.baseCourse.source);
+    courseCache.touch(key);
+    trimCourseCache(key);
     // The course is playable now; missing scenery follows in the background.
     if (sceneryEnricher) {
       sceneryEnricher.schedule({ source: candidate.baseCourse.source, course: candidate.baseCourse });
@@ -441,6 +466,11 @@ function readBody(req) {
 
 if (SPEED_SCALE !== 1) console.log(`[OC] BIRDIE_SPEED_SCALE=${SPEED_SCALE} — scaling incoming ball speed`);
 async function bootstrap() {
+  const usage = courseCache.scan();
+  if (usage.courses) {
+    const limit = Number.isFinite(usage.limitBytes) ? `${Math.round(usage.limitBytes / 1048576)} MB` : 'no limit';
+    console.log(`[cache] ${usage.courses} course(s), ${Math.round(usage.bytes / 1048576)} MB (cap ${limit})`);
+  }
   if (!process.env.BIRDIE_NO_AUTOLOAD) {
     const cached = listCached();
     if (cached.length) {
