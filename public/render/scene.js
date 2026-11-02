@@ -1112,7 +1112,10 @@ export class GolfScene {
   _addGrass(geo, group) {
     const spots = this._grassSpots(geo);
     if (!spots.length) return;
-    const { mesh, windUpdate } = buildGrass(spots, (x, y) => this.hAt(x, y), V);
+    // golden-tipped fescue belongs on links; watered parkland rough is green to the tip
+    const parkland = (this._courseDry || 0) < 0.5;
+    const { mesh, windUpdate } = buildGrass(spots, (x, y) => this.hAt(x, y), V,
+      parkland ? { colorBase: 0x40602c, colorTip: 0x86964f } : {});
     if (mesh) { group.add(mesh); this._grassWind = windUpdate; }
   }
 
