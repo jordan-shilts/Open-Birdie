@@ -15,6 +15,7 @@ import { buildRakes } from './props.js';
 import { buildGrass } from './grass.js';
 import { GrassField } from './grass-field.js';
 import { buildWater } from './water.js';
+import { buildBuildings } from './buildings.js';
 import { SKY_PRESETS, parseSkySetting } from './sky-presets.js';
 import { coursePonds, carveBeds } from './water-shore.js';
 import { makeWaterDepth } from './water-depth.js';
@@ -1033,68 +1034,18 @@ export class GolfScene {
     }
   }
 
-  // Extrude OSM building footprints into simple 3D massing — walls + a flat
-  // colored roof (ExtrudeGeometry yields two material groups: 0 = caps/roof,
-  // 1 = side walls). Buildings are the VERTICAL structure that makes a course
-  // read as a real place instead of a textured surface; the clubhouse gets a
-  // hero material. Each is seated at the lowest ground under its footprint
-  // (sunk 0.6 m) so walls meet a slope without floating. Scenery only
-  // (geo.buildings is non-fingerprinted), so a bad footprint must never break
-  // the load — guarded per building.
+  // OSM buildings as real structures (buildings.js): gabled / hipped / inset-hip
+  // roofs coloured from the aerial photo, flat roofs behind parapets for big blocks,
+  // walls with storeys of windows. Merged into two meshes. Scenery only
+  // (geo.buildings is non-fingerprinted), so a bad footprint must never break the
+  // load — the caller guards it.
   _addBuildings(geo, group) {
     const list = geo.buildings || [];
     if (!list.length || RENDER_CONFIG.buildings === false) return;
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0xc8bda6, roughness: 0.92, metalness: 0 });
-    const roofMat = new THREE.MeshStandardMaterial({ color: 0x70604e, roughness: 0.85, metalness: 0 });
-    const heroWall = new THREE.MeshStandardMaterial({ color: 0xe9dec6, roughness: 0.82, metalness: 0 });
-    const heroRoof = new THREE.MeshStandardMaterial({ color: 0x8c3a2c, roughness: 0.7, metalness: 0 }); // terracotta
-    // Pitched (hip) roofs sit on the wall extrusion — double-sided so we don't have
-    // to fuss over triangle winding for arbitrary OSM footprints.
-    const roofPitch = new THREE.MeshStandardMaterial({ color: 0x6b4f3a, roughness: 0.85, metalness: 0, side: THREE.DoubleSide });
-    const heroRoofPitch = new THREE.MeshStandardMaterial({ color: 0x8c3a2c, roughness: 0.7, metalness: 0, side: THREE.DoubleSide });
-    // ExtrudeGeometry wants a CCW (positive-area) contour for the cap to face up.
-    const ccw = (p) => { let a = 0; for (let i = 0; i < p.length; i += 1) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return a >= 0 ? p : p.slice().reverse(); };
-    let drawn = 0;
-    for (const bld of list) {
-      const poly0 = bld.poly;
-      if (!poly0 || poly0.length < 3) continue;
-      let minH = Infinity, bad = false;
-      for (const [x, y] of poly0) { const h = this.hAt(x, y); if (!Number.isFinite(h)) { bad = true; break; } if (h < minH) minH = h; }
-      if (bad || !Number.isFinite(minH)) continue;
-      const poly = ccw(poly0);
-      const shape = new THREE.Shape();
-      poly.forEach(([x, y], i) => (i ? shape.lineTo(x, y) : shape.moveTo(x, y)));
-      let g;
-      try { g = new THREE.ExtrudeGeometry(shape, { depth: Math.max(2.5, bld.heightM || 5), bevelEnabled: false, steps: 1 }); }
-      catch (e) { continue; }
-      g.rotateX(-Math.PI / 2);      // extrude +Z -> world +Y (up); footprint (x,y) -> (x, h, -y)
-      g.translate(0, minH - 0.6, 0); // sink 0.6 m so walls meet the slope, no float
-      g.computeVertexNormals();
-      const mesh = new THREE.Mesh(g, bld.clubhouse ? [heroRoof, heroWall] : [roofMat, wallMat]);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      group.add(mesh);
-      // Pitched hip roof: fan each footprint edge up to a raised centroid so
-      // buildings read as real peaked structures, not flat boxes.
-      const topY = (minH - 0.6) + Math.max(2.5, bld.heightM || 5);
-      let cx = 0, cyc = 0, bw0 = Infinity, bw1 = -Infinity, bh0 = Infinity, bh1 = -Infinity;
-      for (const [x, y] of poly) { cx += x; cyc += y; if (x < bw0) bw0 = x; if (x > bw1) bw1 = x; if (y < bh0) bh0 = y; if (y > bh1) bh1 = y; }
-      cx /= poly.length; cyc /= poly.length;
-      const roofH = Math.min(6, Math.max(1.6, 0.30 * Math.min(bw1 - bw0, bh1 - bh0)));
-      const rp = [];
-      for (let i = 0; i < poly.length; i += 1) {
-        const [x0, y0] = poly[i], [x1, y1] = poly[(i + 1) % poly.length];
-        rp.push(x0, topY, -y0, x1, topY, -y1, cx, topY + roofH, -cyc);
-      }
-      const rg = new THREE.BufferGeometry();
-      rg.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3));
-      rg.computeVertexNormals();
-      const roof = new THREE.Mesh(rg, bld.clubhouse ? heroRoofPitch : roofPitch);
-      roof.castShadow = true; roof.receiveShadow = true;
-      group.add(roof);
-      drawn += 1;
-    }
-    if (drawn) console.log(`[render] buildings: ${drawn}/${list.length}`);
+    const aerial = this._macro?.albedo && this._macro.bounds ? { albedo: this._macro.albedo, bounds: this._macro.bounds } : null;
+    const { meshes, count } = buildBuildings(list, (x, y) => this.hAt(x, y), aerial);
+    meshes.forEach((m) => group.add(m));
+    if (count) console.log(`[render] buildings: ${count}/${list.length}`);
   }
 
   // Clumped scatter across rough polygons. Real fescue grows in dense patches
