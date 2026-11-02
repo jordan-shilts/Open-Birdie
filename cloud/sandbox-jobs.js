@@ -126,7 +126,7 @@ function createSandboxJobs({
       sandbox = await api().create({
         name,
         source: { type: 'git', url: env.BIRDIE_CLOUD_REPO || DEFAULT_REPO, revision: env.BIRDIE_CLOUD_REF || DEFAULT_REF, depth: 1 },
-        runtime: 'node22',
+        image: 'vercel/sandbox/node:22',
         resources: { vcpus: 4 },
         timeout: SESSION_MS,
         persistent: false,

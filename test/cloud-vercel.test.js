@@ -98,6 +98,7 @@ test('a build gets its own sandbox running this repository, with the Blob creden
   const [params] = sandboxApi.created;
   assert.deepEqual(params.source, { type: 'git', url: 'https://github.com/jordan-shilts/Open-Birdie.git', revision: 'feat/photoreal-pass', depth: 1 });
   assert.equal(params.persistent, false);
+  assert.equal(params.image, 'vercel/sandbox/node:22', 'a managed image (runtimes are deprecated)');
   assert.ok(params.timeout <= 45 * 60 * 1000, 'fits a Hobby sandbox session');
   const [cmd] = sandboxApi.commands;
   assert.equal(cmd.detached, true);
