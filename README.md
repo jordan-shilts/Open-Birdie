@@ -82,6 +82,12 @@ routing lines to be playable; the loader tells you if they're missing. First loa
 geometry + elevation (10–90 s) and caches it in `data/courses/` — afterwards it's instant
 and works offline.
 
+Once a course is playable, its missing scenery follows in the background — real buildings and
+the lakes and ponds around the course (OpenStreetMap), every real tree (canopy height map; needs
+the optional `geotiff` package or the cloud service) and the course-wide aerial photo (USGS, US
+only) — and appears on screen as each layer arrives. It is saved with the course, so this happens
+once per course.
+
 ## Configuration
 
 | Env var | Default | Meaning |
@@ -93,6 +99,10 @@ and works offline.
 | `BIRDIE_NO_WATCH` | (unset) | set to `1` to skip auto-starting the Uneekor VIEW feed bridge |
 | `BIRDIE_OVERPASS_URLS` | (unset) | comma-separated Overpass interpreter URLs to try before the built-in public mirrors (overpass-api.de, maps.mail.ru, kumi.systems, private.coffee) — useful when they are all at capacity or you run your own |
 | `GOOGLE_MAPS_API_KEY` | (unset) | your own Google Map Tiles API key — turns on the optional Google 3D surroundings (below). Unset = no requests to Google at all |
+| `BIRDIE_ENRICH` | 1 | set to `0` to stop fetching missing scenery (buildings, trees, aerial photo) in the background |
+| `BIRDIE_CACHE_MAX_MB` | 1024 | size cap of the local course cache; the least recently played courses are deleted past it (never the one being played) and are downloaded again when picked. `0` = no cap |
+| `BIRDIE_CLOUD_URL` | (unset) | base URL of an Open-Birdie cloud course service (see [Cloud courses](#cloud-courses)). Unset = everything is built on this computer and no cloud request is ever made |
+| `BIRDIE_CLOUD_BUILD_TOKEN` | (unset) | lets this app ask the cloud to build a course it does not have yet (must match the service's token); without it, such courses are built locally |
 
 Gimme distance: `POST /api/settings {"gimmeYd": feet}` (UI toggle coming later).
 
@@ -117,6 +127,97 @@ official logo, save Google's logo file as `public/assets/attribution/google-maps
 Google's terms apply to everything streamed: no caching or exporting the tiles, and keep the
 attribution visible. `?googleTiles=0` turns the tiles off for a page.
 
+## Cloud courses
+
+Point the app at an Open-Birdie cloud course service and courses are downloaded when you pick
+them instead of being built on your computer, already complete with buildings, real trees and
+the max-quality aerial photo:
+
+```bash
+BIRDIE_CLOUD_URL=https://<your-service> BIRDIE_CLOUD_BUILD_TOKEN=<token> npm start
+```
+
+- A course the cloud has is downloaded (every file checked against its sha256) into the local
+  cache, which stays under `BIRDIE_CACHE_MAX_MB`.
+- A course the cloud does not have yet is built there (needs the build token); the course picker
+  shows the build's progress, the course is playable as soon as its base data is ready, and its
+  scenery appears when the cloud has added it.
+- If the cloud cannot be reached, the course is built on this computer as before.
+
+### Running the cloud service
+
+The service is [`cloud/server.js`](cloud/server.js) (Node ≥ 22). It builds each course once with
+the same code as the desktop — OSM holes and buildings, USGS 3DEP lidar terrain, the NDVI
+classmap — plus what the desktop app cannot ship: real trees from the canopy height map
+(`geotiff`) and the max-quality tiled aerial (`sharp`). Each course becomes a package (manifest +
+files with sha256) in object storage. It publishes a playable package as soon as the base data is
+ready, then a complete one with the scenery. Its dependencies are in
+[`cloud/package.json`](cloud/package.json); the image is [`cloud/Dockerfile`](cloud/Dockerfile)
+(`node:22-slim`).
+
+```bash
+# local run, packages in ./cloud-store
+BIRDIE_CLOUD_BUILD_TOKEN=dev-token node cloud/server.js
+BIRDIE_CLOUD_URL=http://localhost:8080 BIRDIE_CLOUD_BUILD_TOKEN=dev-token npm start
+
+# container (build context = repository root)
+docker build -f cloud/Dockerfile -t open-birdie-cloud .
+```
+
+| Env var | Default | Meaning |
+| --- | --- | --- |
+| `PORT` (or `BIRDIE_CLOUD_PORT`) | 8080 | listen port (Railway sets `PORT`) |
+| `BIRDIE_CLOUD_BUILD_TOKEN` | (unset) | bearer token required by `POST /v1/courses`; unset = read-only service |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | | object storage (any S3-compatible store; SigV4-signed, no AWS SDK). Without `S3_BUCKET` packages go to a directory |
+| `S3_FORCE_PATH_STYLE` | 0 | `1` for MinIO and older Railway buckets (an endpoint with a path, like Supabase's, is always path style) |
+| `S3_PUBLIC_ENDPOINT` | `S3_ENDPOINT` | endpoint used in presigned download URLs, when desktops must reach the store under another URL |
+| `BIRDIE_CLOUD_STORE_DIR` | `./cloud-store` | directory store, when `S3_BUCKET` is unset |
+| `BIRDIE_CLOUD_FILES` | `redirect` with S3, else `proxy` | serve files as 302s to presigned URLs, or stream them through the service |
+| `BIRDIE_CLOUD_CONCURRENCY` | 1 | builds running at once (one build per course at a time regardless) |
+| `BIRDIE_CLOUD_MAX_QUEUE` | 16 | builds waiting; beyond that `POST` answers 429 |
+| `BIRDIE_DATA_DIR` | `<tmp>/birdie-cloud-staging` | scratch space for builds in progress |
+| `BIRDIE_OVERPASS_URLS` | (unset) | Overpass mirrors to try first, as on the desktop |
+
+API (JSON; `:key` is the course key, e.g. `osm-relation-9892305`):
+
+| Request | Answer |
+| --- | --- |
+| `GET /v1/courses/:key` | `200` package manifest (`complete: false` while scenery is still being added) · `404` |
+| `POST /v1/courses` with `Authorization: Bearer <token>`, body `{"source":{"osmType":"relation","osmId":9892305},"name":"…","bbox":[s,n,w,e]}` (`"force":true` rebuilds) | `200 {status:"ready", manifest}` · `202 {status, job}` · `401` · `429` queue full · `503` builds disabled |
+| `GET /v1/jobs/:id` | `200 {status: queued\|running\|done\|failed, stage, message, pct, packageId, complete, error}` · `404` |
+| `GET /v1/courses/:key/files/:sha256` | `302` to a presigned URL (S3) or `200` bytes |
+| `GET /healthz` | `200 {ok, store, builds, files, queue}` |
+
+### Deploying on Railway (service + bucket)
+
+1. New project → deploy this GitHub repository as a service. In the service's variables set
+   `RAILWAY_DOCKERFILE_PATH=cloud/Dockerfile` and `BIRDIE_CLOUD_BUILD_TOKEN` to a long random string.
+2. Add a **Bucket** to the project (Create → Bucket). Give the service the bucket's credentials with
+   reference variables (use your bucket's name in place of `Bucket`):
+   ```
+   S3_ENDPOINT=${{Bucket.ENDPOINT}}
+   S3_BUCKET=${{Bucket.BUCKET}}
+   S3_REGION=${{Bucket.REGION}}
+   S3_ACCESS_KEY_ID=${{Bucket.ACCESS_KEY_ID}}
+   S3_SECRET_ACCESS_KEY=${{Bucket.SECRET_ACCESS_KEY}}
+   ```
+   If the bucket's Credentials tab says to use path-style URLs, add `S3_FORCE_PATH_STYLE=1`.
+3. Settings → Networking → generate a public domain, then check `https://<domain>/healthz`.
+4. Point the desktop app at it: `BIRDIE_CLOUD_URL=https://<domain>` (plus `BIRDIE_CLOUD_BUILD_TOKEN`
+   on machines allowed to start builds).
+
+Railway buckets are private, so downloads go out as presigned redirects straight from the bucket
+(bucket egress is free; proxying through the service would count as service egress).
+
+Other providers work the same way: **Cloudflare R2** (`S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`,
+`S3_REGION=auto`), **Supabase Storage** (`S3_ENDPOINT=https://<project>.supabase.co/storage/v1/s3`),
+or **Coolify + MinIO** (`S3_FORCE_PATH_STYLE=1`, and `S3_PUBLIC_ENDPOINT` if MinIO's address inside
+the server differs from its public one).
+
+Limits: the job queue is in memory (a restart forgets running jobs; desktops ask again, and any
+package already published survives), so run a single instance; files of superseded packages are
+kept in the bucket (no clean-up yet).
+
 ## Dev tools
 
 ```
@@ -126,8 +227,10 @@ node tools/test-shot.js --speed 150 --vla 13 --spin 2700 --axis -4
 node tools/test-load.js "Course name"   # test course download/parse
 ```
 
-Make a cached course look like the real place (run in this order; each only adds scenery and
-leaves the HD fingerprint alone, except refresh-elevation):
+The app adds buildings, trees and the aerial photo to every course by itself (see Courses).
+These tools run the same code by hand — e.g. to refresh a course after OpenStreetMap edits, or
+to get the max-quality tiled aerial (needs `sharp`). Run them in this order; each only adds
+scenery and leaves the HD fingerprint alone, except refresh-elevation:
 
 ```bash
 node tools/add-buildings.mjs      data/courses/<slug>.json   # OSM building footprints, clubhouse
@@ -145,7 +248,7 @@ node tools/refresh-elevation.mjs  data/courses/<slug>.json   # re-fetch lidar if
 - Aerial imagery: [USGS NAIP / NAIPPlus](https://www.usgs.gov/centers/eros/science/usgs-eros-archive-aerial-photography-national-agriculture-imagery-program-naip) (public domain)
 - Tree positions and heights: Meta and World Resources Institute (WRI),
   [High Resolution Canopy Height Maps](https://registry.opendata.aws/dataforgood-fb-forests/),
-  licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (used by `tools/add-canopy-trees.mjs`)
+  licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (`lib/canopy-fetch.js`)
 - Skies, leaves, needles and bark: [Poly Haven](https://polyhaven.com) (CC0) — see `ASSETS.md`
 - Optional surroundings (only with your own key): Google Photorealistic 3D Tiles, streamed under
   the [Google Maps Platform terms](https://cloud.google.com/maps-platform/terms), rendered with

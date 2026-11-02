@@ -16,7 +16,7 @@ All notable changes to Open-Birdie are documented here.
   bed carved into the render terrain, grown past the OSM outline so the bank draws the shore
   (`water-shore.js`). The two ponds that matter most on screen keep live planar mirrors, refreshed in turns;
   calm ripples distort the reflection and drive the sun glitter, Fresnel mixes it with a dark water body, and
-  the shallows clear over a silty bed. Lakes around the course (`geo.scenery.water`) render the same way.
+  the shallows clear over a silty bed. Lakes around the course (`sceneryWater`) render the same way.
 - **Grass blades around the camera** — a GPU field of blade clumps follows the camera over every mown and
   rough surface (short on fairways and tees, longer in the rough, none on greens, sand or water), in the
   turf's own colour, snapped to world cells so nothing swims (`grass-field.js`).
@@ -51,6 +51,46 @@ All notable changes to Open-Birdie are documented here.
   fog still fades them into the haze, and the Google logo + data attributions show next to the
   course credit. No key: no requests to Google and no change. A bad key logs one warning
   (`public/render/google-tiles.js`, `lib/google-tiles-config.js`).
+- **Automatic scenery for every course** — buildings, real trees and the aerial photo no longer need the
+  `tools/add-*.mjs` scripts: after a course is playable (cache miss or hit), whatever it is missing is
+  fetched in the background in order (buildings first, so footprints mask false tree crowns), saved to the
+  course cache layer by layer, and pushed to the screen with a new `scenery` SSE event (the client re-reads
+  the geometry and rebuilds the scene in place, keeping the hole and the round). Canopy needs `geotiff`,
+  which the packaged app lacks, so it skips there until the cloud supplies it. A source with no data
+  (no NAIP outside the US) is remembered; a failed fetch is retried after 10 minutes. `BIRDIE_ENRICH=0`
+  turns it off. The tools are now thin wrappers over `lib/buildings-fetch.js`, `lib/canopy-fetch.js` and
+  `lib/aerial.js` (`fetchCourseAerialTiled`); orchestration is `lib/course-enrichment.js`.
+- **Course packages + a bounded local cache** — `lib/course-package.js` defines a portable course package:
+  a manifest (key, source, fingerprints, scenery summary, `complete`, `packageId`, and every file's size,
+  sha256 and content type) plus the gzipped course JSON, aerial, classmap and matching HD bundles. Installs
+  verify every file before writing anything and write the course JSON last. `lib/course-cache.js` keeps the
+  local cache under `BIRDIE_CACHE_MAX_MB` (default 1024): least recently played courses are evicted, never
+  the active one; surface overrides, legacy caches and locally compiled HD bundles are never touched.
+- **Courses from the cloud** (`lib/cloud-client.js`) — with `BIRDIE_CLOUD_URL` set, a course that is not cached
+  locally is downloaded as a package (each file verified against its sha256, presigned redirects followed) and
+  installed into the bounded cache, then activated through the normal path. If the cloud lacks it, the cloud is
+  asked to build it (`BIRDIE_CLOUD_BUILD_TOKEN`) and its progress shows in the course picker; the course is
+  playable as soon as the cloud publishes the base package, and buildings/trees/aerial follow as the cloud adds
+  them (`scenery` event). Cached courses get their scenery from the cloud package too, re-projected exactly when
+  the local copy was built from a different OSM snapshot. An unreachable cloud or a failed verification falls
+  back to building on this computer; a cloud verdict that the course is not playable is shown as is. Without
+  `BIRDIE_CLOUD_URL` nothing changes and no cloud request is made.
+- **Cloud course service** (`cloud/`) — `node cloud/server.js` builds each course once with the same `lib/` code
+  plus canopy (`geotiff`) and the max-quality tiled aerial (`sharp`), publishes a playable package as soon as the
+  base data is ready and the complete one after the scenery, and serves them: `GET /v1/courses/:key`,
+  token-gated `POST /v1/courses`, `GET /v1/jobs/:id`, `GET /v1/courses/:key/files/:sha256` (302 to a presigned
+  URL, or proxied). Object storage through the S3 API, SigV4-signed with `node:crypto` (checked against AWS's
+  published signatures), or a directory; files are content-addressed so unchanged files upload once. One build
+  per course, a small in-memory queue, resume from the published package after a restart, failed layers retried
+  after an hour, and packages from before a new scenery layer upgraded on request. `cloud/Dockerfile`
+  (`node:22-slim`) and a README section on deploying to Railway (service + bucket), R2, Supabase or MinIO.
+- **Lakes and ponds around the course** — course data only carries water mapped near the course itself, so a lake
+  OSM maps as a multipolygon beside the holes (Lake Hazeltine, by 16–18) was missing and showed as the flat,
+  hydro-flattened lidar ground. A new scenery layer (`lib/water-fetch.js`) fetches every `natural=water` /
+  `water=lake|pond|reservoir` / `landuse=reservoir` area over the elevation grid, assembles relation outlines from
+  their outer ways, projects them with the course origin, clips them to the grid and drops outlines already in
+  `course.surfaces`. Stored as `course.scenery.water` (never `surfaces`: drawn, not played, not fingerprinted),
+  served as `sceneryWater` in `/api/course-geometry`; canopy trees are masked on it.
 - **Real trees from canopy height data** — `tools/add-canopy-trees.mjs` streams the Meta & WRI 1 m
   global canopy height map (CC BY 4.0) for a course and writes `course.canopy`: every tree's position,
   height and crown radius (distinct crowns, plus a fill for closed woods). The renderer places and sizes

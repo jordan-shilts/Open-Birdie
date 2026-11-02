@@ -113,6 +113,15 @@ body {
   box-shadow: var(--shadow); backdrop-filter: blur(10px); white-space: nowrap;
 }
 #freecam-hint b { color: var(--accent); }
+/* background course progress: scenery arriving, cloud download */
+#course-status {
+  position: fixed; top: 74px; left: 50%; transform: translateX(-50%); z-index: 11;
+  background: var(--bg); color: var(--muted); border: 1px solid var(--line);
+  border-radius: 9px; padding: 5px 12px; font-size: 12px; font-weight: 600;
+  box-shadow: var(--shadow); backdrop-filter: blur(10px); white-space: nowrap;
+  max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;
+}
 
 /* hole flyover (render/flyover.js): dip-to-black overlay over the 3D view + skip hint */
 .flyover-fade { position: absolute; inset: 0; z-index: 6; background: #05080a; opacity: 0; pointer-events: none; }

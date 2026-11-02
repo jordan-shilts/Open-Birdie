@@ -9,10 +9,23 @@ const fs = require('fs');
 const path = require('path');
 const { OpenConnectServer, toOpenConnectClub } = require('./lib/openconnect');
 const { searchCourses, loadCourse, listCached, loadCached } = require('./lib/course');
+const {
+  cloudConfigFromEnv,
+  cloudSceneryProviders,
+  createCloudClient,
+  createCloudCourseSource,
+} = require('./lib/cloud-client');
 const { createCourseActivationManager } = require('./lib/course-activation');
+const { createCourseCache } = require('./lib/course-cache');
+const {
+  applySceneryUpdate,
+  createSceneryEnricher,
+  localSceneryProviders,
+} = require('./lib/course-enrichment');
 const { serveCourseArtRequest } = require('./lib/course-art-http');
 const { createCourseDiagnostic, sanitizePublicText } = require('./lib/course-diagnostics');
 const { normalizeCourseSource } = require('./lib/course-identity');
+const { packageKeyFor, parsePackageKey } = require('./lib/course-package');
 const { prepareCourseCandidate } = require('./lib/resolved-course-package');
 const { Game, CLUB_FULL } = require('./lib/game');
 const { serveHdAsset, publicHdMetadata, pickDescriptor } = require('./lib/hd-http');
@@ -32,6 +45,16 @@ const SPEED_SCALE = +(process.env.BIRDIE_SPEED_SCALE || 1);
 const PUB = path.join(__dirname, 'public');
 const DATA_DIR = process.env.BIRDIE_DATA_DIR || path.join(__dirname, 'data');
 const ART_DIR = process.env.BIRDIE_ART_DIR || path.join(__dirname, 'build', 'course-art');
+// Background scenery (buildings, real trees, aerial photo) for every course that is
+// missing it. BIRDIE_ENRICH=0 turns it off (offline play, tests, visual capture).
+const SCENERY_ENABLED = process.env.BIRDIE_ENRICH !== '0';
+// Bounded local course cache (BIRDIE_CACHE_MAX_MB, default 1024): least recently
+// played courses are deleted past the cap, never the active one.
+const courseCache = createCourseCache({ dataDir: DATA_DIR });
+// Cloud course service (BIRDIE_CLOUD_URL): courses and their scenery are downloaded
+// as verified packages instead of being built here. Unset = no cloud request ever.
+const CLOUD = cloudConfigFromEnv();
+const cloudClient = CLOUD ? createCloudClient(CLOUD) : null;
 
 const game = new Game();
 const sseClients = new Set();
@@ -109,6 +132,8 @@ async function acquireActivationCourse(request, { abortDifferent, source }) {
     abortDifferent,
     source,
     ...(preloadedCourse ? { preloadedCourse } : {}),
+    // not cached here: try the cloud's package before building it locally
+    ...(cloudCourses ? { remote: cloudCourses.acquire } : {}),
   });
 }
 
@@ -133,6 +158,58 @@ function commitPreparedActivation({ candidate, resolvedPackage }) {
   readyTimer = nextTimer;
   if (previousTimer) clearTimeout(previousTimer);
 }
+
+// A finished scenery layer: put it on the live course (only if that course is still
+// the active one) and tell clients to refresh their scenery. Gameplay never reads
+// these fields, so the round in progress is untouched.
+function applyActiveScenery({ courseId, layer, course }) {
+  const current = activationManager.current();
+  if (!current || current.courseId !== courseId || !applySceneryUpdate(game.course, course)) return;
+  console.log(`[scenery] ${layer} ready for ${courseId}`);
+  broadcast('scenery', { courseId, courseRevision: current.courseRevision, layers: [layer] });
+}
+
+// Keep the cache under its cap; the active course (and any extra key, e.g. one
+// being installed) is never evicted.
+function trimCourseCache(...extraKeys) {
+  const keep = [...extraKeys];
+  const current = activationManager.current();
+  if (current) {
+    try { keep.push(packageKeyFor(parsePackageKey(current.courseId))); } catch (_) { /* no key form */ }
+  }
+  try { courseCache.enforce({ protect: keep }); }
+  catch (error) { console.warn(`[cache] trim failed: ${error.message}`); }
+}
+
+const cloudCourses = cloudClient ? createCloudCourseSource({
+  client: cloudClient,
+  dataDir: DATA_DIR,
+  onProgress: (progress) => broadcast('course-progress', progress),
+  onInstalled({ key, manifest }) {
+    courseCache.record(key, { origin: 'cloud', packageId: manifest.packageId, lastUsed: Date.now() });
+    trimCourseCache(key);
+  },
+}) : null;
+
+const sceneryEnricher = SCENERY_ENABLED ? createSceneryEnricher({
+  cacheDir: path.join(DATA_DIR, 'courses'),
+  // with a cloud, a course installed from a base package upgrades to the cloud's
+  // tiled aerial once it is there
+  aerialQuality: cloudClient ? 'tiled' : 'single',
+  // With a cloud, scenery comes from the course's cloud package; buildings and the
+  // single-request aerial can still be fetched here if the cloud cannot supply
+  // them, but canopy (geotiff) only ever comes from the cloud.
+  providers: cloudClient
+    ? cloudSceneryProviders({ client: cloudClient, fallback: localSceneryProviders({ canopy: false }) })
+    : localSceneryProviders(),
+  onLayer(event) {
+    applyActiveScenery(event);
+    const key = packageKeyFor(event.course.source);
+    courseCache.record(key); // the course grew
+    trimCourseCache(key);
+  },
+  onProgress: (progress) => broadcast('course-progress', progress),
+}) : null;
 
 const activationManager = createCourseActivationManager({
   deriveSource: deriveActivationSource,
@@ -172,6 +249,13 @@ const activationManager = createCourseActivationManager({
       contentRevision: resolvedPackage.contentRevision,
     });
     broadcast('state', game.state());
+    const key = packageKeyFor(candidate.baseCourse.source);
+    courseCache.touch(key);
+    trimCourseCache(key);
+    // The course is playable now; missing scenery follows in the background.
+    if (sceneryEnricher) {
+      sceneryEnricher.schedule({ source: candidate.baseCourse.source, course: candidate.baseCourse });
+    }
   },
 });
 
@@ -379,6 +463,9 @@ function courseGeometry() {
     ? { lat: game.course.origin.lat, lon: game.course.origin.lon } : null;
   // real trees [[x, y, heightM, crownRadiusM], ...] from canopy height data (non-fingerprinted scenery)
   const canopy = game.course.canopy?.trees || null;
+  // lakes/ponds around the course [{ kind: 'water', poly, name }] (non-fingerprinted
+  // scenery, never part of `surfaces`: drawn, not played)
+  const sceneryWater = game.course.scenery?.water || null;
   // Course-wide aerial: bounds only (the image is fetched from /api/course-aerial);
   // never leak the server file path. Drapes the whole course as the ground photo.
   // classes: advertise the runtime NDVI classmap ONLY when it's fresh — i.e. it was
@@ -403,6 +490,7 @@ function courseGeometry() {
     woods,
     buildings,
     canopy,
+    sceneryWater,
     aerial,
     elevation,
     hd,
@@ -432,6 +520,14 @@ function readBody(req) {
 
 if (SPEED_SCALE !== 1) console.log(`[OC] BIRDIE_SPEED_SCALE=${SPEED_SCALE} — scaling incoming ball speed`);
 async function bootstrap() {
+  if (cloudClient) {
+    console.log(`[cloud] courses come from ${new URL(cloudClient.baseUrl).host}${cloudClient.canBuild ? ' (can request builds)' : ''}`);
+  }
+  const usage = courseCache.scan();
+  if (usage.courses) {
+    const limit = Number.isFinite(usage.limitBytes) ? `${Math.round(usage.limitBytes / 1048576)} MB` : 'no limit';
+    console.log(`[cache] ${usage.courses} course(s), ${Math.round(usage.bytes / 1048576)} MB (cap ${limit})`);
+  }
   if (!process.env.BIRDIE_NO_AUTOLOAD) {
     const cached = listCached();
     if (cached.length) {
@@ -465,6 +561,7 @@ function close() {
     clearTimeout(readyTimer);
     readyTimer = null;
   }
+  if (sceneryEnricher) sceneryEnricher.cancelAll();
   for (const res of sseClients) { try { res.end(); } catch (_) { /* gone */ } }
   sseClients.clear();
   try { server.close(); } catch (_) { /* already closed */ }
@@ -479,4 +576,5 @@ module.exports = {
   close,
   primaryNonce: PRIMARY_NONCE,
   activationManager,
+  sceneryEnricher,
 };

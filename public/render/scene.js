@@ -551,8 +551,8 @@ export class GolfScene {
     this._placeSkybox();
     // ponds at their real (hydro-flattened) water line; the terrain mesh carves a bed
     // under each (water-shore.js)
-    // (plus the lakes around the course, sent as non-fingerprinted scenery)
-    const lakes = (geo.scenery?.water || []).map((w) => ({ kind: 'water', poly: w.poly }));
+    // (plus the lakes around the course: non-fingerprinted scenery, geo.sceneryWater)
+    const lakes = (geo.sceneryWater || []).map((w) => ({ kind: 'water', poly: w.poly }));
     this._ponds = RENDER_CONFIG.water ? coursePonds([...(geo.surfaces || []), ...lakes], (x, y) => this.hAt(x, y)) : [];
     const terrain = this._terrainMesh(b);
     group.add(terrain);
