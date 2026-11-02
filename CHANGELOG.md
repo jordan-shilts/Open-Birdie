@@ -5,6 +5,29 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Trees grown from real branch structures** — every species (oak, maple, birch, pine, spruce/fir) has
+  three generated models, two open-grown and one grown in closed woods (`tree-gen.js`): broadleaves grow by
+  space colonization inside a lobed crown, spruce has whorls of drooping branches, pine a bare bole under
+  layered limbs ending in needle tufts. Leaf cards are cut from photographed CC0 leaves and needle sprays
+  composed into an atlas at load (`leaf-atlas.js`). The far levels of detail are the same model with fewer,
+  larger cards (crossed at the far level), so a tree keeps its silhouette to the horizon instead of turning
+  into a solid "lollipop". Crowded trees get the woods-grown model; maple joins the species mix.
+- **Ponds that mirror the course** — water sits at the pond's real (hydro-flattened lidar) water line over a
+  bed carved into the render terrain, grown past the OSM outline so the bank draws the shore
+  (`water-shore.js`). The two ponds that matter most on screen keep live planar mirrors, refreshed in turns;
+  calm ripples distort the reflection and drive the sun glitter, Fresnel mixes it with a dark water body, and
+  the shallows clear over a silty bed. Lakes around the course (`geo.scenery.water`) render the same way.
+- **Grass blades around the camera** — a GPU field of blade clumps follows the camera over every mown and
+  rough surface (short on fairways and tees, longer in the rough, none on greens, sand or water), in the
+  turf's own colour, snapped to world cells so nothing swims (`grass-field.js`).
+- **Time of day** — a **Sky: Morning / Midday / Golden hour** button (saved; `?sky=` overrides). Each preset is
+  a CC0 Poly Haven sky photo plus its light: sun colour and strength, sky fill, exposure, haze; the sun's
+  direction comes from the photo (`sky-presets.js`). Morning and golden hour download on first use.
+- **Buildings with real roofs and windows** — gabled or hipped roofs along each house's long axis, inset hip
+  roofs for L-shaped and irregular buildings (the clubhouse), flat roofs behind parapets for big blocks;
+  roofs coloured from the aerial photo above them; a facade shader with storeys of windows. All buildings are
+  two meshes (`building-shapes.js`, `buildings.js`).
+- **1 m terrain for Hazeltine 16-18** — HD manifests (1 m 3DEP lidar, 0.3 m NAIP 2023-07-31).
 - **The ball hits the course's real trees** — the trees the renderer draws (canopy trees, plus OSM tree
   points no canopy tree already covers) are obstacles, indexed once per course on an 8 m grid
   (`lib/tree-obstacles.js`). Trunks are solid up to the crown (radius 0.12 + 0.01 × height): the ball
@@ -157,6 +180,15 @@ All notable changes to Open-Birdie are documented here.
   clean lush fairway rather than churned mud (`turf.js`, `scene.js` `COLORS`).
 
 ### Fixed
+- **Water was drawn in the wrong place** — pond meshes were mirrored across the x axis (the shape flipped y and
+  then turned -90°), and the planar reflections faced sideways (Reflector reads its normal from the object's
+  +Z, and the turn was baked into the geometry). What looked like water was turf painted blue.
+- **Frame rate with water** — every visible pond re-rendered the whole course on every pass that drew it;
+  Hazeltine's hole 17 tee went from 819 ms to ~25 ms a frame (M3 Pro, 1600x900).
+- **Green haze** — the countryside past the course edge was a bare turf-green sheet; it now has woodlots, the
+  haze is a touch bluer at ground level and thins as the camera climbs.
+- Azalea beds no longer appear north of 37° (none in Minnesota); parkland rough tufts are green, not golden
+  fescue; double-sided grass blades no longer render black; a gentler colour grade (saturation 1.16 -> 1.08).
 - **Part of a course silently lost its lidar relief** — each 3DEP tile got one 12 s attempt; a slow reply
   dropped that whole area to the smoothed ~10 m terrain (Hazeltine holes 1, 9, 10, 18). Base tiles now get
   a 40 s deadline, 3 attempts with backoff, and a warning if one still fails (`lib/lidar.js`, `lib/elevation.js`).
