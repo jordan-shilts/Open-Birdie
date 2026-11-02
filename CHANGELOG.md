@@ -100,9 +100,11 @@ All notable changes to Open-Birdie are documented here.
 - **HD holes built in the cloud** (`cloud/hd-holes.js`) — a cloud build compiles the 1 m lidar + 0.3 m NAIP hole
   bundles for every hole manifest in `tools/hd-course/manifests` that names the course, re-resolving each against
   the course just built (`discoverAndBuildHole`), and ships them in the package (`manifest.hd` lists the holes).
-  Courses already in the cloud are upgraded in place (`hd: true` on a build request resumes from the package). A
-  failing hole is skipped; HD stops starting holes after 20 minutes. The Chambers Bay, Bandon Dunes and TPC
-  Sawgrass manifests now name their course by OSM id.
+  Courses already in the cloud are upgraded in place: a build request's `hd` lists the holes wanted, and the build
+  resumes from the package and adds only the missing ones. The job record says which holes were built and which
+  were skipped, with the reason. A failing hole is skipped; HD stops starting holes after 20 minutes. The HD
+  compiler gives 3DEP's 1 m export 60 s and three tries (a course load allows 12 s, which cost cloud builds
+  holes). The Chambers Bay, Bandon Dunes and TPC Sawgrass manifests now name their course by OSM id.
 - **Range & games** (`lib/practice.js`) — a driving range and three mini games on the loaded course, its real
   ground and physics; the round pauses and resumes untouched. The range is the course's own mapped
   `golf=driving_range` (played along its long axis from the end by the first tee), else hole 1's tee, with yellow
