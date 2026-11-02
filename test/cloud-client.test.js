@@ -120,6 +120,35 @@ test('a course the cloud lacks is built there; playable once the base package is
   assert.ok(progress.some((p) => p.stage === 'download'));
 });
 
+test('a build polls at the pace the service asks for, within bounds', async (t) => {
+  const course = testCourse(89);
+  const pkg = packageFor(course, { complete: false });
+  let polls = 0;
+  const cloud = await startFakeCloud({
+    token: 'tok',
+    onBuild: () => ({
+      status: 'running',
+      pollMs: 10_000,
+      advance(job, c) {
+        polls++;
+        if (polls === 1) job.pollMs = 120_000;   // capped at 30 s
+        else if (polls === 2) job.pollMs = 500;  // never faster than the client's 2 s
+        else { c.publish(pkg); job.packageId = pkg.manifest.packageId; }
+      },
+    }),
+  });
+  t.after(() => cloud.close());
+  const waits = [];
+  const source = createCloudCourseSource({
+    client: createCloudClient({ baseUrl: cloud.url, buildToken: 'tok' }),
+    dataDir: tempDir('birdie-desk-'),
+    sleep: async (ms) => { waits.push(ms); },
+    log: quiet,
+  });
+  assert.equal((await source.acquire({ source: course.source })).name, course.name);
+  assert.deepEqual(waits, [10_000, 30_000, 2_000]);
+});
+
 test('a cloud build that proves the course unplayable fails the load; other failures build locally', async (t) => {
   const course = testCourse(99);
   const failing = (error) => startFakeCloud({ token: 'tok', onBuild: () => ({ status: 'failed', error }) });

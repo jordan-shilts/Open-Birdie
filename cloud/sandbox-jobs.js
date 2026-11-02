@@ -17,7 +17,10 @@ const { activeJobKey, jobKey } = require('./vercel-blob-store');
 const DEFAULT_REPO = 'https://github.com/jordan-shilts/Open-Birdie.git';
 const DEFAULT_REF = 'main';
 const SESSION_MS = 40 * 60 * 1000;   // Hobby sandbox sessions cap at 45 min
-const STALE_MS = 10 * 60 * 1000;     // a live build rewrites its record every 30 s
+const STALE_MS = 10 * 60 * 1000;     // a live build rewrites its record every 60 s
+// Asked of the desktop (a job's pollMs): every poll is a Blob read (10,000 a month on
+// Hobby), and the record changes at most every 15 s anyway.
+const POLL_MS = 10 * 1000;
 const RUNNING = new Set(['queued', 'running']);
 const JOB_ID = /^[0-9a-f-]{36}$/;
 
@@ -53,7 +56,7 @@ function createSandboxJobs({
   const iso = () => new Date(now()).toISOString();
   const view = (job) => {
     const { sandbox, sandboxStopped, ...rest } = job;
-    return rest;
+    return { ...rest, pollMs: POLL_MS };
   };
 
   // What the build inside the VM publishes with: a read-write token, else this

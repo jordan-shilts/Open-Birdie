@@ -18,8 +18,10 @@ const { createCourseBuilder } = require('./builder');
 const { describeFailure } = require('./jobs');
 const { activeJobKey, createVercelBlobStore, jobKey } = require('./vercel-blob-store');
 
-const SAVE_EVERY_MS = 3000;
-const HEARTBEAT_MS = 30 * 1000;
+// Every record write is a Blob upload, and Hobby includes 2,000 a month: progress is
+// saved at most every 15 s (a 10-minute build writes ~50 records, not ~250).
+const SAVE_EVERY_MS = 15 * 1000;
+const HEARTBEAT_MS = 60 * 1000;
 
 async function main() {
   const id = process.env.JOB_ID;

@@ -94,6 +94,7 @@ test('a build gets its own sandbox running this repository, with the Blob creden
   assert.equal(created, true);
   assert.equal(job.status, 'running');
   assert.equal(job.sandbox, undefined, 'internal fields stay out of the API');
+  assert.equal(job.pollMs, 10_000, 'the desktop is asked to poll gently (each poll is a Blob read)');
   const [params] = sandboxApi.created;
   assert.deepEqual(params.source, { type: 'git', url: 'https://github.com/jordan-shilts/Open-Birdie.git', revision: 'feat/photoreal-pass', depth: 1 });
   assert.equal(params.persistent, false);
@@ -187,4 +188,24 @@ test('the v1 API runs over the Blob store and sandbox jobs (async queue, redirec
 test('the API entry point and the activeJobKey namespace line up', () => {
   assert.equal(activeJobKey(KEY), `jobs/active/${KEY}.json`);
   assert.equal(typeof require('../api/index.js'), 'function');
+});
+
+test('the staged Vercel deployment is self-contained: the API loads from the staged files alone', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { stage } = require('../cloud/vercel/stage');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'birdie-vercel-stage-'));
+  try {
+    const files = stage(dir);
+    assert.ok(files.includes('package.json') && files.includes('vercel.json'));
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+    assert.ok(pkg.dependencies['@vercel/blob'] && pkg.dependencies['@vercel/sandbox']);
+    const config = JSON.parse(fs.readFileSync(path.join(dir, 'vercel.json'), 'utf8'));
+    assert.ok(config.functions['api/index.js']);
+    // every relative require resolves inside the staged folder (SDKs load lazily)
+    assert.equal(typeof require(path.join(dir, 'api', 'index.js')), 'function');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
