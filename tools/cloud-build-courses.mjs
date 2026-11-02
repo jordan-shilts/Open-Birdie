@@ -1,0 +1,176 @@
+// Build courses in the cloud, ahead of anyone picking them (README "Cloud courses").
+// Each course is built there once with everything the cloud adds (USGS lidar terrain,
+// the NDVI classmap, OSM buildings, real trees from the canopy map, the max-quality
+// aerial, nearby lakes) and kept for every desktop to download when it is picked.
+//
+//   npm run cloud:build-courses                      the featured courses (courses/featured.json)
+//   npm run cloud:build-courses -- "Pebble Beach Golf Links" relation/9892305
+//   npm run cloud:build-courses -- --file my-courses.txt   one name or OSM id per line
+//
+//   --status         only report which courses the cloud has
+//   --force          rebuild courses the cloud already has
+//   --concurrency N  builds at once (default 1; each build is its own sandbox)
+//
+// A name is searched on OpenStreetMap like the course picker does; an OSM id is
+// relation/123, way/123 or osm:way:123. The cloud and its build token come from
+// BIRDIE_CLOUD_URL / BIRDIE_CLOUD_BUILD_TOKEN or data/cloud.json, as for the desktop.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const require = createRequire(import.meta.url);
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const { buildRequestBody, cloudConfigFromEnv, createCloudClient } = require('../lib/cloud-client');
+const { packageKeyFor } = require('../lib/course-key');
+const { normalizeCourseSource } = require('../lib/course-identity');
+
+const BUILD_TIMEOUT_MS = 45 * 60 * 1000;   // a Hobby sandbox session is at most 45 min
+const MIN_POLL_MS = 5000;
+
+// "relation/123", "way/123", "osm:way:123", "osm-relation-123" -> { osmType, osmId }; else null.
+export function parseOsmRef(text) {
+  const m = /^(?:osm[:-])?(node|way|relation)[/:-]([1-9][0-9]{0,15})$/.exec(String(text).trim());
+  return m ? { osmType: m[1], osmId: Number(m[2]) } : null;
+}
+
+export function readFeatured(file = path.join(ROOT, 'courses', 'featured.json')) {
+  const { courses } = JSON.parse(fs.readFileSync(file, 'utf8'));
+  return courses.map((c) => ({ name: c.name, ...parseOsmRef(c.osm), bbox: c.bbox || null }));
+}
+
+// A name or OSM id -> { name, osmType, osmId, bbox }; names are searched on OSM, and
+// an id of a featured course takes its name and box from the featured list.
+export async function resolveCourse(entry, { search, featured = [] }) {
+  if (typeof entry === 'object' && entry.osmType) return entry;
+  const ref = parseOsmRef(entry);
+  if (ref) {
+    const known = featured.find((c) => c.osmType === ref.osmType && c.osmId === ref.osmId);
+    return known || { name: null, ...ref, bbox: null };
+  }
+  const hits = await search(entry);
+  const hit = hits && hits[0];
+  if (!hit) throw new Error(`no golf course found for "${entry}"`);
+  return { name: hit.name, osmType: hit.osmType, osmId: hit.osmId, bbox: hit.bbox || null };
+}
+
+const label = (c) => `${(c.name || `${c.osmType}/${c.osmId}`).split(',')[0]} (${c.osmType}/${c.osmId})`;
+const mb = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
+
+// One course: skip it when the cloud has the complete package (unless force), else ask
+// for a build and follow the job until it ends. Returns { course, key, status, ... }.
+export async function buildOne(client, course, {
+  force = false, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), now = Date.now, log = console.log,
+} = {}) {
+  const key = packageKeyFor(normalizeCourseSource({ osmType: course.osmType, osmId: course.osmId }));
+  const started = now();
+  if (!force) {
+    const manifest = await client.getManifest(key);
+    if (manifest && manifest.complete) return { course, key, status: 'built', skipped: true, bytes: manifest.totalBytes };
+  }
+  const body = { ...buildRequestBody({ name: course.name, bbox: course.bbox }, course), ...(force ? { force: true } : {}) };
+  const reply = await client.requestBuild(body);
+  if (reply.status === 'ready' && reply.manifest && reply.manifest.complete) {
+    return { course, key, status: 'built', skipped: true, bytes: reply.manifest.totalBytes };
+  }
+  let job = reply.job;
+  if (!job) return { course, key, status: 'failed', message: 'the cloud started no build' };
+  let last = '';
+  for (;;) {
+    const line = `${job.status} ${job.stage || ''}: ${job.message || ''}${Number.isFinite(job.pct) ? ` (${Math.round(job.pct)}%)` : ''}`;
+    if (line !== last) { log(`  ${label(course)}: ${line}`); last = line; }
+    if (job.status === 'done') {
+      const manifest = await client.getManifest(key);
+      return { course, key, status: manifest && manifest.complete ? 'built' : 'failed', bytes: manifest && manifest.totalBytes, ms: now() - started };
+    }
+    if (job.status === 'failed') {
+      return { course, key, status: 'failed', message: (job.error && job.error.message) || job.message, ms: now() - started };
+    }
+    if (now() - started > BUILD_TIMEOUT_MS) return { course, key, status: 'failed', message: 'timed out waiting for the build' };
+    await sleep(Math.max(MIN_POLL_MS, Number(job.pollMs) || 10000));
+    const next = await client.getJob(job.id);
+    if (!next) return { course, key, status: 'failed', message: 'the cloud lost the build' };
+    job = next;
+  }
+}
+
+// Every course, `concurrency` at a time; failures don't stop the rest.
+export async function buildCourses(client, courses, { concurrency = 1, ...options } = {}) {
+  const results = new Array(courses.length);
+  let next = 0;
+  async function worker() {
+    while (next < courses.length) {
+      const i = next++;
+      try { results[i] = await buildOne(client, courses[i], options); }
+      catch (error) { results[i] = { course: courses[i], status: 'failed', message: error.message }; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, courses.length)) }, worker));
+  return results;
+}
+
+function parseArgs(argv) {
+  const out = { names: [], status: false, force: false, concurrency: 1, file: null };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--status') out.status = true;
+    else if (a === '--force') out.force = true;
+    else if (a === '--concurrency') out.concurrency = Math.max(1, Number(argv[++i]) || 1);
+    else if (a === '--file') out.file = argv[++i];
+    else out.names.push(a);
+  }
+  return out;
+}
+
+async function main(argv) {
+  const args = parseArgs(argv);
+  const dataDir = process.env.BIRDIE_DATA_DIR || path.join(ROOT, 'data');
+  const config = cloudConfigFromEnv(process.env, console, { file: path.join(dataDir, 'cloud.json') });
+  if (!config) {
+    console.error('No cloud configured: set BIRDIE_CLOUD_URL (and BIRDIE_CLOUD_BUILD_TOKEN), or write data/cloud.json.');
+    process.exit(2);
+  }
+  const client = createCloudClient(config);
+  let entries = args.names;
+  if (args.file) {
+    entries = entries.concat(fs.readFileSync(args.file, 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#')));
+  }
+  const featured = readFeatured();
+  if (!entries.length) entries = featured;
+  // course search (Nominatim) only when a name needs it; lib/course.js is heavy to load
+  const search = async (q) => require('../lib/course').searchCourses(q);
+  const courses = [];
+  for (const entry of entries) {
+    try { courses.push(await resolveCourse(entry, { search, featured })); }
+    catch (error) { console.error(`skipping ${JSON.stringify(entry)}: ${error.message}`); }
+  }
+
+  console.log(`Cloud: ${config.baseUrl} · ${courses.length} course${courses.length === 1 ? '' : 's'}`);
+  if (args.status) {
+    for (const c of courses) {
+      const key = packageKeyFor(normalizeCourseSource(c));
+      const m = await client.getManifest(key).catch((e) => ({ error: e.message }));
+      const what = !m ? 'not built' : m.error ? `unknown (${m.error})` : m.complete ? `built, ${mb(m.totalBytes)}` : 'base only (scenery still being added)';
+      console.log(`  ${label(c)}: ${what}`);
+    }
+    return;
+  }
+  if (!config.buildToken) {
+    console.error('No build token: set BIRDIE_CLOUD_BUILD_TOKEN or add "buildToken" to data/cloud.json.');
+    process.exit(2);
+  }
+  const results = await buildCourses(client, courses, { concurrency: args.concurrency, force: args.force });
+  console.log('\nSummary');
+  for (const r of results) {
+    const what = r.status === 'built'
+      ? `${r.skipped ? 'already built' : `built in ${Math.round((r.ms || 0) / 60000)} min`}${r.bytes ? `, ${mb(r.bytes)}` : ''}`
+      : `FAILED: ${r.message}`;
+    console.log(`  ${label(r.course)}: ${what}`);
+  }
+  if (results.some((r) => r.status !== 'built')) process.exitCode = 1;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main(process.argv.slice(2)).catch((error) => { console.error(error.stack || error.message); process.exit(1); });
+}

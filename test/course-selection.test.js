@@ -414,3 +414,20 @@ test('search requests are spaced for the Nominatim 1 request/second policy', asy
   await searchCourses('Pebble Beach', { fetchImpl: nominatim.fetchImpl, gapMs: 60 });
   assert.ok(Date.now() - t0 >= 55);
 });
+
+test('a mirror that answers "too busy" (a runtime-error remark, no elements) is skipped', async () => {
+  const endpoints = mirrors(2);
+  const seen = [];
+  const busy = { elements: [], remark: 'runtime error: open64: 0 Success /osm3s_osm_base Dispatcher_Client::request_read_and_idx::timeout. The server is probably too busy to handle your request.' };
+  const fetchImpl = (url) => {
+    seen.push(url);
+    return Promise.resolve(response(url === endpoints[0] ? busy : { elements: [{ id: 7 }] }));
+  };
+  const data = await overpass('q', { ...fast, endpoints, fetchImpl });
+  assert.deepEqual(data, { elements: [{ id: 7 }] });
+  assert.deepEqual(seen, endpoints);
+  // an empty answer without such a remark is a real "nothing here"
+  const quietEndpoints = mirrors(2);
+  const empty = await overpass('q', { ...fast, endpoints: quietEndpoints, fetchImpl: () => Promise.resolve(response({ elements: [] })) });
+  assert.deepEqual(empty, { elements: [] });
+});

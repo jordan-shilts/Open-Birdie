@@ -13,6 +13,8 @@ data/courses/*.png
 data/course-cache.json
 # cloud course service: local directory store (when S3_BUCKET is unset)
 /cloud-store/
+# this computer's cloud address and build token (a secret)
+data/cloud.json
 
 # HD compiler build workspace + generated hole bundles
 # (regenerate from open 3DEP/NAIP data; too large for normal git history)

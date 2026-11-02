@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "about": "Courses tools/cloud-build-courses.mjs builds in the cloud by default: the course picker's suggestions plus the courses with HD hole manifests. bbox is [south, north, west, east] from the OpenStreetMap search hit, the fallback when the course outline can't be fetched.",
+  "courses": [
+    { "name": "Hazeltine National Golf Club", "osm": "relation/9892305", "bbox": [44.8231858, 44.8359943, -93.5938488, -93.5783593] },
+    { "name": "Old Course, St Andrews", "osm": "way/1019045811", "bbox": [56.3427969, 56.3608568, -2.825924, -2.8026099] },
+    { "name": "Pebble Beach Golf Links", "osm": "relation/3741806", "bbox": [36.557647, 36.5708711, -121.9499497, -121.9289221] },
+    { "name": "Bandon Dunes Golf Resort", "osm": "way/362513477", "bbox": [43.1837771, 43.2134977, -124.4007686, -124.3810469] },
+    { "name": "Whistling Straits", "osm": "way/205111637", "bbox": [43.8349447, 43.864758, -87.7408445, -87.7284452] },
+    { "name": "Chambers Bay", "osm": "way/26787026", "bbox": [47.2007272, 47.2124418, -122.5814383, -122.5692724] },
+    { "name": "TPC Sawgrass", "osm": "relation/1783123", "bbox": [30.1874942, 30.2176078, -81.4061811, -81.3855238] }
+  ]
+}
