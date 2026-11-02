@@ -61,6 +61,7 @@ Everything runs on this PC; no firewall changes needed. (If GSPconnect ever runs
 | AIM slider | rotate the aim line (shots are relative to it) |
 | Club buttons | tells GSPconnect your club; also loads practice presets |
 | Practice shot | hit simulated shots without the launch monitor |
+| Range & games | driving range and mini games on the loaded course (see below) |
 | Course button | search and load any OSM-mapped course |
 | Next ▶ / Pick up | advance to the next hole; pick up to concede a hole you aren't finishing |
 | Hole pills / HOLE | tap a played hole to review it on the scorecard |
@@ -73,6 +74,20 @@ Everything runs on this PC; no firewall changes needed. (If GSPconnect ever runs
 Putts are detected automatically when on the green (low speed + low launch).
 Anything stopped inside the gimme distance (8 ft default) is conceded for +1 stroke.
 A ball rolled near the cup at holeable speed drops in.
+
+### Range & games
+
+Practice on the loaded course's real ground. Your round pauses, and **Back to the round**
+picks it up exactly where you left it. Every ball is hit from the same spot, with no penalties.
+
+| Mode | How it plays |
+| --- | --- |
+| Driving range | from the course's own range (OpenStreetMap `golf=driving_range`), else hole 1's tee; yellow yardage flags every 50 yd (pick one to aim at); a shot table and club averages |
+| Closest to the pin | 5 balls at a par 3 (the shortest; the others are a click away); balls in the water or out of bounds don't count; an ace ends it |
+| Long drive | 6 drives; only drives that stop inside the grid (25 yd either side of the line) count |
+| Target challenge | 10 balls, a new flag 60–200 yd out each time; 10 / 5 / 3 / 1 points inside 3 / 8 / 15 / 25 yd |
+
+Shots come from the launch monitor or the Practice shot panel, as in a round.
 
 ## Courses
 
@@ -137,6 +152,9 @@ the max-quality aerial photo:
 BIRDIE_CLOUD_URL=https://<your-service> BIRDIE_CLOUD_BUILD_TOKEN=<token> npm start
 ```
 
+Or keep the setting in the data dir instead of the environment (the environment wins when both are
+set): `data/cloud.json` = `{"url": "https://<your-service>", "buildToken": "<token>"}`.
+
 - A course the cloud has is downloaded (every file checked against its sha256) into the local
   cache, which stays under `BIRDIE_CACHE_MAX_MB`.
 - A course the cloud does not have yet is built there (needs the build token); the course picker
@@ -184,7 +202,7 @@ API (JSON; `:key` is the course key, e.g. `osm-relation-9892305`):
 | --- | --- |
 | `GET /v1/courses/:key` | `200` package manifest (`complete: false` while scenery is still being added) · `404` |
 | `POST /v1/courses` with `Authorization: Bearer <token>`, body `{"source":{"osmType":"relation","osmId":9892305},"name":"…","bbox":[s,n,w,e]}` (`"force":true` rebuilds) | `200 {status:"ready", manifest}` · `202 {status, job}` · `401` · `429` queue full · `503` builds disabled |
-| `GET /v1/jobs/:id` | `200 {status: queued\|running\|done\|failed, stage, message, pct, packageId, complete, error}` · `404` |
+| `GET /v1/jobs/:id` | `200 {status: queued\|running\|done\|failed, stage, message, pct, packageId, complete, error, pollMs?}` · `404` (`pollMs`: how often to poll, when the service wants slower than every 2 s) |
 | `GET /v1/courses/:key/files/:sha256` | `302` to a presigned URL (S3) or `200` bytes |
 | `GET /healthz` | `200 {ok, store, builds, files, queue}` |
 
@@ -217,6 +235,60 @@ the server differs from its public one).
 Limits: the job queue is in memory (a restart forgets running jobs; desktops ask again, and any
 package already published survives), so run a single instance; files of superseded packages are
 kept in the bucket (no clean-up yet).
+
+### Deploying on Vercel (Blob storage, builds in Vercel Sandbox)
+
+A Vercel Function can't run a 5–10 minute build, so on Vercel the API ([`api/index.js`](api/index.js))
+is a Function over a public **Vercel Blob** store, and each build gets its own **Vercel Sandbox**
+(a microVM) that clones this repository (`BIRDIE_CLOUD_REPO` at `BIRDIE_CLOUD_REF`), installs
+[`cloud/package.json`](cloud/package.json) and runs [`cloud/sandbox-build.js`](cloud/sandbox-build.js).
+Builds write their progress into job records in the store, and the API stops a build's sandbox
+once its record says it is over. Desktops download package files straight from the Blob CDN.
+
+With the [Vercel CLI](https://vercel.com/docs/cli) signed in (`vercel login`):
+
+```bash
+node cloud/vercel/stage.js ../open-birdie-cloud     # the API function + the modules it loads
+cd ../open-birdie-cloud
+vercel link --yes --project open-birdie-cloud
+vercel blob create-store open-birdie-courses --access public   # answer yes: link it to the project
+printf '%s' "$(openssl rand -hex 24)" | vercel env add BIRDIE_CLOUD_BUILD_TOKEN production --sensitive
+printf 'main' | vercel env add BIRDIE_CLOUD_REF production
+vercel deploy --prod
+```
+
+`BIRDIE_CLOUD_REF` is the branch the builds clone: it must contain `cloud/sandbox-build.js`.
+If the store isn't linked (the CLI asks only in an interactive shell), connect it under the
+project's **Storage** tab; that adds `BLOB_READ_WRITE_TOKEN`, which the API hands to each build's
+sandbox. Sandboxes themselves authenticate with the deployment's OIDC token, so there is nothing
+else to configure. `BIRDIE_CLOUD_REPO` builds from another fork; `BIRDIE_OVERPASS_URLS` works as on
+the desktop. Check `https://<project>.vercel.app/healthz`, then point the desktop at it
+(`BIRDIE_CLOUD_URL`, or `data/cloud.json`). A failed build's cause is in the project's function
+logs (`vercel logs --query failed`); the sandbox itself is gone by then.
+
+### Building courses ahead of time
+
+`npm run cloud:build-courses` asks the cloud to build courses before anyone picks them, so the
+first pick downloads in seconds instead of waiting on a build. With no arguments it builds the
+featured courses in [`courses/featured.json`](courses/featured.json) (the course picker's
+suggestions plus the courses with HD hole manifests). It skips courses the cloud already has
+and runs one build at a time.
+
+```bash
+npm run cloud:build-courses                                    # the featured courses
+npm run cloud:build-courses -- "Pinehurst No. 2" relation/9892305   # by name (searched on OSM) or OSM id
+npm run cloud:build-courses -- --file my-courses.txt           # one name or id per line
+npm run cloud:build-courses -- --status                        # which of them the cloud has
+```
+
+`--force` rebuilds, and `--concurrency N` runs N builds at once. The script uses the desktop's cloud
+settings (`BIRDIE_CLOUD_URL` + `BIRDIE_CLOUD_BUILD_TOKEN`, or `data/cloud.json`).
+
+On Vercel's Hobby plan nothing is ever charged; a feature that runs past its monthly allowance pauses
+until 30 days have passed. The allowances that matter: Blob storage 1 GB (Hazeltine's package is
+11 MB), 2,000 Blob uploads (a build writes ~50 progress records plus its files) and 10,000 reads
+(the desktop polls a running build every 10 s), and 5 Sandbox CPU-hours with sessions of up to
+45 minutes (Hazeltine took 6 minutes).
 
 ## Dev tools
 

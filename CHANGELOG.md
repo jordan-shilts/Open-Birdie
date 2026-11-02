@@ -84,6 +84,24 @@ All notable changes to Open-Birdie are documented here.
   per course, a small in-memory queue, resume from the published package after a restart, failed layers retried
   after an hour, and packages from before a new scenery layer upgraded on request. `cloud/Dockerfile`
   (`node:22-slim`) and a README section on deploying to Railway (service + bucket), R2, Supabase or MinIO.
+- **The cloud service on Vercel** — the same v1 API as a Vercel Function (`api/index.js`) over a public Vercel Blob
+  store (`cloud/vercel-blob-store.js`); a Function can't run a 5–10 minute build, so each build gets its own
+  Vercel Sandbox that clones the repository, installs `cloud/package.json` and runs `cloud/sandbox-build.js`,
+  reporting progress into job records in the store (`cloud/sandbox-jobs.js`). Files download straight from the
+  Blob CDN. Sized for the Hobby plan: progress saved at most every 15 s and the desktop asked to poll every 10 s
+  (a job's `pollMs`), since each is a metered Blob operation. `node cloud/vercel/stage.js <dir>` assembles the
+  deployment. The desktop can keep its cloud in `data/cloud.json` (`{"url", "buildToken"}`, gitignored) instead
+  of environment variables. A failed build keeps its cause (and the warnings before it) in the job record, which
+  the API logs but never serves.
+- **Courses built ahead of time** — `npm run cloud:build-courses` (`tools/cloud-build-courses.mjs`) asks the cloud
+  to build courses before anyone picks them: by default the featured list (`courses/featured.json`: the picker's
+  suggestions plus the courses with HD hole manifests), or any names (searched on OSM) or OSM ids. It skips what
+  the cloud already has and follows each build; `--status`, `--force`, `--concurrency`.
+- **Range & games** (`lib/practice.js`) — a driving range and three mini games on the loaded course, its real
+  ground and physics; the round pauses and resumes untouched. The range is the course's own mapped
+  `golf=driving_range` (played along its long axis from the end by the first tee), else hole 1's tee, with yellow
+  yardage flags every 50 yd, a shot table and club averages. Closest to the pin: 5 balls at a par 3. Long drive:
+  6 drives inside a 50 yd grid. Target challenge: 10 balls at random flags, 10/5/3/1 points.
 - **Lakes and ponds around the course** — course data only carries water mapped near the course itself, so a lake
   OSM maps as a multipolygon beside the holes (Lake Hazeltine, by 16–18) was missing and showed as the flat,
   hydro-flattened lidar ground. A new scenery layer (`lib/water-fetch.js`) fetches every `natural=water` /
@@ -233,6 +251,9 @@ All notable changes to Open-Birdie are documented here.
   clean lush fairway rather than churned mud (`turf.js`, `scene.js` `COLORS`).
 
 ### Fixed
+- **A busy Overpass mirror read as "no such course"** — a mirror out of slots for the caller's IP (common from
+  shared cloud machines) answers 200 with a runtime-error remark and no elements; that now counts as a busy mirror
+  and the next one is tried.
 - **Water was drawn in the wrong place** — pond meshes were mirrored across the x axis (the shape flipped y and
   then turned -90°), and the planar reflections faced sideways (Reflector reads its normal from the object's
   +Z, and the turn was baked into the geometry). What looked like water was turf painted blue.
