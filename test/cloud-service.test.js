@@ -1,0 +1,469 @@
+'use strict';
+// The cloud course service (cloud/): SigV4 against AWS's published examples, the
+// S3 client against a signature-checking fake S3, the job queue, the HTTP API with
+// the real builder (fake course loader + scenery providers), and the desktop client
+// end to end. No network.
+
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const STAGING = fs.mkdtempSync(path.join(os.tmpdir(), 'birdie-cloud-staging-'));
+process.env.BIRDIE_DATA_DIR = STAGING; // lib/course.js fixes its cache dir at first require
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const http = require('node:http');
+
+const { EMPTY_SHA256, createS3Client, presignUrl, signRequest, uriEncode } = require('../cloud/s3');
+const { createFsStore, createS3Store, manifestKey } = require('../cloud/store');
+const { createJobQueue, describeFailure } = require('../cloud/jobs');
+const { createCourseBuilder } = require('../cloud/builder');
+const { startCloudServer } = require('../cloud/server');
+const { createCloudClient, createCloudCourseSource, cloudSceneryProviders } = require('../lib/cloud-client');
+const { CourseLoadError } = require('../lib/course');
+const { enrichCourseScenery } = require('../lib/course-enrichment');
+const { testCourse, tempDir } = require('./cloud-test-support');
+
+const quiet = { log() {}, warn() {}, error() {} };
+const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
+
+// ---------------------------------------------------------------------------
+// SigV4: AWS's published examples
+// ---------------------------------------------------------------------------
+test('SigV4 matches the AWS Signature Version 4 test suite (get-vanilla, header and presigned)', () => {
+  const creds = {
+    accessKeyId: 'AKIDEXAMPLE',
+    secretAccessKey: 'wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY',
+    region: 'us-east-1',
+    service: 'service',
+    date: new Date('2015-08-30T12:36:00Z'),
+  };
+  const header = signRequest({ method: 'GET', url: 'https://example.amazonaws.com/', ...creds });
+  assert.equal(header.canonicalRequest, [
+    'GET', '/', '', 'host:example.amazonaws.com', 'x-amz-date:20150830T123600Z', '', 'host;x-amz-date',
+    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+  ].join('\n'));
+  assert.equal(header.stringToSign, [
+    'AWS4-HMAC-SHA256', '20150830T123600Z', '20150830/us-east-1/service/aws4_request',
+    'bb579772317eb040ac9ed261061d46c1f17a8133879d6129b6e1c25292927e63',
+  ].join('\n'));
+  assert.equal(header.signature, '5fa00fa31553b73ebf1942676e86291e8372ff2a2260956d9b8aae1d763fbf31');
+  assert.equal(header.headers.authorization,
+    'AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20150830/us-east-1/service/aws4_request, SignedHeaders=host;x-amz-date, ' +
+    'Signature=5fa00fa31553b73ebf1942676e86291e8372ff2a2260956d9b8aae1d763fbf31');
+  const query = presignUrl({ method: 'GET', url: 'https://example.amazonaws.com/', expiresSec: 3600, payloadHash: EMPTY_SHA256, ...creds });
+  assert.equal(query.signature, 'e93c787ed7f371d5c6b165c1b38ede9550f4dce4144713e844b25b7192d3865d');
+  assert.match(query.url, /X-Amz-Credential=AKIDEXAMPLE%2F20150830%2Fus-east-1%2Fservice%2Faws4_request/);
+});
+
+test('SigV4 matches the Amazon S3 API reference examples (GET Object with Range, presigned GET)', () => {
+  const s3 = {
+    accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+    secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    region: 'us-east-1',
+    service: 's3',
+    date: new Date('2013-05-24T00:00:00Z'),
+  };
+  const get = signRequest({
+    method: 'GET',
+    url: 'https://examplebucket.s3.amazonaws.com/test.txt',
+    headers: { range: 'bytes=0-9', 'x-amz-content-sha256': EMPTY_SHA256 },
+    payloadHash: EMPTY_SHA256,
+    ...s3,
+  });
+  assert.equal(get.signature, 'f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41');
+  assert.match(get.headers.authorization, /SignedHeaders=host;range;x-amz-content-sha256;x-amz-date,/);
+  const presigned = presignUrl({ method: 'GET', url: 'https://examplebucket.s3.amazonaws.com/test.txt', expiresSec: 86400, ...s3 });
+  assert.equal(presigned.signature, 'aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404');
+});
+
+test('uriEncode and object URLs: virtual-hosted by default, path style when asked or when the endpoint has a path', () => {
+  assert.equal(uriEncode('a b/c~d*'), 'a%20b%2Fc~d%2A');
+  assert.equal(uriEncode('courses/osm-way-1/blobs/x', { keepSlash: true }), 'courses/osm-way-1/blobs/x');
+  const base = { bucket: 'birdie-abc', accessKeyId: 'k', secretAccessKey: 's' };
+  assert.equal(createS3Client({ ...base, endpoint: 'https://t3.storageapi.dev' }).objectUrl('courses/osm-way-1/manifest.json'),
+    'https://birdie-abc.t3.storageapi.dev/courses/osm-way-1/manifest.json');
+  assert.equal(createS3Client({ ...base, endpoint: 'http://minio:9000', forcePathStyle: true }).objectUrl('a/b'),
+    'http://minio:9000/birdie-abc/a/b');
+  assert.equal(createS3Client({ ...base, endpoint: 'https://p.supabase.co/storage/v1/s3' }).objectUrl('a/b'),
+    'https://p.supabase.co/storage/v1/s3/birdie-abc/a/b');
+});
+
+// ---------------------------------------------------------------------------
+// A fake S3 that checks every signature by recomputing it from what arrived
+// ---------------------------------------------------------------------------
+async function startFakeS3({ accessKeyId = 'AKTEST', secretAccessKey = 'sekret', region = 'auto', bucket = 'birdie' } = {}) {
+  const objects = new Map();
+  const log = [];
+  const server = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    const body = Buffer.concat(chunks);
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const fail = (status, code) => { res.writeHead(status, { 'Content-Type': 'application/xml' }); res.end(`<Error><Code>${code}</Code><Message>${code}</Message></Error>`); };
+    const prefix = `/${bucket}/`;
+    if (!url.pathname.startsWith(prefix)) return fail(404, 'NoSuchBucket');
+    const key = decodeURIComponent(url.pathname.slice(prefix.length));
+    if (url.searchParams.has('X-Amz-Signature')) {
+      const date = url.searchParams.get('X-Amz-Date');
+      const when = new Date(`${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}T${date.slice(9, 11)}:${date.slice(11, 13)}:${date.slice(13, 15)}Z`);
+      const bare = new URL(url);
+      for (const k of [...bare.searchParams.keys()]) if (k.startsWith('X-Amz-')) bare.searchParams.delete(k);
+      const expected = presignUrl({ method: req.method, url: bare.href, accessKeyId, secretAccessKey, region, date: when, expiresSec: Number(url.searchParams.get('X-Amz-Expires')) });
+      if (expected.signature !== url.searchParams.get('X-Amz-Signature')) return fail(403, 'SignatureDoesNotMatch');
+    } else {
+      const auth = String(req.headers.authorization || '');
+      const signedNames = (/SignedHeaders=([^,]+)/.exec(auth) || [])[1] || '';
+      const amz = req.headers['x-amz-date'] || '';
+      const when = new Date(`${amz.slice(0, 4)}-${amz.slice(4, 6)}-${amz.slice(6, 8)}T${amz.slice(9, 11)}:${amz.slice(11, 13)}:${amz.slice(13, 15)}Z`);
+      const headers = {};
+      for (const name of signedNames.split(';')) if (name && name !== 'host' && name !== 'x-amz-date') headers[name] = req.headers[name];
+      const payloadHash = req.headers['x-amz-content-sha256'];
+      if (payloadHash !== sha256(body)) return fail(400, 'XAmzContentSHA256Mismatch');
+      const expected = signRequest({ method: req.method, url: url.href, headers, payloadHash, accessKeyId, secretAccessKey, region, date: when });
+      if (expected.headers.authorization !== auth) return fail(403, 'SignatureDoesNotMatch');
+    }
+    log.push(`${req.method} ${key}`);
+    if (req.method === 'PUT') {
+      objects.set(key, { body, type: req.headers['content-type'] || 'application/octet-stream' });
+      res.writeHead(200); return res.end();
+    }
+    const obj = objects.get(key);
+    if (req.method === 'DELETE') { objects.delete(key); res.writeHead(204); return res.end(); }
+    if (!obj) return fail(404, 'NoSuchKey');
+    res.writeHead(200, { 'Content-Type': obj.type, 'Content-Length': obj.body.length, ETag: `"${sha256(obj.body).slice(0, 32)}"` });
+    return res.end(req.method === 'HEAD' ? undefined : obj.body);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const endpoint = `http://127.0.0.1:${server.address().port}`;
+  return {
+    endpoint, objects, log, bucket, accessKeyId, secretAccessKey, region,
+    client: (overrides = {}) => createS3Client({ endpoint, bucket, region, accessKeyId, secretAccessKey, forcePathStyle: true, ...overrides }),
+    close: () => new Promise((resolve) => server.close(resolve)),
+  };
+}
+
+test('S3 client: signed PUT/GET/HEAD/DELETE accepted by a verifying server; wrong secret refused', async (t) => {
+  const s3 = await startFakeS3();
+  t.after(() => s3.close());
+  const client = s3.client();
+  await client.putObject('courses/osm-way-1/manifest.json', Buffer.from('{"a":1}'), { contentType: 'application/json' });
+  assert.deepEqual(JSON.parse(await client.getObject('courses/osm-way-1/manifest.json')), { a: 1 });
+  assert.equal((await client.headObject('courses/osm-way-1/manifest.json')).size, 7);
+  assert.equal(await client.getObject('courses/osm-way-1/nope'), null);
+  assert.equal(await client.headObject('courses/osm-way-1/nope'), null);
+  await client.deleteObject('courses/osm-way-1/manifest.json');
+  assert.equal(await client.getObject('courses/osm-way-1/manifest.json'), null);
+  await assert.rejects(s3.client({ secretAccessKey: 'wrong' }).putObject('x', Buffer.from('y')), { code: 'SignatureDoesNotMatch' });
+  // presigned GET works for a client holding no credentials
+  await client.putObject('courses/osm-way-1/blobs/abc', Buffer.from('bytes!'));
+  const url = client.presignGetObject('courses/osm-way-1/blobs/abc', { expiresSec: 60 });
+  assert.match(url, /X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKTEST%2F\d{8}%2Fauto%2Fs3%2Faws4_request/);
+  assert.equal(await (await fetch(url)).text(), 'bytes!');
+  const forged = url.replace(/X-Amz-Expires=60/, 'X-Amz-Expires=600');
+  assert.equal((await fetch(forged)).status, 403);
+});
+
+test('object stores: same layout in a directory or a bucket; keys outside the layout are refused', async (t) => {
+  const s3 = await startFakeS3();
+  t.after(() => s3.close());
+  const sha = 'a'.repeat(64);
+  for (const store of [createFsStore(tempDir('birdie-store-')), createS3Store(s3.client())]) {
+    assert.equal(await store.getJson(manifestKey('osm-way-9')), null);
+    await store.putJson(manifestKey('osm-way-9'), { hello: 'world' });
+    assert.deepEqual(await store.getJson(manifestKey('osm-way-9')), { hello: 'world' });
+    assert.equal(await store.hasBlob(`courses/osm-way-9/blobs/${sha}`), false);
+    await store.putBlob(`courses/osm-way-9/blobs/${sha}`, Buffer.from('blob'), { contentType: 'image/png' });
+    assert.equal(await store.hasBlob(`courses/osm-way-9/blobs/${sha}`), true);
+    assert.equal((await store.readBlob(`courses/osm-way-9/blobs/${sha}`)).toString(), 'blob');
+    await assert.rejects(store.getJson('courses/../../etc/passwd'), /unexpected object key/);
+    await assert.rejects(store.putBlob('courses/osm-way-9/blobs/../x', Buffer.from('x')), /unexpected object key/);
+  }
+  assert.ok(s3.objects.has(`courses/osm-way-9/blobs/${sha}`));
+  assert.equal(s3.objects.get(`courses/osm-way-9/blobs/${sha}`).type, 'image/png');
+});
+
+// ---------------------------------------------------------------------------
+// queue
+// ---------------------------------------------------------------------------
+test('job queue: one build per course, bounded waiting list, player-facing errors only', async () => {
+  const release = [];
+  const queue = createJobQueue({ run: () => new Promise((resolve) => release.push(resolve)), concurrency: 1, maxQueued: 1, log: quiet });
+  const a = queue.submit('osm-way-1', { courseId: 'osm:way:1' });
+  assert.equal(a.created, true);
+  assert.equal(queue.submit('osm-way-1', {}).job.id, a.job.id, 'same course joins the running build');
+  assert.equal(queue.get(a.job.id).status, 'running');
+  const b = queue.submit('osm-way-2', {});
+  assert.equal(b.job.status, 'queued');
+  assert.throws(() => queue.submit('osm-way-3', {}), { code: 'QUEUE_FULL' });
+  const tick = () => new Promise((resolve) => setImmediate(resolve));
+  await tick(); // builds start on the next microtask
+  release.shift()();
+  await tick();
+  assert.equal(queue.get(a.job.id).status, 'done');
+  assert.equal(queue.get(b.job.id).status, 'running', 'next build starts');
+  await tick();
+  release.shift()();
+  await queue.idle();
+  assert.equal(queue.get(b.job.id).status, 'done');
+  assert.deepEqual(describeFailure(new CourseLoadError('COURSE_NOT_PLAYABLE', 'No hole lines.', 'Try another.')),
+    { code: 'COURSE_NOT_PLAYABLE', message: 'No hole lines.', userFacing: true, recovery: 'Try another.' });
+  assert.deepEqual(describeFailure(new Error('ENOSPC /tmp/x')), { code: 'BUILD_FAILED', message: 'The course could not be built.', userFacing: false });
+});
+
+// ---------------------------------------------------------------------------
+// the service, with the real builder
+// ---------------------------------------------------------------------------
+// A course loader that "builds" the course into the staging cache like loadCourse,
+// and scenery providers that wait for `gate` so a test can see the base package.
+function fakePipeline() {
+  const loads = [];
+  let open;
+  const gate = new Promise((resolve) => { open = resolve; });
+  const loadCourse = async (request, { source }) => {
+    loads.push(source.courseId);
+    if (source.osmId === 13) throw new CourseLoadError('COURSE_NOT_GOLF_COURSE', '"Hut" (OSM way 13) is mapped as building=hut, not as a golf course.', 'Pick a golf course.');
+    const course = testCourse(source.osmId, { name: request.name || `Course ${source.osmId}` });
+    const key = `osm-${source.osmType}-${source.osmId}`;
+    const jpg = crypto.randomBytes(3000); jpg[0] = 0xff; jpg[1] = 0xd8;
+    fs.mkdirSync(path.join(STAGING, 'courses'), { recursive: true });
+    fs.writeFileSync(path.join(STAGING, 'courses', `${key}.aerial.jpg`), jpg);
+    course.aerial = { file: `${key}.aerial.jpg`, bounds: { minX: -80, minY: -180, maxX: 70, maxY: 70 } };
+    fs.writeFileSync(path.join(STAGING, 'courses', `${key}.json`), JSON.stringify(course));
+    return course;
+  };
+  const tiled = crypto.randomBytes(6000); tiled[0] = 0xff; tiled[1] = 0xd8;
+  const providers = {
+    buildings: async () => { await gate; return { status: 'ok', buildings: [{ poly: [[1, 1], [2, 1], [2, 2]], heightM: 5, clubhouse: true }] }; },
+    canopy: async () => ({ status: 'ok', canopy: { source: 'test', trees: [[3, 3, 10, 2], [4, 4, 12, 3]] } }),
+    aerial: async () => ({ status: 'ok', buf: tiled, bounds: { minX: -80, minY: -180, maxX: 70, maxY: 70 }, quality: 'tiled' }),
+  };
+  return { loads, loadCourse, providers, open: () => open(), tiled };
+}
+
+async function startService({ store = createFsStore(tempDir('birdie-store-')), token = 'tok', pipeline = fakePipeline(), env = {}, port = 0 } = {}) {
+  const build = createCourseBuilder({ dataDir: STAGING, store, loadCourse: (...args) => pipeline.loadCourse(...args), providers: pipeline.providers, log: quiet });
+  const running = await startCloudServer({
+    env: { BIRDIE_CLOUD_BUILD_TOKEN: token || '', ...env }, port, host: '127.0.0.1', store, build, log: quiet,
+  });
+  const base = `http://127.0.0.1:${running.port}`;
+  const api = async (method, p, { body, auth = token } = {}) => {
+    const res = await fetch(`${base}${p}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      redirect: 'manual',
+    });
+    const text = await res.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch (_) { json = null; }
+    return { status: res.status, json, headers: res.headers };
+  };
+  return { ...running, base, api, store, pipeline };
+}
+
+async function waitFor(check, { tries = 200 } = {}) {
+  for (let i = 0; i < tries; i++) {
+    const value = await check();
+    if (value) return value;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('condition not reached');
+}
+
+test('service: token-gated builds publish a playable package first, then the complete one', async (t) => {
+  const svc = await startService();
+  t.after(() => svc.close());
+  assert.deepEqual((await svc.api('GET', '/healthz')).json.store, 'fs');
+  assert.equal((await svc.api('GET', '/v1/courses/osm-way-77')).status, 404);
+  assert.equal((await svc.api('GET', '/v1/courses/osm-lake-1')).status, 400);
+  assert.equal((await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 77 } }, auth: null })).status, 401);
+  assert.equal((await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 77 } }, auth: 'nope' })).status, 401);
+  assert.equal((await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 77 }, bbox: [0, 10, 0, 10] } })).status, 400);
+
+  const queued = await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 77 }, name: 'Cloud Links 77' } });
+  assert.equal(queued.status, 202);
+  const jobId = queued.json.job.id;
+  assert.equal((await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 77 } } })).json.job.id, jobId, 'one build per course');
+
+  // base package published while scenery is still running
+  const playable = await waitFor(async () => {
+    const job = (await svc.api('GET', `/v1/jobs/${jobId}`)).json;
+    return job.packageId ? job : null;
+  });
+  assert.equal(playable.status, 'running');
+  assert.equal(playable.complete, false);
+  const base = (await svc.api('GET', '/v1/courses/osm-way-77')).json;
+  assert.equal(base.complete, false);
+  assert.equal(base.packageId, playable.packageId);
+  assert.equal(base.scenery.buildings, null);
+
+  svc.pipeline.open();
+  const done = await waitFor(async () => {
+    const job = (await svc.api('GET', `/v1/jobs/${jobId}`)).json;
+    return job.status === 'done' ? job : null;
+  });
+  assert.equal(done.complete, true);
+  const final = (await svc.api('GET', '/v1/courses/osm:way:77')).json;
+  assert.equal(final.complete, true);
+  assert.deepEqual(final.scenery, { buildings: 1, canopyTrees: 2, aerial: 'tiled', classmap: false, failed: [] });
+  assert.deepEqual(svc.pipeline.loads, ['osm:way:77']);
+  assert.equal(fs.existsSync(path.join(STAGING, 'courses', 'osm-way-77.json')), false, 'staging cleaned up');
+
+  // files are served by content hash
+  const aerial = final.files.find((f) => f.role === 'aerial');
+  const res = await fetch(`${svc.base}/v1/courses/osm-way-77/files/${aerial.sha256}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  assert.equal(sha256(bytes), aerial.sha256);
+  assert.deepEqual(bytes, svc.pipeline.tiled);
+  assert.equal((await fetch(`${svc.base}/v1/courses/osm-way-77/files/${'0'.repeat(64)}`)).status, 404);
+
+  const again = await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 77 } } });
+  assert.equal(again.status, 200);
+  assert.equal(again.json.status, 'ready');
+  assert.equal((await svc.api('GET', '/v1/jobs/not-a-job')).status, 404);
+});
+
+test('service: no token configured means read-only; a full queue answers 429', async (t) => {
+  const readOnly = await startService({ token: null });
+  t.after(() => readOnly.close());
+  assert.equal((await readOnly.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 1 } }, auth: 'x' })).status, 503);
+  const busy = await startService({ env: { BIRDIE_CLOUD_MAX_QUEUE: '1' } });
+  t.after(() => { busy.pipeline.open(); return busy.close(); });
+  for (const id of [101, 102]) {
+    assert.equal((await busy.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: id } } })).status, 202);
+  }
+  assert.equal((await busy.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 103 } } })).status, 429);
+});
+
+test('service on S3: files redirect to presigned URLs the desktop follows; integrity still checked', async (t) => {
+  const s3 = await startFakeS3();
+  t.after(() => s3.close());
+  const svc = await startService({ store: createS3Store(s3.client()) });
+  t.after(() => svc.close());
+  svc.pipeline.open();
+  const queued = await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 55 } } });
+  await waitFor(async () => (await svc.api('GET', `/v1/jobs/${queued.json.job.id}`)).json.status === 'done');
+  const manifest = (await svc.api('GET', '/v1/courses/osm-way-55')).json;
+  const file = manifest.files[0];
+  const redirect = await svc.api('GET', `/v1/courses/osm-way-55/files/${file.sha256}`);
+  assert.equal(redirect.status, 302);
+  assert.match(redirect.headers.get('location'), new RegExp(`^${s3.endpoint}/birdie/courses/osm-way-55/blobs/${file.sha256}\\?X-Amz-Algorithm=`));
+  const desk = tempDir('birdie-desk-');
+  const source = createCloudCourseSource({ client: createCloudClient({ baseUrl: svc.base }), dataDir: desk, log: quiet });
+  const course = await source.acquire({ source: { courseId: 'osm:way:55', osmType: 'way', osmId: 55 } });
+  assert.equal(course.name, 'Course 55');
+  assert.equal(course.aerial.quality, 'tiled');
+  assert.ok(s3.log.some((line) => line.startsWith('GET courses/osm-way-55/blobs/')), 'bytes came from the bucket');
+});
+
+test('end to end: the desktop plays the base package, then the cloud scenery arrives', async (t) => {
+  const svc = await startService({ token: 'desk-token' });
+  t.after(() => svc.close());
+  const client = createCloudClient({ baseUrl: svc.base, buildToken: 'desk-token' });
+  const desk = tempDir('birdie-desk-');
+  const progress = [];
+  const source = createCloudCourseSource({ client, dataDir: desk, pollMs: 10, log: quiet, onProgress: (p) => progress.push(p) });
+  const course = await source.acquire({
+    request: { name: 'Cloud Links 4', bbox: [44.99, 45.01, -93.01, -92.99] },
+    source: { courseId: 'osm:way:4', osmType: 'way', osmId: 4 },
+  });
+  assert.equal(course.name, 'Cloud Links 4', 'playable before its scenery exists');
+  assert.equal(course.buildings, undefined);
+  assert.ok(progress.some((p) => p.stage === 'build'));
+
+  assert.notEqual(course.aerial.quality, 'tiled', 'the base package has the quick single-request aerial');
+
+  // the desktop's background scenery waits for the cloud to finish, then swaps in
+  // the cloud's tiled aerial (cloud desktops ask for the tiled tier)
+  const providers = cloudSceneryProviders({ client, pollMs: 10, log: quiet });
+  const enriching = enrichCourseScenery(course, { providers, aerialQuality: 'tiled', log: quiet });
+  setTimeout(() => svc.pipeline.open(), 50);
+  const outcome = await enriching;
+  assert.deepEqual(outcome.applied, ['buildings', 'canopy', 'aerial']);
+  assert.equal(course.canopy.trees.length, 2);
+  assert.equal(course.aerial.quality, 'tiled');
+  assert.equal(course.aerial.file, 'osm-way-4.aerial.jpg');
+
+  // nothing better in the cloud: an existing aerial is kept, not re-fetched
+  const again = await enrichCourseScenery(course, { providers: cloudSceneryProviders({ client, log: quiet }), aerialQuality: 'tiled', log: quiet });
+  assert.deepEqual(again, { applied: [], none: [], skipped: [], failed: [] });
+});
+
+test('end to end: a course the cloud proves is not a golf course fails the pick with that reason', async (t) => {
+  const svc = await startService();
+  t.after(() => svc.close());
+  const source = createCloudCourseSource({
+    client: createCloudClient({ baseUrl: svc.base, buildToken: 'tok' }), dataDir: tempDir('birdie-desk-'), pollMs: 10, log: quiet,
+  });
+  await assert.rejects(source.acquire({ source: { courseId: 'osm:way:13', osmType: 'way', osmId: 13 } }), (error) => {
+    assert.equal(error.code, 'COURSE_NOT_GOLF_COURSE');
+    assert.match(error.message, /not as a golf course/);
+    return true;
+  });
+});
+
+test('a build whose staging is gone resumes from the published package; failed layers are retried later', async (t) => {
+  const store = createFsStore(tempDir('birdie-store-'));
+  const first = fakePipeline();
+  const svc = await startService({ store, pipeline: first });
+  t.after(() => svc.close());
+  const job = (await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 21 } } })).json.job;
+  await waitFor(async () => (await svc.api('GET', `/v1/jobs/${job.id}`)).json.packageId);
+  svc.queue.close(); // the service "restarts" before the scenery is added
+  first.open();
+  await svc.queue.idle();
+  fs.rmSync(path.join(STAGING, 'courses', 'osm-way-21.json'), { force: true });
+  const base = await store.getJson(manifestKey('osm-way-21'));
+  assert.equal(base.complete, false);
+
+  const second = fakePipeline();
+  second.providers.canopy = async () => { throw new Error('S3 reset by peer'); };
+  second.open();
+  const restarted = await startService({ store, pipeline: second });
+  t.after(() => restarted.close());
+  const resumed = (await restarted.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 21 } } })).json.job;
+  await waitFor(async () => (await restarted.api('GET', `/v1/jobs/${resumed.id}`)).json.status === 'done');
+  assert.deepEqual(second.loads, [], 'resumed from the package, no rebuild of the base data');
+  const final = await store.getJson(manifestKey('osm-way-21'));
+  assert.equal(final.complete, true);
+  assert.deepEqual(final.scenery.failed, ['canopy']);
+  assert.equal((await restarted.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 21 } } })).json.status, 'ready', 'fresh: not retried yet');
+  await store.putJson(manifestKey('osm-way-21'), { ...final, createdAt: '2020-01-01T00:00:00.000Z' });
+  assert.equal((await restarted.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 21 } } })).status, 202, 'an hour later the failed layer is retried');
+});
+
+test('a desktop rides out a cloud restart in the middle of a build', async (t) => {
+  const store = createFsStore(tempDir('birdie-store-'));
+  const stuck = fakePipeline();
+  stuck.loadCourse = () => new Promise(() => {}); // the first instance never gets past the base data
+  const first = await startService({ store, pipeline: stuck });
+  const { port } = first;
+  let second = null;
+  t.after(() => second && second.close());
+  let sleeps = 0;
+  const sleep = async () => {
+    sleeps++;
+    if (sleeps === 2) await first.close(); // the service goes away mid-build ...
+    if (sleeps === 3) { // ... and a new instance (same store) is up a moment later
+      const fresh = fakePipeline();
+      fresh.open();
+      second = await startService({ store, pipeline: fresh, port });
+    }
+  };
+  const progress = [];
+  const source = createCloudCourseSource({
+    client: createCloudClient({ baseUrl: `http://127.0.0.1:${port}`, buildToken: 'tok', timeoutMs: 2000 }),
+    dataDir: tempDir('birdie-desk-'),
+    sleep,
+    pollMs: 1,
+    log: quiet,
+    onProgress: (p) => progress.push(p),
+  });
+  const course = await source.acquire({ source: { courseId: 'osm:way:61', osmType: 'way', osmId: 61 } });
+  assert.equal(course.name, 'Course 61', 'installed from the restarted service');
+  assert.ok(sleeps >= 3);
+  assert.ok(!progress.some((p) => /on this computer/.test(p.message)), 'never fell back to a local build');
+});

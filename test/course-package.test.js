@@ -112,7 +112,7 @@ test('a package carries the course (gzip), aerial, classmap and matching HD bund
   assert.equal(manifest.courseId, 'osm:way:77');
   assert.equal(manifest.complete, false);
   assert.deepEqual(manifest.fingerprints, { v1: courseFingerprintV1(course), v2: courseFingerprintV2(course) });
-  assert.deepEqual(manifest.scenery, { buildings: 1, canopyTrees: 1, aerial: 'single', classmap: true });
+  assert.deepEqual(manifest.scenery, { buildings: 1, canopyTrees: 1, aerial: 'single', classmap: true, failed: [] });
   const paths = manifest.files.map((f) => f.path);
   assert.deepEqual(paths.filter((p) => !p.startsWith('hd/')), ['aerial.jpg', 'classmap.png', 'course.json.gz']);
   const hdPaths = paths.filter((p) => p.startsWith('hd/'));

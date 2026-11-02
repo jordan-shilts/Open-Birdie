@@ -192,6 +192,9 @@ const cloudCourses = cloudClient ? createCloudCourseSource({
 
 const sceneryEnricher = SCENERY_ENABLED ? createSceneryEnricher({
   cacheDir: path.join(DATA_DIR, 'courses'),
+  // with a cloud, a course installed from a base package upgrades to the cloud's
+  // tiled aerial once it is there
+  aerialQuality: cloudClient ? 'tiled' : 'single',
   // With a cloud, scenery comes from the course's cloud package; buildings and the
   // single-request aerial can still be fetched here if the cloud cannot supply
   // them, but canopy (geotiff) only ever comes from the cloud.

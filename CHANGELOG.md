@@ -29,6 +29,15 @@ All notable changes to Open-Birdie are documented here.
   the local copy was built from a different OSM snapshot. An unreachable cloud or a failed verification falls
   back to building on this computer; a cloud verdict that the course is not playable is shown as is. Without
   `BIRDIE_CLOUD_URL` nothing changes and no cloud request is made.
+- **Cloud course service** (`cloud/`) — `node cloud/server.js` builds each course once with the same `lib/` code
+  plus canopy (`geotiff`) and the max-quality tiled aerial (`sharp`), publishes a playable package as soon as the
+  base data is ready and the complete one after the scenery, and serves them: `GET /v1/courses/:key`,
+  token-gated `POST /v1/courses`, `GET /v1/jobs/:id`, `GET /v1/courses/:key/files/:sha256` (302 to a presigned
+  URL, or proxied). Object storage through the S3 API, SigV4-signed with `node:crypto` (checked against AWS's
+  published signatures), or a directory; files are content-addressed so unchanged files upload once. One build
+  per course, a small in-memory queue, resume from the published package after a restart, failed layers retried
+  after an hour, and packages from before a new scenery layer upgraded on request. `cloud/Dockerfile`
+  (`node:22-slim`) and a README section on deploying to Railway (service + bucket), R2, Supabase or MinIO.
 - **Real trees from canopy height data** — `tools/add-canopy-trees.mjs` streams the Meta & WRI 1 m
   global canopy height map (CC BY 4.0) for a course and writes `course.canopy`: every tree's position,
   height and crown radius (distinct crowns, plus a fill for closed woods). The renderer places and sizes

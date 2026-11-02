@@ -1,0 +1,15 @@
+# The cloud image (cloud/Dockerfile) only needs lib/ and cloud/.
+node_modules
+data
+dist
+build
+.shots
+.claude
+.git
+docs
+test
+public
+courses
+reference
+cloud-store
+*.log

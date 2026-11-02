@@ -118,6 +118,80 @@ BIRDIE_CLOUD_URL=https://<your-service> BIRDIE_CLOUD_BUILD_TOKEN=<token> npm sta
   scenery appears when the cloud has added it.
 - If the cloud cannot be reached, the course is built on this computer as before.
 
+### Running the cloud service
+
+The service is [`cloud/server.js`](cloud/server.js) (Node ≥ 22). It builds each course once with
+the same code as the desktop — OSM holes and buildings, USGS 3DEP lidar terrain, the NDVI
+classmap — plus what the desktop app cannot ship: real trees from the canopy height map
+(`geotiff`) and the max-quality tiled aerial (`sharp`). Each course becomes a package (manifest +
+files with sha256) in object storage. It publishes a playable package as soon as the base data is
+ready, then a complete one with the scenery. Its dependencies are in
+[`cloud/package.json`](cloud/package.json); the image is [`cloud/Dockerfile`](cloud/Dockerfile)
+(`node:22-slim`).
+
+```bash
+# local run, packages in ./cloud-store
+BIRDIE_CLOUD_BUILD_TOKEN=dev-token node cloud/server.js
+BIRDIE_CLOUD_URL=http://localhost:8080 BIRDIE_CLOUD_BUILD_TOKEN=dev-token npm start
+
+# container (build context = repository root)
+docker build -f cloud/Dockerfile -t open-birdie-cloud .
+```
+
+| Env var | Default | Meaning |
+| --- | --- | --- |
+| `PORT` (or `BIRDIE_CLOUD_PORT`) | 8080 | listen port (Railway sets `PORT`) |
+| `BIRDIE_CLOUD_BUILD_TOKEN` | (unset) | bearer token required by `POST /v1/courses`; unset = read-only service |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | | object storage (any S3-compatible store; SigV4-signed, no AWS SDK). Without `S3_BUCKET` packages go to a directory |
+| `S3_FORCE_PATH_STYLE` | 0 | `1` for MinIO and older Railway buckets (an endpoint with a path, like Supabase's, is always path style) |
+| `S3_PUBLIC_ENDPOINT` | `S3_ENDPOINT` | endpoint used in presigned download URLs, when desktops must reach the store under another URL |
+| `BIRDIE_CLOUD_STORE_DIR` | `./cloud-store` | directory store, when `S3_BUCKET` is unset |
+| `BIRDIE_CLOUD_FILES` | `redirect` with S3, else `proxy` | serve files as 302s to presigned URLs, or stream them through the service |
+| `BIRDIE_CLOUD_CONCURRENCY` | 1 | builds running at once (one build per course at a time regardless) |
+| `BIRDIE_CLOUD_MAX_QUEUE` | 16 | builds waiting; beyond that `POST` answers 429 |
+| `BIRDIE_DATA_DIR` | `<tmp>/birdie-cloud-staging` | scratch space for builds in progress |
+| `BIRDIE_OVERPASS_URLS` | (unset) | Overpass mirrors to try first, as on the desktop |
+
+API (JSON; `:key` is the course key, e.g. `osm-relation-9892305`):
+
+| Request | Answer |
+| --- | --- |
+| `GET /v1/courses/:key` | `200` package manifest (`complete: false` while scenery is still being added) · `404` |
+| `POST /v1/courses` with `Authorization: Bearer <token>`, body `{"source":{"osmType":"relation","osmId":9892305},"name":"…","bbox":[s,n,w,e]}` (`"force":true` rebuilds) | `200 {status:"ready", manifest}` · `202 {status, job}` · `401` · `429` queue full · `503` builds disabled |
+| `GET /v1/jobs/:id` | `200 {status: queued\|running\|done\|failed, stage, message, pct, packageId, complete, error}` · `404` |
+| `GET /v1/courses/:key/files/:sha256` | `302` to a presigned URL (S3) or `200` bytes |
+| `GET /healthz` | `200 {ok, store, builds, files, queue}` |
+
+### Deploying on Railway (service + bucket)
+
+1. New project → deploy this GitHub repository as a service. In the service's variables set
+   `RAILWAY_DOCKERFILE_PATH=cloud/Dockerfile` and `BIRDIE_CLOUD_BUILD_TOKEN` to a long random string.
+2. Add a **Bucket** to the project (Create → Bucket). Give the service the bucket's credentials with
+   reference variables (use your bucket's name in place of `Bucket`):
+   ```
+   S3_ENDPOINT=${{Bucket.ENDPOINT}}
+   S3_BUCKET=${{Bucket.BUCKET}}
+   S3_REGION=${{Bucket.REGION}}
+   S3_ACCESS_KEY_ID=${{Bucket.ACCESS_KEY_ID}}
+   S3_SECRET_ACCESS_KEY=${{Bucket.SECRET_ACCESS_KEY}}
+   ```
+   If the bucket's Credentials tab says to use path-style URLs, add `S3_FORCE_PATH_STYLE=1`.
+3. Settings → Networking → generate a public domain, then check `https://<domain>/healthz`.
+4. Point the desktop app at it: `BIRDIE_CLOUD_URL=https://<domain>` (plus `BIRDIE_CLOUD_BUILD_TOKEN`
+   on machines allowed to start builds).
+
+Railway buckets are private, so downloads go out as presigned redirects straight from the bucket
+(bucket egress is free; proxying through the service would count as service egress).
+
+Other providers work the same way: **Cloudflare R2** (`S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`,
+`S3_REGION=auto`), **Supabase Storage** (`S3_ENDPOINT=https://<project>.supabase.co/storage/v1/s3`),
+or **Coolify + MinIO** (`S3_FORCE_PATH_STYLE=1`, and `S3_PUBLIC_ENDPOINT` if MinIO's address inside
+the server differs from its public one).
+
+Limits: the job queue is in memory (a restart forgets running jobs; desktops ask again, and any
+package already published survives), so run a single instance; files of superseded packages are
+kept in the bucket (no clean-up yet).
+
 ## Dev tools
 
 ```

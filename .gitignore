@@ -11,6 +11,8 @@ data/courses/*.jpg
 data/courses/*.png
 # bounded course cache index (sizes + last played)
 data/course-cache.json
+# cloud course service: local directory store (when S3_BUCKET is unset)
+/cloud-store/
 
 # HD compiler build workspace + generated hole bundles
 # (regenerate from open 3DEP/NAIP data; too large for normal git history)
