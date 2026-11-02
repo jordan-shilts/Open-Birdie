@@ -68,7 +68,7 @@ function createJobQueue({
     const controller = new AbortController();
     controllers.set(job.id, controller);
     const update = (fields = {}) => {
-      for (const key of ['stage', 'message', 'pct', 'packageId', 'complete']) {
+      for (const key of ['stage', 'message', 'pct', 'packageId', 'complete', 'hd']) {
         if (fields[key] !== undefined) job[key] = fields[key];
       }
     };

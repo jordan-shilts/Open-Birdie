@@ -82,14 +82,27 @@ function parseBuildRequest(body) {
     }
     Object.assign(request, { lat, lon });
   }
-  // hd: the repository has 1 m HD hole manifests for this course (the caller checked):
-  // a complete package without HD holes is upgraded rather than served as ready
-  return { source, request, force: body.force === true, hd: body.hd === true };
+  // hd: the 1 m HD holes the repository has manifests for (the caller checked), or
+  // true for "any": a complete package without them is upgraded, not served as ready
+  let hd = null;
+  if (body.hd === true) hd = true;
+  else if (Array.isArray(body.hd)) {
+    if (body.hd.length > 72 || !body.hd.every((h) => Number.isInteger(h) && h >= 1 && h <= 72)) {
+      throw new HttpError(400, 'bad_hd', 'hd must be true or a list of hole numbers');
+    }
+    hd = [...new Set(body.hd)];
+  }
+  return { source, request, force: body.force === true, hd };
 }
 
-const hasHdHoles = (manifest) => (Array.isArray(manifest.hd)
-  ? manifest.hd.length > 0
-  : (manifest.files || []).some((f) => f.role === 'hd'));
+// The asked-for HD holes the package lacks ([] when it has them all, or none were asked).
+function missingHdHoles(manifest, hd) {
+  if (!hd) return [];
+  const have = Array.isArray(manifest.hd) ? manifest.hd.map((h) => h.hole) : [];
+  const hasAny = have.length > 0 || (manifest.files || []).some((f) => f.role === 'hd');
+  if (hd === true) return hasAny ? [] : ['any'];
+  return hd.filter((hole) => !have.includes(hole));
+}
 
 function createCloudService({
   store,
@@ -140,7 +153,7 @@ function createCloudService({
     if (!force) {
       const manifest = await store.getJson(manifestKey(key));
       // an HD upgrade resumes from this package: only the HD holes are new work
-      if (isReady(manifest) && !(hd && !hasHdHoles(manifest))) return send(res, 200, { status: 'ready', key, manifest });
+      if (isReady(manifest) && !missingHdHoles(manifest, hd).length) return send(res, 200, { status: 'ready', key, manifest });
     }
     let submitted;
     try {

@@ -92,11 +92,11 @@ test('a built course with HD manifests here but no HD holes in its package is up
   });
   const r = await buildOne(upgraded, HAZELTINE, { hdHolesFor, sleep: noWait, log: () => {} });
   const [, , body] = upgraded.calls.find(([op]) => op === 'build');
-  assert.equal(body.hd, true, 'asks for the HD holes');
+  assert.deepEqual(body.hd, [16, 17, 18], 'asks for the HD holes by number');
   assert.equal(body.force, undefined, 'an upgrade, not a rebuild');
   assert.equal(r.status, 'built');
   // a package that has them is done; a course without manifests never asks
-  const done = fakeClient({ built: { [key]: { complete: true, totalBytes: 12, hd: [{ hole: 16, bundleId: 'b' }] } } });
+  const done = fakeClient({ built: { [key]: { complete: true, totalBytes: 12, hd: [16, 17, 18].map((hole) => ({ hole, bundleId: 'b' })) } } });
   assert.equal((await buildOne(done, HAZELTINE, { hdHolesFor, sleep: noWait, log: () => {} })).skipped, true);
   const plain = fakeClient({ jobs: { 'osm-way-5': [{ status: 'running' }, { status: 'done' }] } });
   await buildOne(plain, { name: 'Plain', osmType: 'way', osmId: 5, bbox: null }, { hdHolesFor: () => [], sleep: noWait, log: () => {} });

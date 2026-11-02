@@ -108,6 +108,13 @@ function createCourseBuilder({
       });
       log.log(`[cloud] ${key}: HD holes ${hdOutcome.built.map((b) => b.hole).join(', ') || 'none'}` +
         `${hdOutcome.failed.length ? `, skipped ${hdOutcome.failed.map((f) => `${f.hole} (${f.code})`).join(', ')}` : ''}`);
+      // in the job record, so whoever asked can see what was skipped and why
+      update({
+        hd: {
+          built: hdOutcome.built.map((b) => b.hole),
+          skipped: hdOutcome.failed.map((f) => ({ hole: f.hole, code: f.code, message: String(f.message || '').slice(0, 160) })),
+        },
+      });
     }
 
     progress('publish', 'publishing the complete course', 95);

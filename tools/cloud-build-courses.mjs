@@ -76,16 +76,17 @@ export async function buildOne(client, course, {
   const key = packageKeyFor(normalizeCourseSource({ osmType: course.osmType, osmId: course.osmId }));
   const hdWanted = hdHolesFor(course);
   const started = now();
-  const done = (manifest) => manifest && manifest.complete && (!hdWanted.length || packageHdHoles(manifest).length > 0);
+  const missing = (manifest) => hdWanted.filter((h) => !packageHdHoles(manifest).includes(h));
+  const done = (manifest) => manifest && manifest.complete && !missing(manifest).length;
   if (!force) {
     const manifest = await client.getManifest(key);
     if (done(manifest)) return { course, key, status: 'built', skipped: true, bytes: manifest.totalBytes, hd: packageHdHoles(manifest) };
-    if (manifest && manifest.complete) log(`  ${label(course)}: adding the 1 m HD holes ${holesText(hdWanted)}`);
+    if (manifest && manifest.complete) log(`  ${label(course)}: adding the 1 m HD holes ${holesText(missing(manifest))}`);
   }
   const body = {
     ...buildRequestBody({ name: course.name, bbox: course.bbox }, course),
     ...(force ? { force: true } : {}),
-    ...(hdWanted.length ? { hd: true } : {}),
+    ...(hdWanted.length ? { hd: hdWanted } : {}),
   };
   const reply = await client.requestBuild(body);
   if (reply.status === 'ready' && done(reply.manifest)) {
@@ -101,7 +102,8 @@ export async function buildOne(client, course, {
       const manifest = await client.getManifest(key);
       return {
         course, key, status: manifest && manifest.complete ? 'built' : 'failed',
-        bytes: manifest && manifest.totalBytes, hd: manifest ? packageHdHoles(manifest) : [], hdWanted, ms: now() - started,
+        bytes: manifest && manifest.totalBytes, hd: manifest ? packageHdHoles(manifest) : [], hdWanted,
+        hdSkipped: (job.hd && job.hd.skipped) || [], ms: now() - started,
       };
     }
     if (job.status === 'failed') {
@@ -186,8 +188,9 @@ async function main(argv) {
   const results = await buildCourses(client, courses, { concurrency: args.concurrency, force: args.force });
   console.log('\nSummary');
   for (const r of results) {
-    const hd = r.hd && r.hd.length ? `, HD holes ${holesText(r.hd)}`
-      : r.hdWanted && r.hdWanted.length ? ', no HD holes (see the cloud logs)' : '';
+    const skipped = (r.hdSkipped || []).map((s) => `${s.hole} (${s.code}${s.message ? `: ${s.message}` : ''})`).join('; ');
+    const hd = `${r.hd && r.hd.length ? `, HD holes ${holesText(r.hd)}` : r.hdWanted && r.hdWanted.length ? ', no HD holes' : ''}` +
+      `${skipped ? `; HD skipped ${skipped}` : ''}`;
     const what = r.status === 'built'
       ? `${r.skipped ? 'already built' : `built in ${Math.round((r.ms || 0) / 60000)} min`}${r.bytes ? `, ${mb(r.bytes)}` : ''}${hd}`
       : `FAILED: ${r.message}`;

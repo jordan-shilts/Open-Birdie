@@ -469,6 +469,7 @@ test('HD holes: built after the scenery for courses with manifests; a package wi
   const job = (await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 31 } } })).json.job;
   await waitFor(async () => (await svc.api('GET', `/v1/jobs/${job.id}`)).json.status === 'done');
   assert.deepEqual(calls, [{ courseId: 'osm:way:31', holes: [4, 7], buildings: 1 }], 'once, with the scenery already on the course');
+  assert.deepEqual((await svc.api('GET', `/v1/jobs/${job.id}`)).json.hd, { built: [4, 7], skipped: [] }, 'the job says which HD holes were built');
   // no HD manifests: no HD step
   const other = (await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 32 } } })).json.job;
   await waitFor(async () => (await svc.api('GET', `/v1/jobs/${other.id}`)).json.status === 'done');
@@ -476,7 +477,9 @@ test('HD holes: built after the scenery for courses with manifests; a package wi
   // way 32's complete package carries no HD holes: ready, unless the caller says it should
   const plain = { body: { source: { osmType: 'way', osmId: 32 } } };
   assert.equal((await svc.api('POST', '/v1/courses', plain)).json.status, 'ready');
-  const upgrade = await svc.api('POST', '/v1/courses', { body: { ...plain.body, hd: true } });
+  assert.equal((await svc.api('POST', '/v1/courses', { body: { ...plain.body, hd: [0] } })).status, 400);
+  assert.equal((await svc.api('POST', '/v1/courses', { body: { ...plain.body, hd: [] } })).json.status, 'ready', 'no holes asked, nothing missing');
+  const upgrade = await svc.api('POST', '/v1/courses', { body: { ...plain.body, hd: [4, 7] } });
   assert.equal(upgrade.status, 202, 'an HD upgrade is a build');
   await waitFor(async () => (await svc.api('GET', `/v1/jobs/${upgrade.json.job.id}`)).json.status === 'done');
   assert.equal(pipeline.loads.filter((id) => id === 'osm:way:32').length, 1, 'the upgrade resumed from the package, not from OSM');
