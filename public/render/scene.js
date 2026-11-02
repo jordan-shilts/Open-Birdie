@@ -553,6 +553,7 @@ export class GolfScene {
     // under each (water-shore.js)
     // (plus the lakes around the course: non-fingerprinted scenery, geo.sceneryWater)
     const lakes = (geo.sceneryWater || []).map((w) => ({ kind: 'water', poly: w.poly }));
+    this._lakes = lakes;
     this._ponds = RENDER_CONFIG.water ? coursePonds([...(geo.surfaces || []), ...lakes], (x, y) => this.hAt(x, y)) : [];
     const terrain = this._terrainMesh(b);
     group.add(terrain);
@@ -907,9 +908,12 @@ export class GolfScene {
   // several gates (e.g. .r = mown, .g = green). Kinds paint in the ORDER GIVEN —
   // later kinds overpaint earlier ones where polygons touch.
   _paintMask(b, kinds, colors = null, blurPx = 1, additive = false) {
+    // the lakes around the course count as water (no grass blades or wet-bank turf
+    // standing in them)
+    const lakes = kinds.includes('water') ? (this._lakes || []) : [];
     return paintSurfaceMask({
       bounds: b,
-      surfaces: this.geo.surfaces,
+      surfaces: lakes.length ? [...this.geo.surfaces, ...lakes] : this.geo.surfaces,
       kinds,
       colors,
       blurPx,
@@ -966,7 +970,7 @@ export class GolfScene {
   // greens, sand and water. Cached per course load.
   _treeSpots(geo) {
     if (this._placedTrees) return this._placedTrees;
-    const block = (geo.surfaces || [])
+    const block = [...(geo.surfaces || []), ...(this._lakes || [])]
       .filter((s) => ['fairway', 'green', 'tee', 'bunker', 'water'].includes(s.kind) && s.poly && s.poly.length >= 3)
       .map((s) => {
         let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;

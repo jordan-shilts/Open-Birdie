@@ -22,11 +22,19 @@ export function makeWaterDepth(renderer) {
   });
 
   const resolution = new THREE.Vector2();
+  let verified = false;   // framebuffer completeness checked since the last resize
 
   function setSize(w, h) {
     const ratio = renderer.getPixelRatio();
     const W = Math.max(1, Math.floor(w * ratio)), H = Math.max(1, Math.floor(h * ratio));
-    target.setSize(W, H);
+    if (W !== target.width || H !== target.height) {
+      target.setSize(W, H);
+      // RenderTarget.setSize resizes only the colour attachment: the depth texture kept
+      // its old GPU storage, so the next pre-pass hit an incomplete framebuffer
+      // (attachments of different sizes). Free it so it is rebuilt at the new size.
+      depthTexture.dispose();
+      verified = false;
+    }
     resolution.set(W, H); // device pixels, to match gl_FragCoord.xy
   }
   setSize(size.x, size.y);
@@ -42,6 +50,18 @@ export function makeWaterDepth(renderer) {
     terrain.traverse((o) => { if (o.isMesh) { swapped.push(o, o.material); o.material = depthOnly; } });
     const prevTarget = renderer.getRenderTarget();
     renderer.setRenderTarget(target);
+    if (!verified) {
+      // Once per size: a depth texture can keep GPU storage from an earlier size (or
+      // from a pass that bound it first), which leaves this framebuffer incomplete.
+      // Rebuild both attachments if so.
+      const gl = renderer.getContext();
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        target.dispose();
+        depthTexture.dispose();
+        renderer.setRenderTarget(target);
+      }
+      verified = true;
+    }
     renderer.clear(true, true, false);
     try { renderer.render(terrain, camera); } finally {
       renderer.setRenderTarget(prevTarget);
