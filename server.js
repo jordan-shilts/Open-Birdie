@@ -10,6 +10,11 @@ const path = require('path');
 const { OpenConnectServer, toOpenConnectClub } = require('./lib/openconnect');
 const { searchCourses, loadCourse, listCached, loadCached } = require('./lib/course');
 const { createCourseActivationManager } = require('./lib/course-activation');
+const {
+  applySceneryUpdate,
+  createSceneryEnricher,
+  localSceneryProviders,
+} = require('./lib/course-enrichment');
 const { serveCourseArtRequest } = require('./lib/course-art-http');
 const { createCourseDiagnostic, sanitizePublicText } = require('./lib/course-diagnostics');
 const { normalizeCourseSource } = require('./lib/course-identity');
@@ -31,6 +36,9 @@ const SPEED_SCALE = +(process.env.BIRDIE_SPEED_SCALE || 1);
 const PUB = path.join(__dirname, 'public');
 const DATA_DIR = process.env.BIRDIE_DATA_DIR || path.join(__dirname, 'data');
 const ART_DIR = process.env.BIRDIE_ART_DIR || path.join(__dirname, 'build', 'course-art');
+// Background scenery (buildings, real trees, aerial photo) for every course that is
+// missing it. BIRDIE_ENRICH=0 turns it off (offline play, tests, visual capture).
+const SCENERY_ENABLED = process.env.BIRDIE_ENRICH !== '0';
 
 const game = new Game();
 const sseClients = new Set();
@@ -133,6 +141,23 @@ function commitPreparedActivation({ candidate, resolvedPackage }) {
   if (previousTimer) clearTimeout(previousTimer);
 }
 
+// A finished scenery layer: put it on the live course (only if that course is still
+// the active one) and tell clients to refresh their scenery. Gameplay never reads
+// these fields, so the round in progress is untouched.
+function applyActiveScenery({ courseId, layer, course }) {
+  const current = activationManager.current();
+  if (!current || current.courseId !== courseId || !applySceneryUpdate(game.course, course)) return;
+  console.log(`[scenery] ${layer} ready for ${courseId}`);
+  broadcast('scenery', { courseId, courseRevision: current.courseRevision, layers: [layer] });
+}
+
+const sceneryEnricher = SCENERY_ENABLED ? createSceneryEnricher({
+  cacheDir: path.join(DATA_DIR, 'courses'),
+  providers: localSceneryProviders(),
+  onLayer: applyActiveScenery,
+  onProgress: (progress) => broadcast('course-progress', progress),
+}) : null;
+
 const activationManager = createCourseActivationManager({
   deriveSource: deriveActivationSource,
   acquireCourse: acquireActivationCourse,
@@ -171,6 +196,10 @@ const activationManager = createCourseActivationManager({
       contentRevision: resolvedPackage.contentRevision,
     });
     broadcast('state', game.state());
+    // The course is playable now; missing scenery follows in the background.
+    if (sceneryEnricher) {
+      sceneryEnricher.schedule({ source: candidate.baseCourse.source, course: candidate.baseCourse });
+    }
   },
 });
 
@@ -445,6 +474,7 @@ function close() {
     clearTimeout(readyTimer);
     readyTimer = null;
   }
+  if (sceneryEnricher) sceneryEnricher.cancelAll();
   for (const res of sseClients) { try { res.end(); } catch (_) { /* gone */ } }
   sseClients.clear();
   try { server.close(); } catch (_) { /* already closed */ }
@@ -459,4 +489,5 @@ module.exports = {
   close,
   primaryNonce: PRIMARY_NONCE,
   activationManager,
+  sceneryEnricher,
 };

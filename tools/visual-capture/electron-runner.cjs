@@ -27,6 +27,7 @@ if (JOB && (!path.isAbsolute(JOB.stagingRoot) || !path.isAbsolute(JOB.dataDir)))
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
 process.env.BIRDIE_NO_WATCH = '1';
 process.env.BIRDIE_NO_AUTOLOAD = '1';
+process.env.BIRDIE_ENRICH = '0'; // scenery must not change between captured frames
 process.env.BIRDIE_PORT = String(JOB?.server?.port ?? 0);
 process.env.BIRDIE_OC_PORT = String(JOB?.server?.ocPort ?? 0);
 process.env.BIRDIE_DATA_DIR = JOB?.dataDir || FIXTURE_DATA;

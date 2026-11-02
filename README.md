@@ -79,6 +79,11 @@ routing lines to be playable; the loader tells you if they're missing. First loa
 geometry + elevation (10–90 s) and caches it in `data/courses/` — afterwards it's instant
 and works offline.
 
+Once a course is playable, its missing scenery follows in the background — real buildings
+(OpenStreetMap), every real tree (canopy height map; needs the optional `geotiff` package or the
+cloud service) and the course-wide aerial photo (USGS, US only) — and appears on screen as each
+layer arrives. It is saved with the course, so this happens once per course.
+
 ## Configuration
 
 | Env var | Default | Meaning |
@@ -89,6 +94,7 @@ and works offline.
 | `BIRDIE_SPEED_SCALE` | 1 | multiplier for incoming ball speed; set `2.23694` if your monitor reports m/s (shots play ~2.2× short otherwise) |
 | `BIRDIE_NO_WATCH` | (unset) | set to `1` to skip auto-starting the Uneekor VIEW feed bridge |
 | `BIRDIE_OVERPASS_URLS` | (unset) | comma-separated Overpass interpreter URLs to try before the built-in public mirrors (overpass-api.de, maps.mail.ru, kumi.systems, private.coffee) — useful when they are all at capacity or you run your own |
+| `BIRDIE_ENRICH` | 1 | set to `0` to stop fetching missing scenery (buildings, trees, aerial photo) in the background |
 
 Gimme distance: `POST /api/settings {"gimmeYd": feet}` (UI toggle coming later).
 
@@ -101,8 +107,10 @@ node tools/test-shot.js --speed 150 --vla 13 --spin 2700 --axis -4
 node tools/test-load.js "Course name"   # test course download/parse
 ```
 
-Make a cached course look like the real place (run in this order; each only adds scenery and
-leaves the HD fingerprint alone, except refresh-elevation):
+The app adds buildings, trees and the aerial photo to every course by itself (see Courses).
+These tools run the same code by hand — e.g. to refresh a course after OpenStreetMap edits, or
+to get the max-quality tiled aerial (needs `sharp`). Run them in this order; each only adds
+scenery and leaves the HD fingerprint alone, except refresh-elevation:
 
 ```bash
 node tools/add-buildings.mjs      data/courses/<slug>.json   # OSM building footprints, clubhouse
@@ -120,7 +128,7 @@ node tools/refresh-elevation.mjs  data/courses/<slug>.json   # re-fetch lidar if
 - Aerial imagery: [USGS NAIP / NAIPPlus](https://www.usgs.gov/centers/eros/science/usgs-eros-archive-aerial-photography-national-agriculture-imagery-program-naip) (public domain)
 - Tree positions and heights: Meta and World Resources Institute (WRI),
   [High Resolution Canopy Height Maps](https://registry.opendata.aws/dataforgood-fb-forests/),
-  licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (used by `tools/add-canopy-trees.mjs`)
+  licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (`lib/canopy-fetch.js`)
 
 ## Known limitations / roadmap
 

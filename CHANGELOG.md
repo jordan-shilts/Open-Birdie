@@ -5,6 +5,15 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Automatic scenery for every course** — buildings, real trees and the aerial photo no longer need the
+  `tools/add-*.mjs` scripts: after a course is playable (cache miss or hit), whatever it is missing is
+  fetched in the background in order (buildings first, so footprints mask false tree crowns), saved to the
+  course cache layer by layer, and pushed to the screen with a new `scenery` SSE event (the client re-reads
+  the geometry and rebuilds the scene in place, keeping the hole and the round). Canopy needs `geotiff`,
+  which the packaged app lacks, so it skips there until the cloud supplies it. A source with no data
+  (no NAIP outside the US) is remembered; a failed fetch is retried after 10 minutes. `BIRDIE_ENRICH=0`
+  turns it off. The tools are now thin wrappers over `lib/buildings-fetch.js`, `lib/canopy-fetch.js` and
+  `lib/aerial.js` (`fetchCourseAerialTiled`); orchestration is `lib/course-enrichment.js`.
 - **Real trees from canopy height data** — `tools/add-canopy-trees.mjs` streams the Meta & WRI 1 m
   global canopy height map (CC BY 4.0) for a course and writes `course.canopy`: every tree's position,
   height and crown radius (distinct crowns, plus a fill for closed woods). The renderer places and sizes

@@ -222,6 +222,44 @@ es.addEventListener('state', (e) => {
   else applyState(s);
 });
 es.addEventListener('course', () => { loadGeometry(); closeCourseModal(); });
+// Scenery (buildings, real trees, the aerial photo) can arrive after the course is
+// playable. Same activation, so the HD assets and the round stay: re-read the
+// geometry and rebuild the scene in place (deferred by the scene while a shot flies).
+let sceneryTimer = null;
+es.addEventListener('scenery', (e) => {
+  const info = JSON.parse(e.data);
+  clearTimeout(sceneryTimer);
+  sceneryTimer = setTimeout(() => { refreshScenery(info).catch((err) => console.warn('[scenery] refresh failed', err)); }, 400);
+});
+async function refreshScenery(info) {
+  if (!scene.geo || !captureCourse || info.courseRevision !== captureCourse.revision) return;
+  const geo = await (await fetch('/api/course-geometry')).json();
+  if (!geo || geo.courseRevision !== captureCourse.revision) return; // a newer course took over
+  if (typeof scene._rebuildScenery !== 'function') { await loadGeometry(); return; }
+  scene.geo = geo;
+  scene._rebuildScenery();
+}
+// Progress of a cloud download/build (shown in the course picker while a pick is in
+// flight) and of background scenery (a small status line over the course).
+let pickInFlight = false;
+let statusHide = null;
+es.addEventListener('course-progress', (e) => {
+  const p = JSON.parse(e.data);
+  const text = p.message ? `${p.message}${Number.isFinite(p.pct) ? ` ${Math.round(p.pct)}%` : ''}` : '';
+  if (pickInFlight && p.stage !== 'scenery') {
+    if (!text) return;
+    const msg = $('course-msg');
+    msg.className = 'muted';
+    msg.innerHTML = '<span class="loading-spin"></span>';
+    msg.append(text); // text node: never markup from the server
+    return;
+  }
+  const el = $('course-status');
+  clearTimeout(statusHide);
+  if (p.done || !text) { statusHide = setTimeout(() => el.classList.add('hidden'), 1200); return; }
+  el.textContent = text;
+  el.classList.remove('hidden');
+});
 es.addEventListener('lm', (e) => {
   const lm = JSON.parse(e.data);
   $('lm-status').classList.toggle('connected', lm.connected);
@@ -625,6 +663,7 @@ async function pickCourse(body) {
   const msg = $('course-msg');
   msg.className = 'muted';
   msg.innerHTML = '<span class="loading-spin"></span>Downloading course + terrain from open data… 10–90 s on first load.';
+  pickInFlight = true;
   try {
     const r = await (await fetch('/api/load-course', { method: 'POST', body: JSON.stringify(body) })).json();
     if (r.error) throw new Error([r.error, r.diagnostic && r.diagnostic.recovery].filter(Boolean).join(' '));
@@ -633,6 +672,8 @@ async function pickCourse(body) {
   } catch (err) {
     msg.className = 'muted error';
     msg.textContent = err.message;
+  } finally {
+    pickInFlight = false;
   }
 }
 
