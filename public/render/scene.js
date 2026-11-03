@@ -28,6 +28,7 @@ import { repairGridEdges } from './grid-repair.js';
 import { RENDER_CONFIG } from './config.js';
 import { isPlayFraming, ballReadScale, pinReadScale } from './framing.js';
 import { ShotTracer, makeGlow, makeLandingRing, makeBallShadow, makeDropLine } from './shot-fx.js';
+import { LineupFx } from './lineup-fx.js';
 import { makePin, makeTeeMarkers } from './pin-flag.js';
 import { flightMarkers } from './flight-profile.js';
 import { flightCameraPlan, flightCameraAt } from './flight-camera.js';
@@ -192,6 +193,9 @@ export class GolfScene {
     this.markerLayer.className = 'dist-markers';
     container.appendChild(this.markerLayer);
     this.markers = [];
+    // lining up: yardage arcs, the predicted flight and landing zone (lineup-fx.js)
+    this.lineupFx = new LineupFx(this.scene, this.markerLayer, { hAt: (x, y) => this.hAt(x, y), V });
+    this._lineupPred = null;
     // shot callouts (apex height / carry) projected like the yardage markers
     this.shotLabels = {
       apex: Object.assign(document.createElement('div'), { className: 'shot-label apex' }),
@@ -1506,7 +1510,8 @@ export class GolfScene {
     if (!this.markerLayer) return;
     for (const m of this.markers) m.el.remove();
     this.markers = [];
-    if (!this.geo) return;
+    this._lineupArcs();
+    if (!this.geo || this.lineupFx) return;   // the lineup's yardage arcs replace the bubbles
     const bx = this.ballSim.x, by = this.ballSim.y;
     const dx = this.pinSim.x - bx, dy = this.pinSim.y - by;
     const distM = Math.hypot(dx, dy);
@@ -1545,6 +1550,36 @@ export class GolfScene {
   setAim(aimDeg) {
     this.aimDeg = aimDeg;
     this._aimLineUpdate();
+    this._lineupArcs();
+  }
+
+  // ---------- lining up ----------
+  // The predicted shot for the club in hand (lib/predict.js), or null to clear it.
+  setLineup(pred) {
+    this._lineupPred = pred || null;
+    this.lineupFx?.setPrediction(this._lineupPred);
+    this._lineupArcs();
+  }
+
+  // Yardage arcs out past the pin or the club's total, whichever is farther (no arcs
+  // on the green or when nothing is loaded).
+  _lineupArcs() {
+    if (!this.lineupFx) return;
+    if (!this.geo || !this.ballSim) { this.lineupFx.setArcs({}); return; }
+    const pinYd = Math.hypot(this.pinSim.x - this.ballSim.x, this.pinSim.y - this.ballSim.y) / 0.9144;
+    const p = this._lineupPred;
+    const reach = Math.min(340, Math.max(Math.min(pinYd + 12, 340), p && !p.isPutt ? p.totalYd + 25 : 0));
+    this.lineupFx.setArcs({ ball: this.ballSim, aimDeg: this.aimDeg, reachYd: pinYd < 40 ? 0 : reach });
+  }
+
+  // Today's wind (lib/conditions.js): the flag streams downwind and stiffens, the
+  // crowns sway harder.
+  setWind({ mph = 0, fromDeg = 0 } = {}) {
+    const to = fromDeg + 180;
+    // the flag cloth lies along +x; turning it by 90 deg - heading points it downwind
+    this._pinFlag.setWindHeading((90 - to) * Math.PI / 180);
+    const k = Math.min(1, mph / 25);
+    if (this._treeField?.shared?.uWindAmp) this._treeField.shared.uWindAmp.value = 0.008 + k * 0.05;
   }
 
   // ---------- range & games ----------
@@ -1625,7 +1660,7 @@ export class GolfScene {
     }
     if (pts.length < 2) return;
     const g = new THREE.BufferGeometry().setFromPoints(pts);
-    this.aimLine = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, dashSize: 2.2, gapSize: 2.2 }));
+    this.aimLine = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, dashSize: 2.2, gapSize: 2.2 }));
     this.aimLine.computeLineDistances();
     this.scene.add(this.aimLine);
   }
@@ -1942,6 +1977,7 @@ export class GolfScene {
     }
     // gameplay aim line is an address-view aid — never in non-play framings
     if (this.aimLine) this.aimLine.visible = isPlayFraming(this.camMode, this.anim);
+    this.lineupFx?.update(this.camera, this.container, isPlayFraming(this.camMode, this.anim));
 
     this._updateMarkers();
     this._updateShotFx(frameTime);

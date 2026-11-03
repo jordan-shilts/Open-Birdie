@@ -4,8 +4,11 @@ import { loadHdBundle } from './render/hd-bundle.js';
 import { buildHdAckEvidence, validateHdPolicy, waitForCaptureReady } from './render/capture-readiness.js';
 import { toPar, forwardLabel, verdict } from './scoring.mjs';
 import { FlightView } from './flight-view.js';
-import { parseQualitySetting, nextQualitySetting, qualityLabel } from './render/quality.js';
-import { parseSkySetting, nextSkySetting, skyLabel } from './render/sky-presets.js';
+import { AimMap } from './aim-map.js';
+import { ConditionsUI } from './conditions-ui.js';
+import { Lineup, clubByLabel } from './lineup.js';
+import { parseQualitySetting, qualityLabel } from './render/quality.js';
+import { parseSkySetting, SKY_ORDER, SKY_PRESETS } from './render/sky-presets.js';
 
 const $ = (id) => document.getElementById(id);
 // Readiness nonce handed only to the loopback Electron primary client (absent on LAN mirrors).
@@ -24,28 +27,60 @@ const readSky = () => { try { return localStorage.getItem(SKY_KEY); } catch { re
 let skySetting = parseSkySetting(query.get('sky') || (visualCaptureEnabled ? 'midday' : readSky()));
 const scene = new GolfScene($('scene'), { quality: gfxSetting, autoQuality: !visualCaptureEnabled, sky: skySetting });
 const flightView = new FlightView($('flightview'));
-function showGfx(q) {
-  const b = $('btn-gfx');
-  b.textContent = `Graphics: ${qualityLabel(q.setting, q.level)}`;
-  b.title = `Graphics quality (${q.reason}) — click to cycle Auto / High / Low`;
+
+// ---------- HUD scale: one layout, zoomed to the window (laptop .. 4K TV) ----------
+function fitHud() {
+  const w = window.innerWidth, h = window.innerHeight;
+  const z = w <= 700 ? 1 : Math.max(0.72, Math.min(1.45, Math.min(w / 1680, h / 945)));
+  $('hud').style.zoom = z.toFixed(3);
 }
-scene.onQualityChange = showGfx;
-showGfx(scene.quality);
-$('btn-gfx').onclick = () => {
-  gfxSetting = nextQualitySetting(gfxSetting);
+fitHud();
+window.addEventListener('resize', fitHud);
+
+// segmented control in the menu: [[value, label]], the current value, pick(value)
+function segmented(el, options, current, pick) {
+  el.innerHTML = '';
+  for (const [value, label] of options) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label; b.dataset.value = value;
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', value === current ? 'true' : 'false');
+    b.onclick = () => pick(value);
+    el.appendChild(b);
+  }
+}
+const markSeg = (el, value) => el.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', b.dataset.value === value ? 'true' : 'false'));
+function showGfx(q) {
+  markSeg($('seg-gfx'), gfxSetting);
+  $('seg-gfx').title = `Graphics: ${qualityLabel(q.setting, q.level)} (${q.reason})`;
+}
+segmented($('seg-gfx'), [['auto', 'Auto'], ['high', 'High'], ['low', 'Low']], gfxSetting, (v) => {
+  gfxSetting = parseQualitySetting(v);
   try { localStorage.setItem(GFX_KEY, gfxSetting); } catch { /* private mode */ }
   scene.setQuality(gfxSetting);
-};
-const showSky = () => { $('btn-sky').textContent = `Sky: ${skyLabel(skySetting)}`; };
-showSky();
-$('btn-sky').onclick = () => {
-  skySetting = nextSkySetting(skySetting);
+  showGfx(scene.quality);
+});
+scene.onQualityChange = showGfx;
+showGfx(scene.quality);
+segmented($('seg-sky'), SKY_ORDER.map((k) => [k, k === 'golden' ? 'Golden' : SKY_PRESETS[k].label]), skySetting, (v) => {
+  skySetting = parseSkySetting(v);
   try { localStorage.setItem(SKY_KEY, skySetting); } catch { /* private mode */ }
-  showSky();
+  markSeg($('seg-sky'), skySetting);
   // a sky that can't be fetched falls back to midday: show what actually loaded
-  scene.setSky(skySetting).then(() => { skySetting = scene.skySetting; showSky(); });
-};
-window.__birdie = { scene, get state() { return state; } };
+  scene.setSky(skySetting).then(() => { skySetting = scene.skySetting; markSeg($('seg-sky'), skySetting); });
+});
+
+// ---------- lining up: conditions, aim map, prediction ----------
+const conditions = new ConditionsUI({ onOpen: () => closeMenu() });
+const aimMap = new AimMap($('aim-canvas'), {
+  onAim: (v) => lineup.setAim(v, { commit: false }),
+  onAimEnd: (v) => lineup.setAim(v),
+});
+const lineup = new Lineup({
+  scene, flightView, aimMap, conditions,
+  onClubChange: (key) => { const p = clubPresets[key]; if (p) setPractice(p.speedMph, p.vla, p.spin); },
+});
+window.__birdie = { scene, lineup, get state() { return state; } };
 
 let state = null;
 let pendingState = null;
@@ -73,11 +108,6 @@ if (visualCaptureEnabled) {
   }
 }
 
-const CLUBS = [
-  ['DR', 'DR'], ['3W', 'W3'], ['3H', 'H3'], ['4i', 'I4'], ['5i', 'I5'], ['6i', 'I6'],
-  ['7i', 'I7'], ['8i', 'I8'], ['9i', 'I9'], ['PW', 'PW'], ['SW', 'SW'], ['LW', 'LW'], ['PT', 'PT'],
-];
-
 // ---------- state application ----------
 // The HUD stat tiles: the round's labels, or a practice session's.
 function setStat(id, label, value) {
@@ -103,17 +133,13 @@ function applyState(s) {
     setStat('hud-len', 'LENGTH', `${s.lengthYd}y`);
     setStat('hud-strokes', 'STROKES', s.strokes);
   }
-  const pinTxt = s.distToPinYd > 45
-    ? `${Math.round(s.distToPinYd)}y` : `${Math.round(s.distToPinYd * 3)}ft`;
-  $('hud-pin').textContent = pinTxt;
-  $('lie-pin').textContent = pinTxt;
-  $('hud-lie').textContent = s.holed ? '⛳' : s.lie;
   updateForward(s);
-  $('aim-slider').value = s.aimOffset;
-  $('aim-val').textContent = `${s.aimOffset > 0 ? '+' : ''}${s.aimOffset}°`;
+  if (!lineup._dragging) {
+    $('aim-slider').value = s.aimOffset;
+    $('aim-val').textContent = `${s.aimOffset > 0 ? 'R' : s.aimOffset < 0 ? 'L' : ''}${Math.abs(s.aimOffset).toFixed(1)}°`;
+  }
   updateScoreChip(s);
   updateHolePills(s);
-  drawMinimap(s);
 
   // a practice target is its own "hole": a new flag re-frames the shot
   const key = pr
@@ -133,6 +159,7 @@ function applyState(s) {
       ? { from: pr.spot, to: s.pin, halfWidth: pr.grid.halfWidthYd * 0.9144, lengthM: 360 }
       : null);
   }
+  if (scene.geo) lineup.setState(s);
   buildScorecard(s);
   renderPracticeBoard(s);
 
@@ -185,6 +212,7 @@ async function loadGeometry() {
   }
   const mode = hdAssets.length ? 'hd' : 'procedural';
   scene.loadCourse(geo, { hdAssets });
+  aimMap.setCourse(geo);
   if (visualCaptureEnabled) await scene.compileVisualCaptureShaders();
   lastHoleKey = '';
   if (state) applyState(state);
@@ -302,24 +330,43 @@ es.addEventListener('course-progress', (e) => {
 es.addEventListener('lm', (e) => {
   const lm = JSON.parse(e.data);
   $('lm-status').classList.toggle('connected', lm.connected);
-  $('lm-text').textContent = lm.connected ? 'LM: connected' : 'LM: waiting';
+  $('lm-text').textContent = lm.connected ? 'Monitor connected' : 'Monitor offline';
 });
+let lineupBack = null;   // after a shot lands: back to lining up the next one
 es.addEventListener('shot', (e) => {
   const shot = JSON.parse(e.data);
-  showShotData(shot);
+  const plan = lineup.pred;   // what this club was predicted to do, for the comparison
+  showShotData(shot, plan);
   animating = true;
+  clearTimeout(lineupBack);
+  lineup.setFlying(true);
   flightView.startShot(shot);
   const treeCallout = treeCalloutFor(shot);
+  const pts = shot.sim.points || [];
+  let shown = 0;
   scene.playShot(shot.sim.points, shot.sim.flightTime, () => {
     animating = false;
     flightView.finish();
+    aimMap.setShot(pts);
+    lineup.setFlying(false);
     if (pendingState) { applyState(pendingState); pendingState = null; }
     shotToast(shot);
-  }, { onProgress: (t) => { flightView.setTime(t); treeCallout(t); }, isPutt: !!shot.sim.isPutt });
+    lineupBack = setTimeout(() => flightView.lineup(), 4200);
+  }, {
+    onProgress: (t) => {
+      flightView.setTime(t);
+      treeCallout(t);
+      // the map traces the ball, a few times a second
+      let i = shown;
+      while (i < pts.length && pts[i].t <= t) i++;
+      if (i - shown >= 6 || (i === pts.length && shown !== i)) { shown = i; aimMap.setShot(pts.slice(0, i)); }
+    },
+    isPutt: !!shot.sim.isPutt,
+  });
 });
 
 function setVal(id, num, unit) {
-  $(id).innerHTML = unit ? `${num}<span class="dunit">${unit}</span>` : `${num}`;
+  $(id).innerHTML = unit ? `${num}<small>${unit}</small>` : `${num}`;
 }
 // Infer the club from ball speed so the HUD reflects what was actually hit
 // (launch monitors report ball data, not club; auto-play uses this too).
@@ -345,20 +392,28 @@ function prettyClub(name) {
   if (/GAP|APPROACH|^GW$|^AW$|WEDGEA|WEDGEG/.test(s)) return 'GW';
   return name;   // unknown — show the monitor's label as-is
 }
-function showShotData(shot) {
+function showShotData(shot, plan = null) {
   $('shotpanel').classList.remove('hidden');
   const l = shot.launch, sim = shot.sim;
   const club = shot.club ? prettyClub(shot.club) : clubFromShot(l.speedMph, sim.isPutt);
-  $('lie-club').textContent = club;
-  document.querySelectorAll('#clubs .club').forEach((b) => b.classList.toggle('active', b.textContent.toUpperCase() === club.toUpperCase()));
+  lineup.markClubLabel(club);
+  $('sp-club').textContent = clubByLabel(club)?.name || club;
   setVal('sd-speed', l.speedMph.toFixed(1), 'mph');
-  setVal('sd-launch', `${l.vla.toFixed(1)}°/${l.hla > 0 ? 'R' : 'L'}${Math.abs(l.hla).toFixed(1)}°`, '');
+  setVal('sd-launch', `${l.vla.toFixed(1)}° ${l.hla > 0 ? 'R' : l.hla < 0 ? 'L' : ''}${Math.abs(l.hla).toFixed(1)}°`, '');
   setVal('sd-spin', Math.round(l.totalSpin), 'rpm');
-  setVal('sd-axis', `${l.spinAxis > 0 ? 'R' : 'L'}${Math.abs(l.spinAxis).toFixed(1)}°`, '');
-  setVal('sd-carry', sim.isPutt ? '—' : sim.carryYd.toFixed(0), sim.isPutt ? '' : 'yds');
-  setVal('sd-total', sim.isPutt ? (sim.totalYd * 3).toFixed(0) : sim.totalYd.toFixed(0), sim.isPutt ? 'ft' : 'yds');
-  setVal('sd-offline', `${sim.offlineYd > 0 ? 'R' : 'L'}${Math.abs(sim.offlineYd).toFixed(0)}`, 'yds');
+  setVal('sd-axis', `${l.spinAxis > 0 ? 'R' : l.spinAxis < 0 ? 'L' : ''}${Math.abs(l.spinAxis).toFixed(1)}°`, '');
+  setVal('sd-carry', sim.isPutt ? '—' : sim.carryYd.toFixed(0), sim.isPutt ? '' : 'yd');
+  setVal('sd-total', sim.isPutt ? (sim.totalYd * 3).toFixed(0) : sim.totalYd.toFixed(0), sim.isPutt ? 'ft' : 'yd');
+  setVal('sd-offline', `${sim.offlineYd > 0 ? 'R' : sim.offlineYd < 0 ? 'L' : ''}${Math.abs(sim.offlineYd).toFixed(0)}`, 'yd');
   setVal('sd-apex', sim.isPutt ? '—' : sim.apexFt.toFixed(0), sim.isPutt ? '' : 'ft');
+  // against the plan: how far past / short of the predicted carry, and which side
+  const vs = $('sd-vs');
+  if (plan && !plan.isPutt && !sim.isPutt && Number.isFinite(plan.carryYd)) {
+    const dc = Math.round(sim.carryYd - plan.carryYd);
+    const off = Math.round(sim.offlineYd - plan.offlineYd);
+    vs.innerHTML = `vs plan: <b class="${dc >= 0 ? 'up' : 'down'}">${dc >= 0 ? '+' : '−'}${Math.abs(dc)} yd</b> carry`
+      + (Math.abs(off) >= 1 ? `, <b>${Math.abs(off)} yd ${off > 0 ? 'right' : 'left'}</b> of the line` : ', on line');
+  } else vs.innerHTML = '';
 }
 
 function shotToast(shot) {
@@ -380,7 +435,7 @@ function shotToast(shot) {
 
 function showToast(main, sub = '') {
   const t = $('toast');
-  t.innerHTML = `${main}${sub ? `<div class="sub">${sub}</div>` : ''}`;
+  t.innerHTML = `${esc(main)}${sub ? `<div class="sub">${esc(sub)}</div>` : ''}`;
   t.classList.remove('hidden');
   t.style.opacity = 1;
   clearTimeout(t._h);
@@ -452,75 +507,6 @@ function reviewHoleOnCard(h) {
   reviewHole = h - 1;
   $('scorecard').classList.remove('hidden');
   buildScorecard(state);
-}
-
-// ---------- hole minimap ----------
-function mmRoundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-const MM_COL = { rough: '#a9c899', fairway: '#82c46d', range: '#82c46d', tee: '#82c46d', green: '#57a447', bunker: '#e8d9a8', water: '#8cc0dd' };
-const MM_Z = { rough: 0, fairway: 1, range: 1, tee: 1, green: 2, bunker: 3, water: 3 };
-
-function drawMinimap(s) {
-  const cv = $('mm-canvas');
-  const geo = scene.geo;
-  if (!cv || !geo || !s.tee || !s.pin) return;
-  $('minimap').classList.remove('hidden');
-  const ctx = cv.getContext('2d');
-  const W = cv.width, H = cv.height;
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#9bbd8a'; mmRoundRect(ctx, 0, 0, W, H, 8); ctx.fill();
-
-  const tee = s.tee, pin = s.pin, ball = [s.ball.x, s.ball.y];
-  let fx = pin[0] - tee[0], fy = pin[1] - tee[1];
-  const flen = Math.hypot(fx, fy) || 1; fx /= flen; fy /= flen;
-  const rxv = fy, ryv = -fx;                 // canvas "right" = forward rotated -90
-  const cx = (tee[0] + pin[0]) / 2, cy = (tee[1] + pin[1]) / 2;
-  const marginA = 35, marginS = 75;
-  const scale = (H - 26) / (flen + 2 * marginA);
-  const toC = (px, py) => {
-    const ax = px - cx, ay = py - cy;
-    return [W / 2 + (ax * rxv + ay * ryv) * scale, H / 2 - (ax * fx + ay * fy) * scale];
-  };
-  const inCorridor = (poly) => {
-    for (const [px, py] of poly) {
-      const ax = px - cx, ay = py - cy;
-      if (Math.abs(ax * fx + ay * fy) < flen / 2 + marginA && Math.abs(ax * rxv + ay * ryv) < marginS) return true;
-    }
-    return false;
-  };
-
-  ctx.save(); mmRoundRect(ctx, 0, 0, W, H, 8); ctx.clip();
-  const surfs = geo.surfaces.filter((su) => MM_COL[su.kind] && su.poly.length >= 3 && inCorridor(su.poly))
-    .sort((a, b) => (MM_Z[a.kind] ?? 1) - (MM_Z[b.kind] ?? 1));
-  for (const su of surfs) {
-    ctx.fillStyle = MM_COL[su.kind];
-    ctx.beginPath();
-    su.poly.forEach((p, i) => { const [X, Y] = toC(p[0], p[1]); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
-    ctx.closePath(); ctx.fill();
-  }
-
-  const ink = '#16221a';
-  const [bx, by] = toC(ball[0], ball[1]);
-  const [pxc, pyc] = toC(pin[0], pin[1]);
-  const [txc, tyc] = toC(tee[0], tee[1]);
-  ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(22,40,26,0.55)';
-  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(pxc, pyc); ctx.stroke(); ctx.setLineDash([]);
-  ctx.fillStyle = 'rgba(22,40,26,0.6)'; ctx.beginPath(); ctx.arc(txc, tyc, 2.6, 0, 7); ctx.fill();
-  ctx.lineWidth = 1.6; ctx.strokeStyle = ink; ctx.beginPath(); ctx.moveTo(pxc, pyc); ctx.lineTo(pxc, pyc - 10); ctx.stroke();
-  ctx.fillStyle = '#1f7a40'; ctx.beginPath(); ctx.moveTo(pxc, pyc - 10); ctx.lineTo(pxc + 7, pyc - 8); ctx.lineTo(pxc, pyc - 6); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.strokeStyle = ink; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(bx, by, 3.6, 0, 7); ctx.fill(); ctx.stroke();
-  ctx.restore();
-
-  $('mm-title').textContent = s.practice
-    ? `${s.practice.label.toUpperCase()} · ${s.practice.target.yd}y`
-    : `HOLE ${s.holeRef ?? s.hole} · PAR ${s.par} · ${s.lengthYd}y`;
-  $('mm-topin').textContent = s.distToPinYd > 45 ? `${Math.round(s.distToPinYd)}y` : `${Math.round(s.distToPinYd * 3)}ft`;
 }
 
 // ---------- scorecard ----------
@@ -671,6 +657,7 @@ function renderPracticeBoard(s) {
 $('btn-games').onclick = () => {
   if (!state?.loaded) { openCourseModal(); return; }
   $('games-menu').classList.toggle('hidden');
+  $('btn-games').classList.toggle('active', !$('games-menu').classList.contains('hidden'));
 };
 document.querySelectorAll('#games-menu .game-card').forEach((card) => {
   card.onclick = () => { $('games-menu').classList.add('hidden'); postPractice({ mode: card.dataset.mode }); };
@@ -691,59 +678,86 @@ $('btn-next').onclick = async () => {
   try { await fetch('/api/next-hole', { method: 'POST' }); }
   finally { setTimeout(() => { fwdBusy = false; }, 250); }
 };
-function toggleScorecard() { reviewHole = null; $('scorecard').classList.toggle('hidden'); if (state) buildScorecard(state); }
+function toggleScorecard() {
+  reviewHole = null;
+  $('scorecard').classList.toggle('hidden');
+  $('btn-score').classList.toggle('active', !$('scorecard').classList.contains('hidden'));
+  if (state) buildScorecard(state);
+}
 $('btn-score').onclick = toggleScorecard;
 $('stat-hole').onclick = toggleScorecard;   // the HOLE badge opens the scorecard (phone hole-nav)
 $('stat-hole').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleScorecard(); } };
 $('btn-restart').onclick = () => { reviewHole = null; fetch('/api/reset', { method: 'POST' }); $('scorecard').classList.add('hidden'); };
 $('btn-changecourse').onclick = () => { $('scorecard').classList.add('hidden'); openCourseModal(); };
 $('btn-practice').onclick = () => $('practice').classList.toggle('hidden');
-$('btn-course').onclick = () => openCourseModal();
+$('btn-course').onclick = () => { closeMenu(); openCourseModal(); };
+
+// menu (top right) and the panels' close buttons
+function closeMenu() { $('main-menu').classList.add('hidden'); $('btn-menu').setAttribute('aria-expanded', 'false'); }
+$('btn-menu').onclick = (e) => {
+  e.stopPropagation();
+  const open = $('main-menu').classList.contains('hidden');
+  $('main-menu').classList.toggle('hidden', !open);
+  $('btn-menu').setAttribute('aria-expanded', open ? 'true' : 'false');
+};
+document.addEventListener('pointerdown', (e) => {
+  if (!$('main-menu').contains(e.target) && !$('btn-menu').contains(e.target)) closeMenu();
+});
+document.querySelectorAll('[data-close]').forEach((b) => {
+  b.onclick = () => {
+    $(b.dataset.close).classList.add('hidden');
+    if (b.dataset.close === 'scorecard') $('btn-score').classList.remove('active');
+    if (b.dataset.close === 'games-menu') $('btn-games').classList.remove('active');
+  };
+});
+$('btn-conditions-menu').onclick = () => { closeMenu(); conditions.toggle(true); };
+$('btn-bag-reset').onclick = async () => {
+  closeMenu();
+  if (!window.confirm('Forget every shot this player has hit with each club? Predictions go back to typical numbers until you hit a few again.')) return;
+  try { await fetch('/api/bag/reset', { method: 'POST' }); } catch { /* offline */ }
+  lineup.refreshCarries(false);
+  showToast('Club averages cleared', 'Predictions use typical numbers until you hit a few');
+};
 
 // Free course-creator camera: fly/orbit the hole to inspect surfaces against the aerial.
 scene.setFreeCamCallback((on) => {
   $('btn-free').classList.toggle('active', on);
-  $('btn-free').textContent = on ? 'Exit free' : 'Free look';
+  $('btn-free-label').textContent = on ? 'Exit free look' : 'Free look camera';
   $('freecam-hint').classList.toggle('hidden', !on);
 });
-$('btn-free').onclick = () => scene.enterFreeCam(scene.camMode !== 'free');
+$('btn-free').onclick = () => { closeMenu(); scene.enterFreeCam(scene.camMode !== 'free'); };
 
 // Hole flyover (render/flyover.js): the Flyover button or F; any key or click skips it.
 $('btn-flyover').onclick = () => { if (!animating) scene.flyover.start(); };
+// keys: F flyover, W conditions, arrows aim (shift: 2°), A auto-aim, 0 straight, Esc closes
 window.addEventListener('keydown', (e) => {
-  if (String(e.key || '').toLowerCase() !== 'f' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-  if (animating || $('course-modal').style.display !== 'none') return;
-  if (scene.flyover.start()) e.preventDefault();
+  if (e.repeat && !/^Arrow/.test(e.key)) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.target.type !== 'range') return;
+  if ($('course-modal').style.display !== 'none') return;
+  const k = String(e.key || '');
+  if (k === 'Escape') {
+    closeMenu();
+    for (const id of ['conditions', 'practice', 'games-menu', 'scorecard']) $(id).classList.add('hidden');
+    $('btn-score').classList.remove('active');
+    return;
+  }
+  if (k.toLowerCase() === 'f') { if (!animating && scene.flyover.start()) e.preventDefault(); return; }
+  if (k.toLowerCase() === 'w') { conditions.toggle(); return; }
+  if (animating) return;
+  if (k === 'ArrowLeft' || k === 'ArrowRight') {
+    e.preventDefault();
+    lineup.setAim(lineup.aim + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 2 : 0.5));
+  } else if (k.toLowerCase() === 'a') {
+    if (!lineup.autoAim()) showToast('Auto-aim', 'Needs a prediction for this club');
+  } else if (k === '0') lineup.setAim(0);
 });
 
-let aimT = null;
-$('aim-slider').oninput = (e) => {
-  const v = +e.target.value;
-  $('aim-val').textContent = `${v > 0 ? '+' : ''}${v}°`;
-  if (state) scene.setAim(state.aimDeg - state.aimOffset + v);
-  clearTimeout(aimT);
-  aimT = setTimeout(() => fetch('/api/aim', {
-    method: 'POST', body: JSON.stringify({ offset: v }),
-  }), 180);
-};
-
-// clubs
-const clubsEl = $('clubs');
-for (const [label, key] of CLUBS) {
-  const b = document.createElement('button');
-  b.className = 'club';
-  b.textContent = label;
-  b.onclick = () => {
-    document.querySelectorAll('#clubs .club').forEach((x) => x.classList.remove('active'));
-    b.classList.add('active');
-    $('lie-club').textContent = label.toUpperCase();
-    fetch('/api/club', { method: 'POST', body: JSON.stringify({ club: key }) });
-    const p = clubPresets[key];
-    if (p) setPractice(p.speedMph, p.vla, p.spin);
-  };
-  clubsEl.appendChild(b);
-}
+$('aim-slider').oninput = (e) => lineup.setAim(+e.target.value);
+$('aim-left').onclick = () => lineup.setAim(lineup.aim - 0.5);
+$('aim-right').onclick = () => lineup.setAim(lineup.aim + 0.5);
+$('aim-reset').onclick = () => lineup.setAim(0);
+$('aim-auto').onclick = () => { if (!lineup.autoAim()) showToast('Auto-aim', 'Needs a prediction for this club'); };
 fetch('/api/clubs').then((r) => r.json()).then((p) => { clubPresets = p; });
 
 // practice panel
@@ -837,7 +851,7 @@ async function pickCourse(body) {
 
 $('course-search').onclick = () => doSearch($('course-q').value);
 $('course-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch($('course-q').value); });
-document.querySelectorAll('.chip').forEach((c) => {
+document.querySelectorAll('.modal-box .chip').forEach((c) => {
   c.onclick = () => { $('course-q').value = c.dataset.q; doSearch(c.dataset.q); };
 });
 
