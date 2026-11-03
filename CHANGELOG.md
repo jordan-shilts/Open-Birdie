@@ -5,6 +5,24 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Changed
+- **4K at 60 fps by dynamic resolution** — High now renders up to native 4K, and the render resolution
+  follows the frame rate: a window of slow frames steps it down (to half per axis at most), a run of calm
+  ones creeps it back up, and Auto only falls to Low once the scale is spent. Changes wait until the camera
+  is back at address (a resize reallocates every full-screen target — ~0.5 s at 4K — so never mid-flight),
+  big screens start near 1080p worth of pixels, and a contrast-adaptive sharpening pass (after AMD CAS)
+  restores detail in proportion to the upscale (`quality.js`, `scene.js`, `postfx.js`). On an Apple M3 Pro at
+  a 4K output it holds ~57 fps through a shot at a 1080p internal resolution; native 4K needs a desktop GPU.
+- **Terrain detail by distance** — the coarse grid draws as 256 m tiles at 2, 4 or 8 m by distance (tiles
+  touching an HD hole keep full detail so its cutout stays exact) and each 1 m HD hole has a 2 m level past
+  240 m; tiles behind the camera are culled. Every level hangs a 1.5 m skirt under its edges, which closes
+  the see-through cracks where HD holes met the coarse grid (the dotted line along HD tile edges). All levels
+  upload while the course loads (a level first drawn mid-flight stalled ~0.3 s). Triangles per frame on
+  Hazeltine: 16 M -> 8-12 M (`hd-terrain.js`).
+- **Water depth pre-pass only near ponds** — the terrain depth pass behind the pond shallows runs only with a
+  pond within 300 m in view (it redrew the whole terrain whenever any pond was on screen) (`water.js`).
+- **The flight camera zooms in on the drop** — wide through the launch and climb, then the lens closes in
+  1.8x from the apex to touchdown so the falling ball and its landing spot fill the frame, easing partly back
+  out over the roll; the landing vantage also sits closer (`flight-camera.js`).
 - **Daylight that shows the ground** — the default sun sits at 24° (was 36°), a little warmer, with less sky
   fill, so the 1 m lidar relief reads: mounds, swales, green slopes and bunker faces get a lit and a shaded
   side, and tree shadows run long across the fairways (`sky-presets.js`, `config.js`).

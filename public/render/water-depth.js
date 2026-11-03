@@ -34,6 +34,9 @@ export function makeWaterDepth(renderer) {
       // (attachments of different sizes). Free it so it is rebuilt at the new size.
       depthTexture.dispose();
       verified = false;
+      // allocate now, not on the first pre-pass: that comes mid-flight as a pond nears,
+      // and allocating a 4K depth target there stalled the frame
+      renderer.initRenderTarget?.(target);
     }
     resolution.set(W, H); // device pixels, to match gl_FragCoord.xy
   }

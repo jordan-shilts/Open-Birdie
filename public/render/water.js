@@ -229,17 +229,23 @@ export function buildWater(ponds, sunDir, depth) {
   // at once (so a single captured frame is complete).
   const frustum = new THREE.Frustum(), pv = new THREE.Matrix4();
   let frame = 0;
-  // Returns how many ponds are in view (the depth pre-pass is skipped at zero).
+  // Returns how many ponds in view are near enough (< 300 m) for their shallows to show:
+  // the terrain depth pre-pass behind them redraws the whole terrain, so it runs only
+  // then, and the shallows switch off (uDepthOn) on frames it doesn't.
+  const SHALLOWS_M = 300;
   const updateMirrors = (camera) => {
     if (!reflect) return meshes.length;
     camera.updateMatrixWorld();
     frustum.setFromProjectionMatrix(pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     const cand = [];
+    let near = 0;
     for (const r of meshes) {
       const sph = r.userData.sphere;
       const d = Math.max(1, sph.center.distanceTo(camera.position) - sph.radius * 0.5);
-      if (d < 900 && frustum.intersectsSphere(sph)) cand.push({ r, score: sph.radius / d });
-      else { r.material.uniforms.uMirror.value = 0; r.userData.live = false; r.userData.refresh = false; }
+      if (d < 900 && frustum.intersectsSphere(sph)) {
+        cand.push({ r, score: sph.radius / d });
+        if (d < SHALLOWS_M) near++;
+      } else { r.material.uniforms.uMirror.value = 0; r.userData.live = false; r.userData.refresh = false; }
     }
     cand.sort((a, b) => b.score - a.score);
     const n = Math.min(MAX_LIVE_MIRRORS, cand.length);
@@ -250,7 +256,8 @@ export function buildWater(ponds, sunDir, depth) {
       r.userData.live = on;
       r.material.uniforms.uMirror.value = on ? 1 : 0;
     });
-    return cand.length;
+    shared.uDepthOn.value = near && shared.uDepthTex.value ? 1 : 0;
+    return near;
   };
   return {
     meshes, waterMeshes: meshes,

@@ -5,7 +5,9 @@
 // that tee vantage through launch and the climb while the look target tracks the
 // ball, then glides — on a raised arc, eased — to a vantage behind and beside the
 // landing area during the descent, so the drop, the first bounce and the roll-out
-// all happen in frame. Short shots (chips, putts) never move the camera.
+// all happen in frame. On the way down the lens also zooms in (zoom below), so the
+// falling ball and the spot it lands on fill the frame. Short shots (chips, putts)
+// never move the camera.
 import { flightMarkers, pointAt } from './flight-profile.js';
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -13,6 +15,7 @@ const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); ret
 const lerp = (a, b, f) => a + (b - a) * f;
 
 export const CAM_CLEARANCE_M = 2.0;   // never closer than this above the ground
+export const DROP_ZOOM = 1.8;         // lens magnification at touchdown (wide = 1)
 
 // points: sim trajectory; startCam: {x,y,z} where the camera is now (sim frame);
 // groundAt(x,y) -> terrain height; flightTime: s at first ground contact;
@@ -35,7 +38,7 @@ export function flightCameraPlan(points, { startCam, groundAt = () => 0, flightT
     // the camera's own line of sight (offline sign: + = right of the launch line)
     const off = (last.x - p0.x) * rx + (last.y - p0.y) * ry;
     const side = off > 0 ? -1 : 1;
-    const back = clamp(carry * 0.30, 22, 70);
+    const back = clamp(carry * 0.24, 18, 55);   // close enough that the drop reads
     const lateral = clamp(carry * 0.11, 6, 24);
     const lift = clamp(carry * 0.085, 6, 20);
     // preferred vantage first, then the other side, then further back / straight behind
@@ -54,13 +57,14 @@ export function flightCameraPlan(points, { startCam, groundAt = () => 0, flightT
   }
   return {
     p0, apex, land, last, carry, flightTime: ft, start, end, moves,
+    apexT: apex ? apex.t : ft * 0.5,
     glideStart: ft * 0.32, glideEnd: ft * 0.9,
     arc: moves ? clamp(carry * 0.06, 3, 16) : 0,
     groundAt,
   };
 }
 
-// Camera position + look target at sim time t.
+// Camera position + look target + lens zoom at sim time t.
 export function flightCameraAt(plan, t, points) {
   const u = plan.moves ? smooth(plan.glideStart, plan.glideEnd, t) : 0;
   const x = lerp(plan.start.x, plan.end.x, u);
@@ -70,12 +74,19 @@ export function flightCameraAt(plan, t, points) {
   const ball = pointAt(points, t) || plan.last;
   // Look slightly AHEAD of the ball toward the landing spot while it's in the air so
   // the drop zone enters frame before the ball does; settle on the ball once down.
+  // Zoom on the drop, broadcast style: wide through launch and the climb, then the lens
+  // closes in from the apex to touchdown so the falling ball and its landing spot fill
+  // the frame, and eases about half back out over the roll so the run-out stays in view.
+  const drop = plan.moves ? smooth(plan.apexT, plan.flightTime, t) : 0;
+  const roll = plan.moves ? smooth(plan.flightTime + 0.3, plan.flightTime + 2.0, t) : 0;
+  const zoom = 1 + (DROP_ZOOM - 1) * drop * (1 - 0.45 * roll);
   const air = t < plan.flightTime;
-  const lead = air ? 0.22 * smooth(0, plan.flightTime * 0.5, t) : 0;
+  // the lead shrinks as the lens closes in, so a zoomed frame keeps the ball near centre
+  const lead = air ? 0.22 * smooth(0, plan.flightTime * 0.5, t) * (1 - 0.5 * drop) : 0;
   const look = {
     x: lerp(ball.x, plan.land.x, lead),
     y: lerp(ball.y, plan.land.y, lead),
     z: lerp(ball.z, plan.land.z, lead) + 0.6,
   };
-  return { pos: { x, y, z }, look };
+  return { pos: { x, y, z }, look, zoom };
 }

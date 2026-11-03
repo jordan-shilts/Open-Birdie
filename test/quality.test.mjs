@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   QUALITY_PRESETS, parseQualitySetting, initialAutoLevel, resolveQuality,
   autoDownshiftVerdict, qualityLabel, nextQualitySetting, renderPixelRatio,
+  DYNAMIC_RES, dynamicResolutionStep,
 } from '../public/render/quality.js';
 
 test('parseQualitySetting accepts the three settings and defaults to auto', () => {
@@ -79,14 +80,41 @@ test('render pixel ratio honours the device, the cap, and the pixel budget', () 
   const H = QUALITY_PRESETS.high, L = QUALITY_PRESETS.low;
   // 1080p window on a 1x display: full resolution on High
   assert.equal(renderPixelRatio({ dpr: 1, width: 1920, height: 1080, cap: H.pixelRatioCap, maxPixels: H.maxPixels }), 1);
-  // retina laptop window (1512x982 @2x): held to ~1080p worth of pixels, not 3 MP
-  const pr = renderPixelRatio({ dpr: 2, width: 1512, height: 982, cap: H.pixelRatioCap, maxPixels: H.maxPixels });
-  assert.ok(pr > 1 && pr < 1.3, String(pr));
-  assert.ok(1512 * 982 * pr * pr <= H.maxPixels * 1.01);
+  // a 4K screen (3840x2160 @1x, or 1920x1080 @2x) gets its full resolution on High:
+  // dynamic resolution, not a fixed budget, holds the frame rate
+  assert.equal(renderPixelRatio({ dpr: 1, width: 3840, height: 2160, cap: H.pixelRatioCap, maxPixels: H.maxPixels }), 1);
+  assert.equal(renderPixelRatio({ dpr: 2, width: 1920, height: 1080, cap: H.pixelRatioCap, maxPixels: H.maxPixels }), 2);
+  // past 4K the budget still caps it
+  const pr = renderPixelRatio({ dpr: 2, width: 2560, height: 1440, cap: H.pixelRatioCap, maxPixels: H.maxPixels });
+  assert.ok(pr > 1 && pr < 2, String(pr));
+  assert.ok(2560 * 1440 * pr * pr <= H.maxPixels * 1.01);
   // small window on retina keeps the full 2x
   assert.equal(renderPixelRatio({ dpr: 2, width: 800, height: 500, cap: H.pixelRatioCap, maxPixels: H.maxPixels }), 2);
   // Low renders under 1080p and never below the 0.5 floor
   assert.ok(renderPixelRatio({ dpr: 1, width: 1920, height: 1080, cap: L.pixelRatioCap, maxPixels: L.maxPixels }) < 1);
   assert.equal(renderPixelRatio({ dpr: 1, width: 8000, height: 8000, cap: 1, maxPixels: 1e5 }), 0.5);
   assert.equal(renderPixelRatio({ dpr: NaN, width: 0, height: 0 }), 1);
+});
+
+test('dynamic resolution steps down on slow frames and creeps back up when calm', () => {
+  const D = DYNAMIC_RES;
+  const fast = Array(D.windowFrames).fill(12), slow = Array(D.windowFrames).fill(30);
+  // not enough frames yet: no verdict
+  assert.deepEqual(dynamicResolutionStep({ scale: 1, intervalsMs: [12, 12] }), { scale: 1, calmWindows: 0, changed: false });
+  // a slow window drops the scale at once, never below the floor
+  const down = dynamicResolutionStep({ scale: 1, intervalsMs: slow });
+  assert.ok(down.changed && down.scale < 1);
+  assert.equal(dynamicResolutionStep({ scale: D.min, intervalsMs: slow }).scale, D.min);
+  // calm windows rise only after a run of them, and never past full resolution
+  let st = { scale: 0.7, calmWindows: 0 };
+  for (let k = 0; k < D.calmWindowsToRise - 1; k++) {
+    st = dynamicResolutionStep({ ...st, intervalsMs: fast });
+    assert.equal(st.changed, false);
+  }
+  st = dynamicResolutionStep({ ...st, intervalsMs: fast });
+  assert.ok(st.changed && st.scale > 0.7);
+  assert.equal(dynamicResolutionStep({ scale: 1, intervalsMs: fast, calmWindows: 9 }).scale, 1);
+  // a few slow frames under the share neither drop nor build calm
+  const mixed = [...Array(D.windowFrames - 2).fill(12), 30, 30];
+  assert.deepEqual(dynamicResolutionStep({ scale: 0.8, intervalsMs: mixed, calmWindows: 2 }), { scale: 0.8, calmWindows: 0, changed: false });
 });

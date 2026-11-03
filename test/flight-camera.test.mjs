@@ -1,7 +1,7 @@
 // Shot-replay follow camera framing (public/render/flight-camera.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { flightCameraPlan, flightCameraAt, CAM_CLEARANCE_M } from '../public/render/flight-camera.js';
+import { flightCameraPlan, flightCameraAt, CAM_CLEARANCE_M, DROP_ZOOM } from '../public/render/flight-camera.js';
 
 // 200 m drive due north, 30 m apex, lands at t = 4 s, rolls to t = 5 s, drifting right.
 function drive() {
@@ -91,4 +91,23 @@ test('landing vantage steps around trees', () => {
   const plan = flightCameraPlan(pts, { startCam, groundAt: flat, flightTime: 4, isClear });
   assert.ok(Math.hypot(plan.end.x - tree.x, plan.end.y - tree.y) > 8);
   assert.ok(plan.end.y < plan.land.y);                    // still behind the landing spot
+});
+
+test('lens stays wide through the climb and zooms in on the drop', () => {
+  const pts = drive();
+  const plan = flightCameraPlan(pts, { startCam, groundAt: flat, flightTime: 4 });
+  assert.equal(flightCameraAt(plan, 0.5, pts).zoom, 1);              // launch
+  assert.equal(flightCameraAt(plan, plan.apexT, pts).zoom, 1);       // apex: still wide
+  const falling = flightCameraAt(plan, (plan.apexT + 4) / 2, pts).zoom;
+  const touchdown = flightCameraAt(plan, 4, pts).zoom;
+  assert.ok(falling > 1 && falling < touchdown, `falling ${falling}, touchdown ${touchdown}`);
+  assert.ok(Math.abs(touchdown - DROP_ZOOM) < 1e-9);
+  const rolledOut = flightCameraAt(plan, 6.5, pts).zoom;               // eased partly back out
+  assert.ok(rolledOut > 1 && rolledOut < touchdown);
+});
+
+test('putts keep the base lens', () => {
+  const pts = drive();
+  const putt = flightCameraPlan(pts, { startCam, groundAt: flat, flightTime: 4, isPutt: true });
+  for (const t of [0, 2, 4, 5]) assert.equal(flightCameraAt(putt, t, pts).zoom, 1);
 });

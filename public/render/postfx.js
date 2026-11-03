@@ -41,6 +41,26 @@ const GRADE_SHADER = {
     }`,
 };
 
+// Contrast-adaptive sharpening (after AMD FidelityFX CAS): restores detail when the frame
+// is rendered under the display's resolution (dynamic resolution, retina budgets),
+// sharpening flat detail more than edges that are already crisp.
+const CAS_SHADER = {
+  uniforms: { tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2(1 / 1920, 1 / 1080) }, uSharp: { value: 0.2 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform vec2 uTexel; uniform float uSharp; varying vec2 vUv;
+    void main(){
+      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      vec3 n = texture2D(tDiffuse, vUv + vec2(0.0, uTexel.y)).rgb, s = texture2D(tDiffuse, vUv - vec2(0.0, uTexel.y)).rgb;
+      vec3 e = texture2D(tDiffuse, vUv + vec2(uTexel.x, 0.0)).rgb, w = texture2D(tDiffuse, vUv - vec2(uTexel.x, 0.0)).rgb;
+      vec3 mn = min(c, min(min(n, s), min(e, w))), mx = max(c, max(max(n, s), max(e, w)));
+      vec3 amp = sqrt(clamp(min(mn, 1.0 - mx) / max(mx, vec3(1e-4)), 0.0, 1.0));
+      vec3 wt = -amp / mix(8.0, 5.0, uSharp);
+      vec3 col = ((n + s + e + w) * wt + c) / (1.0 + 4.0 * wt);
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+    }`,
+};
+
 export class PostFX {
   constructor(renderer, scene, camera) {
     this.renderer = renderer;
@@ -125,6 +145,9 @@ export class PostFX {
     // (The last pass renders to the default framebuffer, so preserveDrawingBuffer
     // still captures the composited frame for the screenshot/recording path.)
     this.composer.addPass(new SMAAPass());
+    // sharpening last, over the antialiased frame (setSharpness follows the upscale)
+    this.cas = new ShaderPass(CAS_SHADER);
+    this.composer.addPass(this.cas);
   }
 
   // Graphics quality (quality.js): toggle the optional passes live.
@@ -139,6 +162,12 @@ export class PostFX {
     // multiplies by pixelRatio internally and propagates to every pass.
     this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.composer.setSize(w, h);
+    const pr = this.renderer.getPixelRatio();
+    this.cas.uniforms.uTexel.value.set(1 / Math.max(1, w * pr), 1 / Math.max(1, h * pr));
+  }
+
+  setSharpness(v) {
+    this.cas.uniforms.uSharp.value = v;
   }
 
   render() {

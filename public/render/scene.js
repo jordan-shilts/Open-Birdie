@@ -22,7 +22,7 @@ import { makeWaterDepth } from './water-depth.js';
 import { makeTurfMaterial, makeSandMaterial } from './turf.js';
 import { srgbToLinear, averageLinearColor } from './macro-tint.js';
 import { densifyRing, drapeRing } from './drape.js';
-import { buildHdTerrain, buildCoarseTerrain } from './hd-terrain.js';
+import { buildHdTerrainLod, buildCoarseTerrainLod, updateTerrainLod } from './hd-terrain.js';
 import { makeTerrainSampler, smoothGridNormals } from './terrain-grid.js';
 import { repairGridEdges } from './grid-repair.js';
 import { RENDER_CONFIG } from './config.js';
@@ -31,7 +31,7 @@ import { ShotTracer, makeGlow, makeLandingRing, makeBallShadow, makeDropLine } f
 import { makePin, makeTeeMarkers } from './pin-flag.js';
 import { flightMarkers } from './flight-profile.js';
 import { flightCameraPlan, flightCameraAt } from './flight-camera.js';
-import { resolveQuality, autoDownshiftVerdict, renderPixelRatio } from './quality.js';
+import { resolveQuality, autoDownshiftVerdict, renderPixelRatio, DYNAMIC_RES, dynamicResolutionStep } from './quality.js';
 import { COLORS, DRY_PALETTE, courseDryFor, blendPalette } from './course-character.js';
 import { fillShapesBlurred, paintSurfaceMask, RAW_SURFACE_COLORS } from './surface-mask.js';
 import { smoothClassmapTexture } from './classmap-smoothing.js';
@@ -125,6 +125,9 @@ export class GolfScene {
     this.scene = new THREE.Scene();
     // fog is set once the HDRI horizon color is known (see _setupSkyAndLights)
     this.camera = new THREE.PerspectiveCamera(58, container.clientWidth / container.clientHeight, 0.3, 12000);
+    this._baseFov = this.camera.fov;   // the flight camera zooms from this lens and back (_frame)
+    this._zoom = 1;
+    this._flightZoom = 1;
     this.camera.position.set(0, 30, 60);
 
     // Install before HDRI/texture requests begin so capture readiness observes
@@ -208,6 +211,9 @@ export class GolfScene {
     this._frameIntervals = [];
     this._qualityHoldUntil = 0;
     this._downshifted = false;
+    this._resScale = 1;          // dynamic resolution (quality.js DYNAMIC_RES)
+    this._resIntervals = [];
+    this._resCalm = 0;
     this.setQuality(quality, { rebuild: false });
     this.flyover = new HoleFlyover(this); // hole flyover camera (flyover.js)
     this.googleTiles = new GoogleTiles(this); // optional Google 3D tiles around the course (google-tiles.js; inert without a key)
@@ -272,10 +278,26 @@ export class GolfScene {
 
   // Feed one live frame interval to the 'auto' monitor (ignores hidden/stalled frames).
   _trackFrameRate(dtMs) {
-    if (!this._autoQuality || !this.quality || this.quality.setting !== 'auto' || this.quality.level !== 'high') return;
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
     const now = performance.now();
     if (now < this._qualityHoldUntil || !(dtMs > 0) || dtMs > 250) return;
+    // dynamic resolution first, at every level: it trades pixels for frame rate long
+    // before Auto gives up on High
+    const ri = this._resIntervals;
+    ri.push(dtMs);
+    if (ri.length >= DYNAMIC_RES.windowFrames) {
+      const r = dynamicResolutionStep({ scale: this._resScale, intervalsMs: ri, calmWindows: this._resCalm });
+      ri.length = 0;
+      this._resCalm = r.calmWindows;
+      if (r.changed) {
+        // a resize reallocates every full-screen target (~0.5 s at 4K): never mid-shot
+        // or mid-flyover — hold it until the camera is back at address (see _frame)
+        this._resPending = r.scale;
+        return;
+      }
+    }
+    if (!this._autoQuality || !this.quality || this.quality.setting !== 'auto' || this.quality.level !== 'high') return;
+    if (this._resScale > DYNAMIC_RES.min || this._resPending != null) return;   // Auto drops to Low only once the scale is spent
     const xs = this._frameIntervals;
     xs.push(dtMs);
     if (xs.length > 240) xs.shift();
@@ -292,8 +314,17 @@ export class GolfScene {
     const w = this.container.clientWidth, h = this.container.clientHeight;
     const p = this.quality?.preset;
     if (p) {
-      const pr = renderPixelRatio({ dpr: window.devicePixelRatio || 1, width: w, height: h, cap: p.pixelRatioCap, maxPixels: p.maxPixels });
+      const full = renderPixelRatio({ dpr: window.devicePixelRatio || 1, width: w, height: h, cap: p.pixelRatioCap, maxPixels: p.maxPixels });
+      // a big screen starts near ~1080p worth of pixels; dynamic resolution climbs from
+      // there if the GPU has room (starting at native 4K made the first seconds crawl)
+      if (!this._resScaleSet && w * h > 0) {
+        this._resScaleSet = true;
+        this._resScale = Math.min(1, Math.max(DYNAMIC_RES.min, Math.sqrt(2.4e6 / (w * h * full * full))));
+      }
+      const pr = Math.max(0.5, Math.round(full * (this._resScale ?? 1) * 100) / 100);
       if (pr !== this.renderer.getPixelRatio()) this.renderer.setPixelRatio(pr);
+      // sharpen in proportion to how far the frame is upscaled to the display
+      this.postfx?.setSharpness(Math.min(0.6, Math.max(0.15, 1 - pr / (window.devicePixelRatio || 1))));
     }
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -645,6 +676,7 @@ export class GolfScene {
     const done = this.renderer.compileAsync(this.scene, this.camera);
     this.renderer.setRenderTarget(prevTarget);
     fx.forEach((o, i) => { o.visible = was[i]; });
+    this._warmTerrain();
     // A compiled program isn't the whole cost: the first DRAW of each blend/target
     // combination builds its GPU pipeline (on Metal ~0.45 s each). So once the programs
     // are ready, draw every effect for one frame, sub-millimetre, just ahead of the camera.
@@ -657,6 +689,25 @@ export class GolfScene {
         fx.forEach((o, i) => { o.visible = saved[i].vis; o.position.copy(saved[i].pos); o.scale.copy(saved[i].scale); });
       }
     }).catch((e) => console.warn('[render] shader warm-up:', e && e.message));
+  }
+
+  // Upload every terrain level's buffers while the course loads: a level first drawn
+  // mid-flight (the camera nearing a tile switches it to full detail) uploaded its
+  // megabytes right then — a ~0.3 s stall. One draw of the whole scene into a 1x1
+  // target with every terrain mesh forced on (and unculled) does it up front.
+  _warmTerrain() {
+    if (!this._terrain) return;
+    const touched = [];
+    this._terrain.traverse((o) => {
+      if (o.isMesh) { touched.push([o, o.visible, o.frustumCulled]); o.visible = true; o.frustumCulled = false; }
+    });
+    const target = this._warmTarget || (this._warmTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }));
+    const prev = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(target);
+    try { this.renderer.render(this.scene, this.camera); } finally {
+      this.renderer.setRenderTarget(prev);
+      for (const [o, vis, culled] of touched) { o.visible = vis; o.frustumCulled = culled; }
+    }
   }
 
   async compileVisualCaptureShaders() {
@@ -788,9 +839,16 @@ export class GolfScene {
       const grp = new THREE.Group();
       // the pond beds are carved into the 1 m patches too (render-only, as above)
       const carve = (grid) => (this._ponds?.length ? { ...grid, heights: carveBeds(grid.heights, grid, this._ponds) } : grid);
-      grp.add(buildCoarseTerrain({ grid: this._ponds?.length ? { ...this.elev, heights } : this.elev, cutouts, material: turfMat }));
+      // detail by distance (hd-terrain.js): coarse tiles and HD patches carry levels
+      // that _frame picks per camera (updateTerrainLod), with skirts that close seams
+      const coarse = this._ponds?.length ? { ...this.elev, heights } : this.elev;
+      const shadeM = RENDER_CONFIG.terrainShadeSmoothM ?? 0;
+      grp.add(buildCoarseTerrainLod({
+        grid: coarse, cutouts, material: turfMat,
+        normals: smoothGridNormals(coarse.heights, coarse.nx, coarse.ny, coarse.cellM, shadeM),
+      }));
       this._hdPatches.forEach((patch, k) => {
-        grp.add(buildHdTerrain({ grid: carve(patch), material: turfMat, uvBounds: b, skipBounds: cutouts.slice(0, k) }));
+        grp.add(buildHdTerrainLod({ grid: carve(patch), material: turfMat, uvBounds: b, skipBounds: cutouts.slice(0, k) }));
       });
       return grp;
     }
@@ -1676,6 +1734,7 @@ export class GolfScene {
       const cam = flightCameraAt(a.plan, Math.min(a.t, a.dur), pts);
       this.camPosT.copy(V(cam.pos.x, cam.pos.y, cam.pos.z));
       this.lookT.copy(V(cam.look.x, cam.look.y, cam.look.z));
+      this._flightZoom = cam.zoom ?? 1;
     }
     a.onProgress?.(Math.min(a.t, a.dur));
 
@@ -1833,6 +1892,12 @@ export class GolfScene {
     const rawDt = fixed ? 0 : this.clock.getDelta();
     const dt = fixed ? Math.max(0, Number(capture.fixedDelta) || 0) : Math.min(rawDt, 0.05);
     if (!fixed) this._trackFrameRate(rawDt * 1000);
+    if (this._resPending != null && !this.anim && this.camMode !== 'flyover') {
+      this._resScale = this._resPending;
+      this._resPending = null;
+      this.resize();
+      this._qualityHoldUntil = performance.now() + 600;   // let the new size settle before judging it
+    }
     if (this._pendingRebuild && !this.anim) this._rebuildScenery();
     const frameTime = fixed ? (Number(capture.fixedTime) || 0) : this.clock.elapsedTime;
     this._captureFixedTime = fixed ? frameTime : null;
@@ -1854,6 +1919,16 @@ export class GolfScene {
     this.camera.position.lerp(this.camPosT, k);
     this.lookCur.lerp(this.lookT, kLook);
     this.camera.lookAt(this.lookCur);
+    // lens: the flight camera zooms in on the drop (flight-camera.js); everything else
+    // flies the base lens, eased back to it after a shot
+    const zoomT = flying ? this._flightZoom : 1;
+    if (zoomT !== 1 || this._zoom !== 1) {
+      this._zoom += (zoomT - this._zoom) * (capture?.snapCamera ? 1 : 1 - Math.exp(-6 * dt));
+      if (Math.abs(this._zoom - 1) < 1e-3 && zoomT === 1) this._zoom = 1;
+      const half = THREE.MathUtils.degToRad(this._baseFov / 2);
+      this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(half) / this._zoom));
+      this.camera.updateProjectionMatrix();
+    }
 
     // keep ball & pin readable at distance — but ONLY in a play framing, so
     // survey/overview/beauty shots don't get a 26x ball reading as a debug billboard
@@ -1873,6 +1948,7 @@ export class GolfScene {
     this._haze?.update(this.camera);
     if (this._treeWind) this._treeWind(frameTime);
     const treesMoved = this._treeField ? this._treeField.update(this.camera, frameTime) : false;
+    updateTerrainLod(this._terrain, this.camera);   // terrain detail for this camera
     if (this._grassField) this._grassField.update(this.camera, frameTime);
     if (this.scene.fog && this._fogDensity) {
       // haze lies in the low air: looking down from a flyover or overview the light
@@ -1889,8 +1965,9 @@ export class GolfScene {
     if (this._fairwayGrassWind) this._fairwayGrassWind(frameTime);
     if (this._flagU) this._flagU.value = frameTime;
     if (this._waterUpdate) this._waterUpdate(frameTime);
-    const pondsInView = this._waterMirrors ? this._waterMirrors(this.camera) : 1;
-    if (this.waterDepth && this._foamOn && this._terrain && pondsInView) this.waterDepth.prepass(this._terrain, this.camera);
+    // the terrain depth pre-pass (pond shallows) only runs with a pond near enough to show them
+    const pondsNear = this._waterMirrors ? this._waterMirrors(this.camera) : 1;
+    if (this.waterDepth && this._foamOn && this._terrain && pondsNear) this.waterDepth.prepass(this._terrain, this.camera);
     this.googleTiles.update(); // Google tile LOD/visibility for the camera just placed
     // Redraw the cached shadow map when its casters can have changed: at once for a new
     // hole / sky / scenery, at most ~10x a second while the tree set follows a moving
