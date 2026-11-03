@@ -1260,7 +1260,7 @@ export class GolfScene {
     try {
       const hdBounds = this._hdPatches.map((p) => ({ minX: p.minX, minY: p.minY, maxX: p.minX + (p.nx - 1) * p.cellM, maxY: p.minY + (p.ny - 1) * p.cellM }));
       this._grassField = new GrassField({
-        turf: this._turfInputs, elev: this.elev, hAt: (x, y) => this.hAt(x, y), hdBounds,
+        turf: this._turfInputs, elev: this.elev, hAt: (x, y) => this.hAt(x, y), hdBounds, sunDir: this.sunDir,
         scale: Math.min(1, (this.quality?.preset?.grassScale ?? 0.5) * 2),
       });
       // the course teardown disposes materials' userData textures
