@@ -5,6 +5,14 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Researched scorecards in play** — the five courses researched in `docs/research/course-data` (Pebble Beach,
+  Chambers Bay, Bandon Dunes, the Old Course, TPC Sawgrass) play with their real par, stroke index, scorecard
+  yardage per tee and hole names. The HUD length is the play tee's yardage, the minimap names the hole and its
+  handicap, the scorecard lists up to four tees and the handicaps, and each hole introduces itself with a short
+  note. The research is compiled into `lib/generated/course-reference.json` (`npm run build:course-reference`)
+  and laid over the course a round plays only when its holes really are the researched ones (most pars agree,
+  lengths within 15% of a tee; `lib/course-reference.js`). It never touches the cached course, so HD bundles
+  keep matching.
 - **Trees grown from real branch structures** — every species (oak, maple, birch, pine, spruce/fir) has
   three generated models, two open-grown and one grown in closed woods (`tree-gen.js`): broadleaves grow by
   space colonization inside a lobed crown, spruce has whorls of drooping branches, pine a bare bole under
@@ -265,6 +273,11 @@ All notable changes to Open-Birdie are documented here.
   clean lush fairway rather than churned mud (`turf.js`, `scene.js` `COLORS`).
 
 ### Fixed
+- **Bandon Dunes was a mix of the resort's courses** — OpenStreetMap maps the whole resort as one outline, so
+  the round took a hole of each number from Bandon Dunes, Pacific Dunes or the third course by greedy chaining,
+  and 9 of 18 pars were wrong. With a researched scorecard, round selection keeps only the holes that fit it and
+  chains the whole round at once, so Bandon Dunes is built from its own 18 holes (single-course outlines pick
+  exactly what they did before). A course already built keeps its old holes until it is rebuilt.
 - **A busy Overpass mirror read as "no such course"** — a mirror out of slots for the caller's IP (common from
   shared cloud machines) answers 200 with a runtime-error remark and no elements; that now counts as a busy mirror
   and the next one is tried.

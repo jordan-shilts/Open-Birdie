@@ -51,6 +51,7 @@ let state = null;
 let pendingState = null;
 let animating = false;
 let lastHoleKey = '';
+let lastIntroKey = '';  // the hole whose name/note toast was shown (once per hole)
 let clubPresets = {};
 let prevOver = false;   // round-over auto-open latch (open the card once, not every state event)
 let reviewHole = null;  // index of a played hole being reviewed on the scorecard
@@ -100,8 +101,10 @@ function applyState(s) {
   } else {
     setStat('hud-hole', 'HOLE', `${s.holeRef ?? s.hole}`); // real course hole number (1,9,10,18…), not play index
     setStat('hud-par', 'PAR', s.par);
-    setStat('hud-len', 'LENGTH', `${s.lengthYd}y`);
+    setStat('hud-len', 'LENGTH', `${s.scorecardYd ?? s.lengthYd}y`); // the play tee's scorecard yardage when researched
     setStat('hud-strokes', 'STROKES', s.strokes);
+    const introKey = `${s.courseName}#${s.hole}`;
+    if (introKey !== lastIntroKey && !s.over) { lastIntroKey = introKey; showHoleIntro(s); }
   }
   const pinTxt = s.distToPinYd > 45
     ? `${Math.round(s.distToPinYd)}y` : `${Math.round(s.distToPinYd * 3)}ft`;
@@ -378,13 +381,23 @@ function shotToast(shot) {
   showToast(main, sub);
 }
 
-function showToast(main, sub = '') {
+function showToast(main, sub = '', ms = 4200) {
   const t = $('toast');
   t.innerHTML = `${main}${sub ? `<div class="sub">${sub}</div>` : ''}`;
   t.classList.remove('hidden');
   t.style.opacity = 1;
   clearTimeout(t._h);
-  t._h = setTimeout(() => { t.style.opacity = 0; }, 4200);
+  t._h = setTimeout(() => { t.style.opacity = 0; }, ms);
+}
+
+// A hole with a researched name or note introduces itself as it starts.
+function showHoleIntro(s) {
+  const note = s.holeNote || s.greenNote;
+  if (!s.holeName && !note) return;
+  const title = `Hole ${s.holeRef ?? s.hole}${s.holeName ? ` · ${s.holeName}` : ''}`;
+  const facts = [`Par ${s.par}`, `${s.scorecardYd ?? s.lengthYd} yd${s.playTee ? ` (${s.playTee})` : ''}`,
+    s.handicap != null ? `HCP ${s.handicap}` : null].filter(Boolean).join(' · ');
+  showToast(esc(title), esc(note ? `${facts} — ${note}` : facts), 7000);
 }
 
 // "Tree!" the moment the replay reaches the ball's first tree contact (a `tree` sim
@@ -519,18 +532,29 @@ function drawMinimap(s) {
 
   $('mm-title').textContent = s.practice
     ? `${s.practice.label.toUpperCase()} · ${s.practice.target.yd}y`
-    : `HOLE ${s.holeRef ?? s.hole} · PAR ${s.par} · ${s.lengthYd}y`;
+    : `HOLE ${s.holeRef ?? s.hole} · PAR ${s.par} · ${s.scorecardYd ?? s.lengthYd}y`;
+  // researched hole name and stroke index under the title
+  const sub = s.practice ? '' : [s.holeName, s.handicap != null ? `HCP ${s.handicap}` : null].filter(Boolean).join(' · ');
+  $('mm-sub').textContent = sub;
+  $('mm-sub').classList.toggle('hidden', !sub);
   $('mm-topin').textContent = s.distToPinYd > 45 ? `${Math.round(s.distToPinYd)}y` : `${Math.round(s.distToPinYd * 3)}ft`;
 }
 
 // ---------- scorecard ----------
 function buildScorecard(s) {
   const n = s.pars.length;
-  let h1 = '<tr><th></th>', p1 = '<tr><th>Par</th>', s1 = '<tr><th>Score</th>';
+  // researched scorecards add a row per tee (the play tee first) and the hole handicaps
+  const tees = s.tees || [];
+  const hcps = (s.handicaps || []).some((x) => x != null) ? s.handicaps : null;
+  let h1 = '<tr><th></th>', p1 = '<tr><th>Par</th>', s1 = '<tr><th>Score</th>', hc = '<tr class="hcp"><th>Hcp</th>';
+  const teeRows = tees.map((t) => `<tr class="tee${t.name === s.playTee ? ' play' : ''}"><th>${esc(t.name)}</th>`);
   for (let i = 0; i < n; i++) {
     const hl = i === reviewHole ? ' review' : '';
-    h1 += `<th class="${hl.trim()}">${i + 1}</th>`;
+    const name = s.holeNames && s.holeNames[i];
+    h1 += `<th class="${hl.trim()}"${name ? ` title="${esc(name)}"` : ''}>${(s.holeRefs && s.holeRefs[i]) ?? i + 1}</th>`;
+    tees.forEach((t, k) => { teeRows[k] += `<td class="${hl.trim()}">${t.yards[i] ?? ''}</td>`; });
     p1 += `<td class="${hl.trim()}">${s.pars[i]}</td>`;
+    if (hcps) hc += `<td class="${hl.trim()}">${hcps[i] ?? ''}</td>`;
     const sc = s.scores[i];
     const cls = sc == null ? '' : sc < s.pars[i] ? 'under' : sc > s.pars[i] ? 'over' : '';
     const dot = (s.pickedUp && s.pickedUp[i]) ? '<i class="pu" title="picked up"></i>' : '';
@@ -538,8 +562,11 @@ function buildScorecard(s) {
   }
   const totPar = s.pars.reduce((a, b) => a + b, 0);
   const totScore = s.scores.reduce((a, b) => a + (b || 0), 0);
+  const teeHtml = tees.map((t, k) => `${teeRows[k]}<td>${t.yards.reduce((a, b) => a + (b || 0), 0) || ''}</td></tr>`).join('');
   $('score-table').innerHTML =
-    `<table>${h1}<th>Σ</th></tr>${p1}<td>${totPar}</td></tr>${s1}<td>${totScore || ''}</td></tr></table>`;
+    `<table>${h1}<th>Σ</th></tr>${teeHtml}${p1}<td>${totPar}</td></tr>${hcps ? `${hc}<td></td></tr>` : ''}` +
+    `${s1}<td>${totScore || ''}</td></tr></table>`;
+  $('scorecard').classList.toggle('with-tees', tees.length > 0);
   buildSummary(s);
 }
 

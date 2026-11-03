@@ -259,6 +259,9 @@ body {
 }
 .mm-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 2px 8px; }
 .mm-title { font-size: 11px; font-weight: 800; letter-spacing: 0.3px; color: var(--fg); }
+.mm-titles { display: flex; flex-direction: column; min-width: 0; }
+.mm-sub { font-size: 10px; font-weight: 600; letter-spacing: 0.2px; color: var(--muted); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mm-topin { font-size: 14px; font-weight: 700; color: var(--accent); letter-spacing: 0.3px; }
 #mm-canvas { display: block; width: 100%; border-radius: 8px; }
 
@@ -277,6 +280,11 @@ body {
 #score-table td, #score-table th { border: 1px solid var(--line); text-align: center; padding: 4px 2px; font-size: 11px; }
 #score-table th { color: var(--muted); font-weight: 700; }
 #score-table .under { color: var(--good); font-weight: 700; }
+/* researched scorecard rows: tee yardages (the play tee bright) and the hole handicaps */
+#scorecard.with-tees { width: 560px; }
+#score-table tr.tee td, #score-table tr.hcp td { color: var(--muted); font-size: 10px; }
+#score-table tr.tee th, #score-table tr.hcp th { font-weight: 600; font-size: 10px; text-align: left; padding-left: 5px; white-space: nowrap; }
+#score-table tr.tee.play td, #score-table tr.tee.play th { color: var(--fg); }
 #score-table .over { color: var(--bad); }
 
 /* ---------- course modal ---------- */
