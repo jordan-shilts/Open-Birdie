@@ -251,6 +251,13 @@ kbd {
 .sc-plays { text-align: right; }
 .sc-plays .lbl { color: var(--accent); }
 .sc-plays b { display: block; font-size: 26px; line-height: 1; color: var(--accent); }
+/* the green's front and back (yardages.mjs) */
+.sc-fb { font-family: var(--num); font-size: 11px; font-weight: 700; color: var(--dim); letter-spacing: 0.08em; margin-top: 7px; }
+.sc-fb b { color: var(--text); font-size: 15px; letter-spacing: 0; margin-left: 3px; }
+.sc-fb small { font-size: 10px; color: var(--dim); margin-left: 1px; letter-spacing: 0; }
+.pl-fb { font-family: var(--num); font-size: 10.5px; font-weight: 700; color: var(--dim); letter-spacing: 0.06em; margin-top: 3px; white-space: nowrap; }
+.pl-fb b { color: var(--text); font-size: 12px; letter-spacing: 0; }
+.sc-fb:empty, .pl-fb:empty { display: none; }
 .sc-why { font-size: 11.5px; color: var(--dim); margin: 7px 0 10px; line-height: 1.35; }
 .sc-why:empty { display: none; }
 .sc-row { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
@@ -266,7 +273,7 @@ kbd {
 .pl-head .lbl:first-child { color: var(--accent); }
 .pl-source { font-size: 11.5px; color: var(--dim); margin-top: 2px; }
 .pl-topin { text-align: right; }
-.pl-topin b { display: block; font-size: 24px; line-height: 1; }
+.pl-topin > b { display: block; font-size: 24px; line-height: 1; }
 .pl-band { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 0; }
 .pl-band-read { display: flex; align-items: baseline; gap: 8px; }
 .pl-band-read .lbl { display: inline; }
@@ -380,6 +387,11 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px 
 .dist-marker span { font-size: 9px; font-weight: 700; opacity: 0.6; margin-left: 1px; }
 .dist-marker.arc { background: transparent; border: 0; padding: 0; font-size: 14px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.9); }
 .dist-marker.arc.band { color: var(--accent); font-size: 13px; }
+/* a hazard's front and back, small, tinted like the hazard */
+.dist-marker.haz { font-size: 11.5px; padding: 1px 7px; border-radius: 8px; background: rgba(16, 18, 21, 0.72); font-variant-numeric: tabular-nums; }
+.dist-marker.haz.bunker { color: #f0e2b8; border-color: rgba(233, 216, 166, 0.45); }
+.dist-marker.haz.water { color: #bfe2ff; border-color: rgba(110, 180, 240, 0.55); }
+.dist-marker.haz i { font-style: normal; opacity: 0.55; margin: 0 1px; }
 .dist-marker.land {
   background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-size: 13px;
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);

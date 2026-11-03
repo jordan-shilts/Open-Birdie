@@ -1,8 +1,11 @@
 // Lining up a shot: the club in hand, where it is predicted to go (lib/predict.js:
 // the player's own numbers for that club, today's conditions, the real terrain), and
 // every view of it: the club dock (each club's carry today + the one that fits), the
-// shot card (to the pin, plays like, why), the planner (side view + overhead aim map +
-// carry / total / where it ends), and the 3D view (predicted arc and landing zone).
+// shot card (to the pin, the green's front and back, plays like, why), the planner (side
+// view + overhead aim map + carry / total / where it ends), and the 3D view (predicted
+// arc, landing zone, and the front and back of the hazards the club can reach).
+import { yardageMarks } from './yardages.mjs';
+
 const $ = (id) => document.getElementById(id);
 const YD = 0.9144, FT = 0.3048;
 
@@ -171,6 +174,14 @@ export class Lineup {
       ball: s.ball, pin: s.pin, baseAimDeg: base, aimOffset: this.aim,
       line: s.practice ? null : (this.scene.geo?.holes?.[s.hole - 1]?.line || null),
     });
+    // the green's front and back and the hazards near the line, once per lie
+    if (newLie || this._marksGeo !== this.scene.geo) {
+      this._marksGeo = this.scene.geo;
+      this.marks = yardageMarks(this.scene.geo, { ball: s.ball, pin: s.pin, baseAimDeg: base, practice: !!s.practice });
+      this.aimMap.setYardages(this.marks);
+      this._hazKey = '';
+      this.scene.setHazardMarks?.([]);   // the last lie's tags go now; the next prediction picks new ones
+    }
     const wind = s.conditions ? { mph: s.conditions.windMph, fromDeg: s.conditions.windFromDeg, gustMph: s.conditions.gustMph } : null;
     this.aimMap.setWind(wind);
     this.scene.setWind?.(wind || {});
@@ -284,7 +295,24 @@ export class Lineup {
     this.aimMap.setPrediction(drawn);
     this.flightView.showPrediction(pred);
     this.scene.setLineup?.(this.flying ? null : drawn);
+    this._tagHazards(pred);
     this.conditions?.setEffects(pred);
+  }
+
+  // The hazards worth a tag in the 3D view: every pond short of where this club stops
+  // (it has to be carried), and the bunkers around where it lands; water first, then
+  // nearest the carry, six at most.
+  _tagHazards(p) {
+    const list = this.marks?.hazards || [];
+    const mid = (hz) => (hz.frontYd + hz.backYd) / 2;
+    const pick = !p || p.isPutt ? [] : list
+      .filter((hz) => hz.frontYd <= p.totalYd + 30 && (hz.kind === 'water' || hz.backYd >= p.carryYd - 50))
+      .sort((a, b) => (a.kind === 'water') !== (b.kind === 'water') ? (a.kind === 'water' ? -1 : 1) : Math.abs(mid(a) - p.carryYd) - Math.abs(mid(b) - p.carryYd))
+      .slice(0, 6);
+    const key = pick.map((hz) => `${hz.at[0].toFixed(1)},${hz.at[1].toFixed(1)}`).join('|');
+    if (key === this._hazKey) return;
+    this._hazKey = key;
+    this.scene.setHazardMarks?.(pick);
   }
 
   // the putt's read: where to start it, at today's green speed
@@ -302,6 +330,12 @@ export class Lineup {
     const d = s.distToPinYd;
     $('lie-pin').innerHTML = d > 45 ? num(d, 'yd') : num(d * 3, 'ft');
     $('mm-topin').textContent = d > 45 ? `${Math.round(d)} yd` : `${Math.round(d * 3)} ft`;
+    // the green's front and back on the line through the pin (none once on the green)
+    const g = this.marks?.green;
+    const fb = g && !s.holed && !(p && p.isPutt);
+    const unit = d > 45 ? '' : '<small>yd</small>';
+    $('sc-fb').innerHTML = fb ? `FRONT <b>${Math.round(g.frontYd)}</b>${unit} · BACK <b>${Math.round(g.backYd)}</b>${unit}` : '';
+    $('pl-fb').innerHTML = fb ? `F <b>${Math.round(g.frontYd)}</b> · B <b>${Math.round(g.backYd)}</b>` : '';
     const show = p && !p.isPutt && Number.isFinite(p.playsLikeYd) && d > 45;
     $('sc-plays-box').classList.toggle('hidden', !show);
     if (show) $('sc-plays').innerHTML = num(p.playsLikeYd, 'yd');

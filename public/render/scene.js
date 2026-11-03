@@ -1561,6 +1561,11 @@ export class GolfScene {
     this._lineupArcs();
   }
 
+  // Bunkers and water to tag with their front and back yardages (public/yardages.mjs).
+  setHazardMarks(list) {
+    this.lineupFx?.setHazards(list || []);
+  }
+
   // Yardage arcs out past the pin or the club's total, whichever is farther (no arcs
   // on the green or when nothing is loaded).
   _lineupArcs() {

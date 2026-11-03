@@ -1,10 +1,13 @@
 // Overhead aim map: the hole from above, turned so the default line of play points up,
 // with yardage arcs from the ball, the club's predicted flight (gold) and roll (dotted),
 // the ~2-sigma landing and resting areas, the calm-air flight as a faint ghost (the
-// gap between the two is what the wind is doing), the pin, the wind, and the live shot.
-// Click or drag on it to aim.
+// gap between the two is what the wind is doing), the pin, the wind, and the live shot,
+// plus yardage-book numbers: the front and back of the green and of every bunker and
+// water hazard near the line (yardages.mjs). Click or drag on it to aim.
 //
 // Sim coordinates: metres, x east, y north. Compass headings clockwise from north.
+import { hazardText } from './yardages.mjs';
+
 const YD = 0.9144;
 const DEG = Math.PI / 180;
 
@@ -31,6 +34,7 @@ export class AimMap {
     this.pred = null;
     this.wind = null;        // { mph, fromDeg }
     this.shot = null;        // live / last shot points [{x,y,z,t}]
+    this.marks = null;       // yardages.mjs yardageMarks(): { green, greenPoly, hazards }
     this._static = document.createElement('canvas');
     this._staticKey = '';
     this._dragging = false;
@@ -53,6 +57,7 @@ export class AimMap {
   setPrediction(pred) { this.pred = pred; this.draw(); }
   setWind(wind) { this.wind = wind; this.draw(); }
   setShot(points) { this.shot = points && points.length > 1 ? points : null; this.draw(); }
+  setYardages(marks) { this.marks = marks; this.draw(); }
 
   // ---- view transform: ball near the bottom, default line straight up ----
   _view(Wc, Hc) {
@@ -105,9 +110,12 @@ export class AimMap {
     ctx.drawImage(this._static, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this._drawArcs(ctx, view, w, h, ui);
-    this._drawHazards(ctx, view, w, h, ui, key);
     this._drawAim(ctx, view, w, h, ui);
-    this._drawPrediction(ctx, view, ui);
+    // label boxes so far: the prediction's carry and stop, then the green's front and
+    // back, then the hazards by importance; each later label steers clear of the earlier
+    const placed = this._drawPrediction(ctx, view, ui);
+    this._drawGreenMarks(ctx, view, w, h, ui, placed);
+    this._drawHazards(ctx, view, w, h, ui, placed);
     this._drawShot(ctx, view, ui);
     this._drawPinBall(ctx, view, ui);
     this._drawWind(ctx, w, h, ui, view);
@@ -133,6 +141,13 @@ export class AimMap {
       pts.forEach((p, i) => { const [X, Y] = view.toPx(p[0], p[1]); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
       ctx.closePath();
     };
+    // lakes beside the course (the scenery layer) first, so course surfaces sit on top
+    for (const wt of this.geo.sceneryWater || []) {
+      if (!wt.poly || wt.poly.length < 3 || !inView(wt.poly)) continue;
+      poly(wt.poly);
+      ctx.fillStyle = PAL.water; ctx.fill();
+      ctx.strokeStyle = PAL.waterEdge; ctx.lineWidth = 1; ctx.stroke();
+    }
     const surfs = (this.geo.surfaces || []).filter((su) => PAL[su.kind] && su.poly && su.poly.length >= 3 && inView(su.poly))
       .sort((a, b) => (Z[a.kind] ?? 1) - (Z[b.kind] ?? 1));
     for (const su of surfs) {
@@ -239,56 +254,84 @@ export class AimMap {
     if (r1 - r0 > 46 * ui) { at(r0, `${Math.round(band.minYd)}`); at(r1, `${Math.round(band.maxYd)}`); }
   }
 
-  // Yardage-book numbers for the hazards near the line: front and back of each bunker
-  // and the carry over water, from the ball, for the few that matter most to this club.
-  _hazardList(view, key) {
-    if (this._hazKey === key) return this._haz;
-    const out = [];
-    const pinV = view.toUV(this.hole.pin[0], this.hole.pin[1])[1];
-    for (const su of this.geo.surfaces || []) {
-      if ((su.kind !== 'bunker' && su.kind !== 'water') || !su.poly || su.poly.length < 3) continue;
-      let front = Infinity, back = -Infinity, uMin = Infinity, uMax = -Infinity, ax = 0, ay = 0, n = 0;
-      for (const [x, y] of su.poly) {
-        const [u, v] = view.toUV(x, y);
-        if (v < 35 || v > pinV + 25) continue;
-        if (Math.abs(u) > 24 + 0.09 * v) continue;   // a corridor that widens with distance
-        front = Math.min(front, v); back = Math.max(back, v);
-        uMin = Math.min(uMin, u); uMax = Math.max(uMax, u);
-        ax += x; ay += y; n++;
-      }
-      if (!n || back - front < 2) continue;
-      out.push({ kind: su.kind, front: front / YD, back: back / YD, u: (uMin + uMax) / 2, uMax, x: ax / n, y: ay / n });
+  // Front and back of the green on the line through the pin (yardages.mjs): a short tick
+  // across the line at each, and the two yardages beside the green, front below back, on
+  // whichever side is clear of the prediction's labels.
+  _drawGreenMarks(ctx, view, w, h, ui, placed) {
+    const g = this.marks && this.marks.green;
+    if (!g || (this.pred && this.pred.isPutt)) return;
+    const [x0, y0] = view.toPx(g.front[0], g.front[1]);
+    const [x1, y1] = view.toPx(g.back[0], g.back[1]);
+    const L = Math.hypot(x1 - x0, y1 - y0) || 1;
+    const nx = -(y1 - y0) / L, ny = (x1 - x0) / L;   // across the line
+    let left = Math.min(x0, x1), right = Math.max(x0, x1);
+    for (const [x, y] of this.marks.greenPoly || []) {
+      const X = view.toPx(x, y)[0];
+      left = Math.min(left, X); right = Math.max(right, X);
     }
-    this._haz = out;
-    this._hazKey = key;
-    return out;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,0.92)'; ctx.lineWidth = 1.6 * ui;
+    for (const [x, y] of [[x0, y0], [x1, y1]]) {
+      ctx.beginPath(); ctx.moveTo(x - nx * 5 * ui, y - ny * 5 * ui); ctx.lineTo(x + nx * 5 * ui, y + ny * 5 * ui); ctx.stroke();
+    }
+    ctx.font = `800 ${9.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+    ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    const th = 12 * ui;
+    const front = `${Math.round(g.frontYd)}`, back = `${Math.round(g.backYd)}`;
+    const tw = Math.max(ctx.measureText(front).width, ctx.measureText(back).width);
+    let yf = y0, yb = y1;   // the front sits lower on the map; keep the two a line apart
+    if (yf - yb < th) { const c = (yf + yb) / 2; yf = c + th / 2; yb = c - th / 2; }
+    const sides = [{ tx: right + 6 * ui, align: 'left' }, { tx: left - 6 * ui, align: 'right' }];
+    const boxesAt = ({ tx, align }) => [yf, yb].map((y) => ({ x: (align === 'left' ? tx : tx - tw) - 2, y: y - th / 2, w: tw + 4, h: th }));
+    const clear = (sd) => boxesAt(sd).every((b) => b.x > 2 && b.x + b.w < w - 2
+      && !placed.some((q) => b.x < q.x + q.w && q.x < b.x + b.w && b.y < q.y + q.h && q.y < b.y + b.h));
+    const side = sides.find(clear) || sides[0];
+    ctx.textAlign = side.align;
+    for (const [txt, y] of [[front, yf], [back, yb]]) {
+      ctx.lineWidth = 3 * ui; ctx.strokeStyle = 'rgba(10,14,11,0.85)'; ctx.strokeText(txt, side.tx, y);
+      ctx.fillStyle = '#ffffff'; ctx.fillText(txt, side.tx, y);
+    }
+    placed.push(...boxesAt(side));
+    ctx.restore();
   }
 
-  _drawHazards(ctx, view, w, h, ui, key) {
-    const list = this._hazardList(view, key);
+  // Front and back of every bunker and water hazard near the line (yardages.mjs), the
+  // way a yardage book marks them: a thin bracket down the hazard's outer side from its
+  // front to its back, and the two numbers beside it. Where two would overlap, the one
+  // nearer this club's carry keeps its numbers.
+  _drawHazards(ctx, view, w, h, ui, placed) {
+    const list = (this.marks && this.marks.hazards) || [];
     if (!list.length) return;
     const p = this.pred && !this.pred.isPutt ? this.pred : null;
-    const focus = p ? p.carryYd : null;
-    const ranked = [...list].sort((a, b) => (focus == null ? a.front - b.front : Math.abs((a.front + a.back) / 2 - focus) - Math.abs((b.front + b.back) / 2 - focus))).slice(0, 4);
+    const mid = (hz) => (hz.frontYd + hz.backYd) / 2;
+    const ranked = p ? [...list].sort((a, b) => Math.abs(mid(a) - p.carryYd) - Math.abs(mid(b) - p.carryYd)) : list;
     ctx.save();
     ctx.font = `800 ${9.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
-    ctx.textBaseline = 'middle';
-    const placed = [];
+    ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    const th = 12 * ui;
     for (const hz of ranked) {
-      const [X, Y] = view.toPx(hz.x, hz.y);
-      const txt = hz.kind === 'water' ? `WATER ${Math.round(hz.front)}–${Math.round(hz.back)}` : `${Math.round(hz.front)}–${Math.round(hz.back)}`;
-      const tw = ctx.measureText(txt).width + 9 * ui, th = 15 * ui;
-      let bx = hz.u >= 0 ? X + 10 * ui : X - 10 * ui - tw, by = Y - th / 2;
-      bx = Math.max(4, Math.min(w - tw - 4, bx));
-      if (by < 4 || by > h - th - 4) continue;
-      if (placed.some((q) => Math.abs(q.y - by) < th && Math.abs(q.x - bx) < Math.max(q.w, tw))) continue;
-      placed.push({ x: bx, y: by, w: tw });
-      ctx.fillStyle = hz.kind === 'water' ? 'rgba(18,52,82,0.92)' : 'rgba(16,18,21,0.86)';
-      ctx.beginPath(); ctx.roundRect(bx, by, tw, th, 4 * ui); ctx.fill();
-      ctx.strokeStyle = hz.kind === 'water' ? 'rgba(110,180,240,0.7)' : 'rgba(233,216,166,0.55)'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.fillStyle = hz.kind === 'water' ? '#bfe2ff' : '#f0e2b8';
+      const yF = view.toPx(hz.front[0], hz.front[1])[1], yB = view.toPx(hz.back[0], hz.back[1])[1];
+      // a carry over water the line crosses is bracketed just right of the line
+      const edge = hz.onLine ? view.ox + 10 * ui : view.ox + (hz.side > 0 ? hz.uMax : hz.uMin) * view.s + hz.side * 3 * ui;
+      const txt = hazardText(hz);
+      const tw = ctx.measureText(txt).width;
+      const ty = (yF + yB) / 2;
+      const tx = hz.side > 0 ? edge + 4 * ui : edge - 4 * ui - tw;
+      const box = { x: tx - 2, y: ty - th / 2, w: tw + 4, h: th };
+      if (box.x < 2 || box.x + box.w > w - 2 || box.y < 2 || box.y + box.h > h - 2) continue;
+      if (placed.some((q) => box.x < q.x + q.w && q.x < box.x + box.w && box.y < q.y + q.h && q.y < box.y + box.h)) continue;
+      placed.push(box);
+      const col = hz.kind === 'water' ? '#bfe2ff' : '#f0e2b8';
+      ctx.globalAlpha = 0.75;
+      ctx.strokeStyle = col; ctx.lineWidth = 1 * ui;
+      ctx.beginPath();
+      ctx.moveTo(edge - hz.side * 2.5 * ui, yF); ctx.lineTo(edge, yF); ctx.lineTo(edge, yB); ctx.lineTo(edge - hz.side * 2.5 * ui, yB);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
       ctx.textAlign = 'left';
-      ctx.fillText(txt, bx + 4.5 * ui, Y + 0.5);
+      ctx.lineWidth = 3 * ui; ctx.strokeStyle = 'rgba(10,14,11,0.85)'; ctx.strokeText(txt, tx, ty);
+      ctx.fillStyle = col; ctx.fillText(txt, tx, ty);
     }
     ctx.restore();
   }
@@ -309,9 +352,11 @@ export class AimMap {
     pts.forEach((p, i) => { const [X, Y] = view.toPx(p.x, p.y); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
   }
 
+  // Draws the prediction; returns the boxes of its two labels.
   _drawPrediction(ctx, view, ui) {
     const p = this.pred;
-    if (!p || !p.path || p.path.length < 2) return;
+    const boxes = [];
+    if (!p || !p.path || p.path.length < 2) return boxes;
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     // calm-air ghost: where the same swing goes on a still, standard day
@@ -350,6 +395,7 @@ export class AimMap {
       ctx.font = `800 ${11.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
       const tw = ctx.measureText(txt).width + 10 * ui, th = 17 * ui;
       const bx = X + 9 * ui, by = Y - th / 2;
+      boxes.push({ x: bx, y: by, w: tw, h: th });
       ctx.fillStyle = gold ? '#ffd21f' : 'rgba(16,18,21,0.88)';
       ctx.beginPath(); ctx.roundRect(bx, by, tw, th, 5 * ui); ctx.fill();
       if (!gold) { ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1; ctx.stroke(); }
@@ -369,6 +415,7 @@ export class AimMap {
       label(X - 2 * ui, Y - 15 * ui, `${Math.round(p.totalYd)}`, false);
     }
     ctx.restore();
+    return boxes;
   }
 
   _drawShot(ctx, view, ui) {

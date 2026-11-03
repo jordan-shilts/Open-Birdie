@@ -1,11 +1,16 @@
 // Lining up in 3D: yardage arcs draped on the ground ahead of the ball (labelled),
 // the club's predicted flight as a dashed gold arc, its roll as a dotted line, the
-// ~2-sigma landing zone as a soft gold patch on the terrain, and a "carry" pin over
-// the landing spot. Lines are camera-facing ribbons a fixed number of pixels wide, so
-// they read the same at 20 m and 250 m. Unlit, no shadows, a handful of draw calls.
+// ~2-sigma landing zone as a soft gold patch on the terrain, a "carry" pin over the
+// landing spot, and a small front–back tag over each bunker and water hazard the club
+// can reach. Lines are camera-facing ribbons a fixed number of pixels wide, so they read
+// the same at 20 m and 250 m. Unlit, no shadows, a handful of draw calls.
 import * as THREE from 'three';
 
 const YD = 0.9144;
+// Labels are placed in this order each frame and a later one that would overlap an
+// earlier one stays hidden: the prediction's, then the hazards', then the arcs'.
+const LABEL_RANK = { pred: 0, haz: 1, arc: 2 };
+const LABEL_HALF_W = { pred: 36, haz: 34, arc: 22 };   // px, for the overlap test
 
 const LINE_VERT = /* glsl */`
   uniform float uPxWorld;   // world metres per pixel at 1 m (2 tan(fov/2) / viewport h)
@@ -118,6 +123,10 @@ export class LineupFx {
       m.geometry.dispose();
       m.material.dispose();
     }
+    this._dropLabels(kind);
+  }
+
+  _dropLabels(kind) {
     this.labels = this.labels.filter((l) => {
       if (l.kind !== kind) return true;
       l.el.remove();
@@ -131,7 +140,22 @@ export class LineupFx {
     el.innerHTML = html;
     el.style.display = 'none';
     this.layer.appendChild(el);
-    this.labels.push({ el, world, kind });
+    const rank = LABEL_RANK[kind] ?? 3;
+    const at = this.labels.findIndex((l) => (LABEL_RANK[l.kind] ?? 3) > rank);
+    this.labels.splice(at < 0 ? this.labels.length : at, 0, { el, world, kind });
+  }
+
+  // Front and back of the bunkers and water this club can reach (yardages.mjs): a small
+  // tag over each, the way a yardage book marks them. Water tags sit a little higher, as
+  // the ground under a pond is its bed.
+  setHazards(list = []) {
+    this._dropLabels('haz');
+    for (const hz of list) {
+      const [x, y] = hz.at;
+      const lift = hz.kind === 'water' ? 3 : 1.2;
+      const txt = hz.open ? `${Math.round(hz.frontYd)}+` : `${Math.round(hz.frontYd)}<i>–</i>${Math.round(hz.backYd)}`;
+      this._label(this.V(x, y, this.hAt(x, y) + lift), txt, `haz ${hz.kind}`, 'haz');
+    }
   }
 
   // a sim-space polyline [[x, y]] draped on the ground, lifted a little
@@ -300,17 +324,28 @@ export class LineupFx {
       v.copy(l.world).project(camera);
       const sx = (v.x * 0.5 + 0.5) * w, sy = (-v.y * 0.5 + 0.5) * h;
       let ok = !(v.z > 1 || sx < 8 || sx > w - 8 || sy < 60 || sy > h - 8);
-      if (ok && l.kind === 'arc') for (const p of shown) if (Math.abs(sy - p.y) < 22 && Math.abs(sx - p.x) < 44) { ok = false; break; }
+      const hw = LABEL_HALF_W[l.kind] ?? 24;
+      let y = sy;
+      if (ok && l.kind !== 'pred') {
+        // an arc number just gives way; a hazard tag stacks above what it would cover
+        // (from the tee, bunkers past the landing sit right behind the carry label)
+        ok = false;
+        for (const dy of l.kind === 'haz' ? [0, -24, -48] : [0]) {
+          if (shown.some((p) => Math.abs(sy + dy - p.y) < 22 && Math.abs(sx - p.x) < hw + p.hw)) continue;
+          y = sy + dy; ok = true; break;
+        }
+      }
       if (!ok) { l.el.style.display = 'none'; continue; }
-      shown.push({ x: sx, y: sy });
+      shown.push({ x: sx, y, hw });
       l.el.style.display = '';
-      l.el.style.transform = `translate(-50%,-100%) translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
+      l.el.style.transform = `translate(-50%,-100%) translate(${sx.toFixed(1)}px, ${y.toFixed(1)}px)`;
     }
   }
 
   dispose() {
     this._clear(this.arcs, 'arc');
     this._clear(this.pred, 'pred');
+    this._dropLabels('haz');
     this.root.parent?.remove(this.root);
   }
 }
