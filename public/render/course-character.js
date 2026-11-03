@@ -13,16 +13,20 @@
 // Surfaces separated by VALUE (dark rough -> light fairway -> lighter green) so
 // the hole reads as a golf hole, not one flat carpet, while staying muted enough
 // that the regraded lighting doesn't push them neon. THIS IS THE LUSH PALETTE.
+// 2026-11 visual pass: real turf albedo sits olive to yellow-green (green about twice the
+// red in linear light, not four times), so the old kelly/lime values read as astroturf
+// and made the tee boxes glow. Same value ladder, pulled toward olive; tees are cut
+// fairway grass, so they now sit in the fairway family instead of above it.
 export const COLORS = {
-  base: '#3c6736',  // lusher corridor/base (much of the visible play ground is unlabeled base)
-  rough: '#4a8038', // lush green rough (Augusta second cut) — deeper than the fairway
+  base: '#3e5f2d',  // lusher corridor/base (much of the visible play ground is unlabeled base)
+  rough: '#476d31', // lush green rough (Augusta second cut) — deeper than the fairway
   wood: '#2b4124',
-  range: '#52883f',
-  fairwayA: '#5aa848', fairwayB: '#4f9a40', // vivid lush fairway (mow stripes added in shader)
+  range: '#4f7c37',
+  fairwayA: '#5a8c3b', fairwayB: '#518236', // lush fairway (mow stripes added in shader)
   // Greens: muted since material-first (v25) — the splat is the ACTUAL albedo, not a
   // 10% residue under the photo drape. The color stays in the fairway family.
-  greenA: '#4c8f42', greenB: '#447f38',
-  tee: '#63a84f',
+  greenA: '#4f8a3c', greenB: '#477f36',
+  tee: '#558539',
   bunker: '#cbb583',
   water: '#2f6d97',
 };

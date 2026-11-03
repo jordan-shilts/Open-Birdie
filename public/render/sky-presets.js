@@ -4,8 +4,9 @@
 //
 // The sun's direction always comes from the sky photo itself (its brightest texel,
 // hdri-analyze.js), so shadows fall away from the bright part of the sky. Midday
-// keeps its lowered 36 deg sun (long, readable tree shadows under a high summer sun)
-// and ships with the app; morning and golden hour are CC0 Poly Haven skies fetched
+// keeps a lowered sun (24 deg since the 2026-11 visual pass: at 36 the light came in
+// flat and the 1 m lidar relief, bunker faces and green slopes all but vanished) and
+// ships with the app; morning and golden hour are CC0 Poly Haven skies fetched
 // when first picked, so the install stays small, with midday as the fallback when
 // one can't be fetched.
 
@@ -25,11 +26,11 @@ export const SKY_PRESETS = Object.freeze({
   midday: Object.freeze({
     label: 'Midday',
     hdri: null,            // the bundled sky (RENDER_CONFIG.hdriFile)
-    sunAltitudeDeg: 36,
-    sunColor: '#fff4e0',
-    sunIntensity: 5.0,
-    environmentIntensity: 0.4,
-    exposure: 0.7,
+    sunAltitudeDeg: 24,
+    sunColor: '#ffe9cc',
+    sunIntensity: 5.2,
+    environmentIntensity: 0.32,  // less sky fill: shade sides of mounds and swales read
+    exposure: 0.8,
     fogDensity: 0.00042,
   }),
   golden: Object.freeze({

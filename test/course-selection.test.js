@@ -14,7 +14,7 @@ const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'birdie-selection-'));
 process.env.BIRDIE_DATA_DIR = dataDir;
 
 const {
-  searchCourses, loadCourse, makeSurfaceLookup, boundaryProblem, overpass, overpassEndpoints, CourseLoadError,
+  searchCourses, loadCourse, makeSurfaceLookup, lakesInPlay, boundaryProblem, overpass, overpassEndpoints, CourseLoadError,
 } = require('../lib/course');
 const { createCourseActivationManager } = require('../lib/course-activation');
 const { Game } = require('../lib/game');
@@ -105,6 +105,58 @@ test('a boundary that leaves out a tee or pin, or is degenerate, is not used for
   assert.match(boundaryProblem(plainCourse(square(300).map(([x, y]) => [x, y - 400]))), /pin/);
   assert.equal(boundaryProblem(plainCourse([[0, 0], [10, 10]])), 'not a polygon');
   assert.equal(boundaryProblem(plainCourse(null)), null, 'no boundary is simply no OB');
+});
+
+// ---------- lakes around the course (course.scenery.water) ----------
+
+const box = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+const lake = (poly) => ({ kind: 'water', poly });
+
+test('a lake that reaches the course is water, all of it; a pond beyond the outline stays out of bounds', (t) => {
+  t.mock.method(console, 'warn', () => {});
+  const course = plainCourse(square(300));
+  const beside = lake(box(290, -50, 500, 50));       // its shore inside the outline, the rest beyond
+  const buffer = lake(box(-50, 310, 50, 400));       // its shore 10 m past the outline: inside the buffer
+  const road = lake(box(-500, -50, -340, 50));       // 40 m past the outline, across the road
+  course.scenery = { water: [beside, buffer, road, lake([[0, 0], [1, 1]])] };
+  course.surfaces = [{ kind: 'fairway', poly: box(280, -10, 320, 10) }];   // a fairway the lake's outline overlaps
+  assert.deepEqual(lakesInPlay(course), [beside, buffer]);
+  const at = makeSurfaceLookup(course);
+  assert.equal(at(400, 30), 'water', '100 m past the outline, in the lake: water, not out of bounds');
+  assert.equal(at(0, 380), 'water');
+  assert.equal(at(300, 0), 'fairway', 'the course\'s own surfaces win where a lake outline overlaps them');
+  assert.equal(at(400, 80), 'ob', 'beside the lake, past the buffer');
+  assert.equal(at(-400, 0), 'ob', 'the pond across the road');
+  // with no outline to go by, or one that can't be trusted, every lake is played
+  for (const boundary of [null, square(300).map(([x, y]) => [x, y + 400])]) {
+    const loose = { ...course, boundary };
+    assert.deepEqual(lakesInPlay(loose), [beside, buffer, road]);
+    assert.equal(makeSurfaceLookup(loose)(-400, 0), 'water');
+  }
+  assert.deepEqual(lakesInPlay(plainCourse(null)), []);
+});
+
+test('a ball that flies into a lake is dropped where it crossed the shore, not back on the tee', () => {
+  // a lake across the hole from 40 m to 330 m out; the pin beyond it, no boundary
+  const course = {
+    name: 'Lake Links', elevation: null, boundary: null,
+    surfaces: [{ kind: 'green', poly: box(-15, 365, 15, 395) }],
+    scenery: { water: [lake(box(-200, 40, 200, 330))] },
+    holes: [{ ref: 1, par: 4, tee: [0, 0], pin: [0, 380], lengthYd: 415, line: [[0, 0], [0, 380]] }],
+  };
+  const g = new Game();
+  g.setCourse(course);
+  const r = g.handleShot({ Speed: 150, VLA: 12, HLA: 0, TotalSpin: 2600, SpinAxis: 0 });
+  const splash = r.sim.events.find((e) => e.type === 'water');
+  assert.ok(splash && splash.y > 150, `came down ${splash && splash.y} m out, well into the lake`);
+  assert.equal(r.penalty, 1);
+  assert.equal(r.strokes, 2);
+  assert.equal(r.note, 'Water — lateral drop (+1)');
+  // the near shore (40 m), no nearer the hole; before: back on the tee, 2.3 m around the
+  // splash and 60 m back on the line being water too
+  assert.ok(r.end.y > 36 && r.end.y < 40, `dropped at ${r.end.x.toFixed(1)}, ${r.end.y.toFixed(1)}`);
+  assert.ok(Math.abs(r.end.x) < 3);
+  assert.equal(r.lie, 'rough');
 });
 
 // ---------- Overpass timeout + backoff ----------

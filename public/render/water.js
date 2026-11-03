@@ -106,9 +106,11 @@ const POND_FRAG = /* glsl */`
     #include <fog_fragment>
   }`;
 
-function mirrorPond(geom, shared) {
+function mirrorPond(geom, shared, skip, only) {
+  // 512 px: the ripple field distorts the reflection by more than a texel anyway, and a
+  // 1024 mirror filled 4x the pixels re-rendering the course every other frame
   const refl = new Reflector(geom, {
-    textureWidth: 1024, textureHeight: 1024, clipBias: 0.003, color: 0xc4d0cc,
+    textureWidth: 512, textureHeight: 512, clipBias: 0.003, color: 0xc4d0cc,
     shader: {
       name: 'PondMirror',
       uniforms: {
@@ -130,13 +132,23 @@ function mirrorPond(geom, shared) {
   // Reflector re-renders the scene in onBeforeRender, which fires for EVERY pass that
   // draws the pond (the main pass, the AO normal pass, other ponds' mirrors). Render
   // only when the budget asked for it this frame, once, and never nested in another
-  // pond's mirror.
+  // pond's mirror. Ground cover (grass blades, flowers, litter) and the full terrain
+  // (`skip`) stay out of the mirror, and a cheap terrain stand-in (`only`) takes the
+  // terrain's place: a pond can't show blades or 1 m relief, and redrawing them was
+  // most of a mirror's cost.
   const render = refl.onBeforeRender.bind(refl);
   refl.onBeforeRender = (...args) => {
     if (!refl.userData.refresh || inMirror) return;
     refl.userData.refresh = false;
     inMirror = true;
-    try { render(...args); } finally { inMirror = false; }
+    const hidden = [], shown = [];
+    for (const o of skip) if (o.visible) { o.visible = false; hidden.push(o); }
+    for (const o of only) if (!o.visible) { o.visible = true; shown.push(o); }
+    try { render(...args); } finally {
+      inMirror = false;
+      for (const o of hidden) o.visible = true;
+      for (const o of shown) o.visible = false;
+    }
   };
   return refl;
 }
@@ -164,9 +176,11 @@ function skyPond(geom, shared) {
 
 // ponds: water-shore.js coursePonds (grown outline + water level per pond);
 // sunDir: world Vector3 toward the sun; depth: the terrain depth pre-pass or null.
-// Returns { meshes, waterMeshes, waterUpdate, setFoamDepth }.
+// Returns { meshes, waterMeshes, waterUpdate, setFoamDepth, setMirrorSkip }.
 export function buildWater(ponds, sunDir, depth) {
   const meshes = [];
+  const mirrorSkip = [];   // objects left out of the live mirrors (setMirrorSkip)
+  const mirrorOnly = [];   // objects drawn only inside them
   const reflect = RENDER_CONFIG.waterReflect;
   const shared = {
     uTime: { value: 0 },
@@ -193,7 +207,7 @@ export function buildWater(ponds, sunDir, depth) {
     const g = new THREE.ShapeGeometry(shape);
     // a hair over the flattened water line: the bank where it rises out draws the shore
     const level = p.level + 0.03;
-    const m = reflect ? mirrorPond(g, shared) : skyPond(g, shared);
+    const m = reflect ? mirrorPond(g, shared, mirrorSkip, mirrorOnly) : skyPond(g, shared);
     m.rotation.x = -Math.PI / 2;
     m.position.y = level;
     m.updateMatrixWorld(true);
@@ -215,17 +229,23 @@ export function buildWater(ponds, sunDir, depth) {
   // at once (so a single captured frame is complete).
   const frustum = new THREE.Frustum(), pv = new THREE.Matrix4();
   let frame = 0;
-  // Returns how many ponds are in view (the depth pre-pass is skipped at zero).
+  // Returns how many ponds in view are near enough (< 300 m) for their shallows to show:
+  // the terrain depth pre-pass behind them redraws the whole terrain, so it runs only
+  // then, and the shallows switch off (uDepthOn) on frames it doesn't.
+  const SHALLOWS_M = 300;
   const updateMirrors = (camera) => {
     if (!reflect) return meshes.length;
     camera.updateMatrixWorld();
     frustum.setFromProjectionMatrix(pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     const cand = [];
+    let near = 0;
     for (const r of meshes) {
       const sph = r.userData.sphere;
       const d = Math.max(1, sph.center.distanceTo(camera.position) - sph.radius * 0.5);
-      if (d < 900 && frustum.intersectsSphere(sph)) cand.push({ r, score: sph.radius / d });
-      else { r.material.uniforms.uMirror.value = 0; r.userData.live = false; r.userData.refresh = false; }
+      if (d < 900 && frustum.intersectsSphere(sph)) {
+        cand.push({ r, score: sph.radius / d });
+        if (d < SHALLOWS_M) near++;
+      } else { r.material.uniforms.uMirror.value = 0; r.userData.live = false; r.userData.refresh = false; }
     }
     cand.sort((a, b) => b.score - a.score);
     const n = Math.min(MAX_LIVE_MIRRORS, cand.length);
@@ -236,7 +256,8 @@ export function buildWater(ponds, sunDir, depth) {
       r.userData.live = on;
       r.material.uniforms.uMirror.value = on ? 1 : 0;
     });
-    return cand.length;
+    shared.uDepthOn.value = near && shared.uDepthTex.value ? 1 : 0;
+    return near;
   };
   return {
     meshes, waterMeshes: meshes,
@@ -245,5 +266,9 @@ export function buildWater(ponds, sunDir, depth) {
     setSky: (tex) => { shared.uSky.value = tex; },
     updateMirrors,
     setFoamDepth,
+    setMirrorSkip: (objects, only = []) => {
+      mirrorSkip.length = 0; mirrorSkip.push(...objects.filter(Boolean));
+      mirrorOnly.length = 0; mirrorOnly.push(...only.filter(Boolean));
+    },
   };
 }

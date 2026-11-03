@@ -70,3 +70,26 @@ test('propagates an aborted fetch', async () => {
   const aborting = async () => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }); };
   await assert.rejects(() => loadHdBundle(meta, { fetchImpl: aborting, imageDecoder, expectedRevision: 7 }));
 });
+
+// A page over plain http from another machine (the PC on the home network) is not a
+// secure context: browsers leave crypto.subtle out, and the loader hashes in JS instead.
+async function withoutSubtle(fn) {
+  const desc = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  Object.defineProperty(globalThis, 'crypto', { value: {}, configurable: true, writable: true });
+  try { return await fn(); } finally { Object.defineProperty(globalThis, 'crypto', desc); }
+}
+
+test('loads + verifies all assets without crypto.subtle (a LAN page over plain http)', async () => {
+  const { meta, heights, bytes } = await fixture();
+  const a = await withoutSubtle(() => loadHdBundle(meta, { fetchImpl: fetchImplFor(bytes), imageDecoder, expectedRevision: 7 }));
+  assert.equal(globalThis.crypto.subtle !== undefined, true, 'crypto restored');
+  assert.ok(Math.abs(a.terrain.heights[5] - heights[5]) < 1e-6);
+  assert.ok(a.orthophoto.isTexture);
+  a.dispose();
+});
+
+test('still rejects a corrupt asset without crypto.subtle', async () => {
+  const { meta, bytes } = await fixture();
+  meta.surfaces.bytes = null;   // skip the length check so the hash has to catch it
+  await assert.rejects(() => withoutSubtle(() => loadHdBundle(meta, { fetchImpl: fetchImplFor(bytes, { corrupt: 'surfaces' }), imageDecoder, expectedRevision: 7 })), /HD_HASH_surfaces/);
+});

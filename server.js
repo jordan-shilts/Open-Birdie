@@ -8,7 +8,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { OpenConnectServer, toOpenConnectClub } = require('./lib/openconnect');
-const { searchCourses, loadCourse, listCached, loadCached } = require('./lib/course');
+const { searchCourses, loadCourse, listCached, loadCached, lakesInPlay } = require('./lib/course');
 const {
   cloudConfigFromEnv,
   cloudSceneryProviders,
@@ -28,6 +28,11 @@ const { normalizeCourseSource } = require('./lib/course-identity');
 const { packageKeyFor, parsePackageKey } = require('./lib/course-package');
 const { prepareCourseCandidate } = require('./lib/resolved-course-package');
 const { Game, CLUB_FULL } = require('./lib/game');
+const { PRESETS, conditionsState, loadConditionsFile, saveConditionsFile } = require('./lib/conditions');
+const { createBag } = require('./lib/bag');
+const { createSavedShots } = require('./lib/saved-shots');
+const { createLeagues, LeagueError, initials } = require('./lib/leagues');
+const { PredictError, predictCarries, predictShot } = require('./lib/predict');
 const { serveHdAsset, publicHdMetadata, pickDescriptor } = require('./lib/hd-http');
 const { makeNonce, verifyReadinessAck } = require('./lib/hd-readiness');
 const { googleTilesConfig } = require('./lib/google-tiles-config');
@@ -57,6 +62,28 @@ const CLOUD = cloudConfigFromEnv(process.env, console, { file: path.join(DATA_DI
 const cloudClient = CLOUD ? createCloudClient(CLOUD) : null;
 
 const game = new Game();
+// Playing conditions persist across restarts (a bad or missing file: standard conditions).
+const CONDITIONS_FILE = path.join(DATA_DIR, 'conditions.json');
+{
+  const saved = loadConditionsFile(CONDITIONS_FILE);
+  if (saved) game.setConditions(saved);
+}
+// The player's bag: per-club launch history from the launch monitor (lib/bag.js),
+// which the lineup predicts with (lib/predict.js reads game.bag).
+const bag = createBag({ dataDir: DATA_DIR });
+game.bag = bag;
+// The player's saved shots (lib/saved-shots.js), and the last shot played: the one a
+// save applies to, with where it was hit from.
+const saved = createSavedShots({ dataDir: DATA_DIR });
+let shotSeq = 0;
+let lastShot = null;
+// Players and leagues (lib/leagues.js). The active player is who the round belongs to.
+const leagues = createLeagues({ dataDir: DATA_DIR });
+function setGamePlayer() {
+  const p = leagues.activePlayer;
+  game.player = p ? { id: p.id, name: p.name, initials: initials(p.name), handicap: p.handicap } : null;
+}
+setGamePlayer();
 const sseClients = new Set();
 // HD bundle runtime state, kept OUTSIDE the serializable course object so absolute
 // paths + Float32 heights never leak through course JSON. An ARRAY — one descriptor
@@ -94,7 +121,9 @@ oc.on('status', (s) => { lmStatus.ready = s.ready; broadcast('lm', lmStatus); })
 oc.on('shot', (shot) => {
   if (SPEED_SCALE !== 1 && typeof shot.ball.Speed === 'number') shot.ball.Speed *= SPEED_SCALE;
   console.log(`[OC] shot: ${shot.ball.Speed} mph, VLA ${shot.ball.VLA}, HLA ${shot.ball.HLA}, spin ${shot.ball.TotalSpin}${shot.clubName ? ' (' + shot.clubName + ')' : ''}`);
-  playShot(shot.ball, shot.clubName);
+  const from = shotOrigin();
+  const result = playShot(shot.ball, shot.clubName);
+  recordBagShot(shot, result, from);
 });
 oc.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
@@ -103,11 +132,91 @@ oc.on('error', (err) => {
 });
 
 function playShot(ballData, clubName) {
+  const before = game.course ? game.state() : null;   // where the ball is hit from
   const result = game.handleShot(ballData, clubName);
-  if (!result) return;
+  if (!result) return null;
+  result.shotId = ++shotSeq;
+  const pr = before.practice || null;
+  lastShot = {
+    result,
+    context: {
+      shotId: result.shotId, at: Date.now(), course: before.courseName,
+      hole: pr ? null : before.hole, holeRef: pr ? (pr.holeRef ?? null) : before.holeRef, practice: pr ? pr.mode : null,
+      club: result.clubKey || result.club || null, pin: before.pin, tee: before.tee, aimDeg: before.aimDeg,
+    },
+  };
   broadcast('shot', result);
   broadcast('state', game.state());
   updatePlayerInfo();
+  postLeagueRound();
+  return result;
+}
+
+// A round started from a league posts its card the moment the round is finished: the
+// last hole holed out, picked up or skipped.
+function postLeagueRound() {
+  const lr = game.leagueRound;
+  if (!lr || !game.over || game.practice) return;
+  game.leagueRound = null;
+  game._undo = null;   // a posted card is final: no taking its last shot back
+  const st = game.state();
+  try {
+    const r = leagues.postRound(lr.leagueId, lr.week, lr.playerId, {
+      course: st.courseName, pars: st.pars, scores: st.scores, pickedUp: st.pickedUp,
+    });
+    broadcast('league-card', { ...r, leagueId: lr.leagueId, week: lr.week, playerName: lr.playerName });
+    broadcast('leagues', leagues.state());
+  } catch (error) {
+    console.warn(`[leagues] card not posted: ${error.message}`);
+  }
+  broadcast('state', game.state());
+}
+
+// League and roster routes answer a LeagueError (bad input, a rule) with its message.
+function leagueRoute(res, fn) {
+  try {
+    const out = fn();
+    broadcast('leagues', leagues.state());
+    return json(res, { ok: true, ...out });
+  } catch (error) {
+    if (error instanceof LeagueError) return json(res, { ok: false, error: error.message }, error.status);
+    throw error;
+  }
+}
+
+// Where the next ball is hit from, for the bag's history.
+function shotOrigin() {
+  if (!game.course) return {};
+  const p = game.practice;
+  if (p) {
+    return { course: game.course.name, practice: p.mode, lie: p.lie, ...(p.target.ref != null ? { hole: p.target.ref } : {}) };
+  }
+  return { course: game.course.name, hole: game.hole ? (game.hole.ref ?? game.holeIndex + 1) : null, lie: game.lie };
+}
+
+// Every full launch-monitor shot goes into the player's bag (not putts, not mishits;
+// /api/test-shot never comes through here).
+function recordBagShot(shot, result, from) {
+  const r = bag.recordShot({
+    ball: shot.ball,
+    clubName: shot.clubName,
+    selectedClub: game.selectedClub,
+    isPutt: Boolean(result && result.sim && result.sim.isPutt),
+    meta: { ...from, at: Date.now() },
+  });
+  if (r.recorded) broadcast('bag', { club: r.club, n: r.n, total: bag.total });
+  else if (r.reason !== 'putt') console.log(`[bag] shot not recorded: ${r.reason}${r.club ? ` (${r.club})` : ''}`);
+}
+
+// Prediction routes: a PredictError is the caller's (bad club / aim) or the game's
+// (no course, not ready, hole finished) state, not a server failure.
+function predictRoute(res, fn) {
+  try {
+    return json(res, fn());
+  } catch (error) {
+    if (error instanceof PredictError) return json(res, { ok: false, error: error.message, code: error.code }, error.status);
+    throw error;
+  }
 }
 
 function updatePlayerInfo() {
@@ -239,6 +348,7 @@ const activationManager = createCourseActivationManager({
     console.error(`[course] activation prepare failed: ${JSON.stringify(cause)}`);
   },
   onCommitted({ resolvedPackage, candidate }) {
+    game.leagueRound = null;   // a new course ends a league round (/api/leagues/play sets it after)
     if (activeHd.length) {
       console.log(`[hd] ${activeHd.length} bundle(s) active: hole(s) ${activeHd.map((d) => d.hole).join(', ')}`);
     }
@@ -295,6 +405,28 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/state') return json(res, game.state());
     if (p === '/api/clubs') return json(res, CLUB_FULL);
+    // Shot lineup: conditions, predictions, the player's bag (lib/conditions.js,
+    // lib/predict.js, lib/bag.js).
+    if (p === '/api/conditions' && req.method !== 'POST') {
+      return json(res, { conditions: conditionsState(game.conditions), presets: PRESETS });
+    }
+    if (p === '/api/predict' && req.method !== 'POST') {
+      return predictRoute(res, () => predictShot(game, {
+        club: url.searchParams.get('club'),
+        aimOffset: url.searchParams.get('aim'),
+      }));
+    }
+    if (p === '/api/carries' && req.method !== 'POST') return predictRoute(res, () => predictCarries(game));
+    if (p === '/api/bag' && req.method !== 'POST') return json(res, bag.summary());
+    // Saved shots: the list (newest first), and one with its trajectory to replay
+    if (p === '/api/saved-shots' && req.method !== 'POST') {
+      return json(res, { shots: saved.list(), lastShotId: lastShot ? lastShot.context.shotId : null });
+    }
+    if (p.startsWith('/api/saved-shots/') && req.method === 'GET') {
+      const one = saved.get(decodeURIComponent(p.slice('/api/saved-shots/'.length)));
+      return one ? json(res, one) : json(res, { ok: false, error: 'No such saved shot' }, 404);
+    }
+    if (p === '/api/leagues' && req.method !== 'POST') return json(res, { ...leagues.state(), leagueRound: game.leagueRound });
     if (p === '/api/courses/cached') return json(res, listCached());
     if (p === '/api/search') {
       // Raw query: appending " golf" made Nominatim match addresses like
@@ -343,9 +475,11 @@ const server = http.createServer(async (req, res) => {
         return json(res, { ok: true });
       }
       // Driving range and mini games on the loaded course (lib/practice.js):
-      //   {mode: range|closest|longdrive|targets, targetYd?, hole?}  start (or restart)
-      //   {action: 'target', targetYd}                              move the range flag
-      //   {action: 'end'}                                           back to the round
+      //   {mode: range|closest|longdrive|targets|putting|chipping|ladder, targetYd?, hole?}
+      //                                start (or restart); hole: the par 3 for closest, the
+      //                                green for putting / chipping (default: the round's)
+      //   {action: 'target', targetYd} move the range flag
+      //   {action: 'end'}              back to the round
       if (p === '/api/practice') {
         if (!game.course) return json(res, { ok: false, error: 'Load a course first' }, 409);
         try {
@@ -364,11 +498,139 @@ const server = http.createServer(async (req, res) => {
       }
       if (p === '/api/club') {
         oc.setPlayer({ Club: toOpenConnectClub(body.club) });
+        const selectedClub = game.setSelectedClub(body.club);
+        broadcast('state', game.state());
+        return json(res, { ok: true, selectedClub });
+      }
+      // {preset: 'windy'} (optionally with fields on top) or a partial conditions object
+      if (p === '/api/conditions') {
+        let conditions;
+        try {
+          conditions = game.setConditions(body);
+        } catch (error) {
+          if (error.code !== 'UNKNOWN_PRESET') throw error;
+          return json(res, { ok: false, error: error.message, code: error.code }, 400);
+        }
+        try { saveConditionsFile(CONDITIONS_FILE, game.conditions); }
+        catch (error) { console.warn(`[conditions] could not save: ${error.message}`); }
+        broadcast('state', game.state());
+        return json(res, { ok: true, conditions });
+      }
+      if (p === '/api/bag/reset') {
+        await bag.reset();
+        broadcast('bag', { reset: true, total: bag.total });
+        return json(res, { ok: true, bag: bag.summary() });
+      }
+      // {shotId}: save the shot just played (refused once another has been hit since)
+      if (p === '/api/saved-shots') {
+        if (!lastShot || (body.shotId != null && body.shotId !== lastShot.context.shotId)) {
+          return json(res, { ok: false, error: 'That shot is no longer the last one' }, 409);
+        }
+        const shot = saved.add(lastShot.result, lastShot.context);
+        if (!shot) return json(res, { ok: false, error: 'That shot has no flight to save' }, 422);
+        broadcast('saved-shots', { count: saved.count, saved: shot.id, shotId: lastShot.context.shotId });
+        return json(res, { ok: true, shot });
+      }
+      if (p === '/api/saved-shots/remove') {
+        const id = String(body.id || '');
+        const ok = saved.remove(id);
+        if (ok) broadcast('saved-shots', { count: saved.count, removed: id });
+        return json(res, { ok });
+      }
+      // Take the hole's latest shot back (lib/game.js mulligan)
+      if (p === '/api/mulligan') {
+        if (game.leagueRound) return json(res, { ok: false, error: 'No mulligans in a league round' }, 409);
+        if (!game.mulligan()) return json(res, { ok: false, error: 'No shot to take back' }, 409);
+        const st = game.state();
+        broadcast('mulligan', { hole: st.hole, mulligans: st.mulligans[st.hole - 1] });
+        broadcast('state', st);
+        updatePlayerInfo();
         return json(res, { ok: true });
       }
       if (p === '/api/next-hole') {
         game.nextHole();
         updatePlayerInfo();
+        broadcast('state', game.state());
+        postLeagueRound();
+        return json(res, { ok: true });
+      }
+      // ---- players and leagues (lib/leagues.js) ----
+      if (p === '/api/players') return leagueRoute(res, () => ({ player: leagues.addPlayer(body) }));
+      if (p === '/api/players/update') {
+        return leagueRoute(res, () => {
+          const player = leagues.updatePlayer(String(body.id || ''), body);
+          setGamePlayer();
+          broadcast('state', game.state());
+          return { player };
+        });
+      }
+      if (p === '/api/players/remove') {
+        return leagueRoute(res, () => {
+          leagues.removePlayer(String(body.id || ''));
+          setGamePlayer();
+          broadcast('state', game.state());
+          return {};
+        });
+      }
+      if (p === '/api/players/active') {
+        return leagueRoute(res, () => {
+          const id = String(body.id || '');
+          if (game.leagueRound && game.leagueRound.playerId !== id) {
+            throw new LeagueError(`${game.leagueRound.playerName} is playing a league round: finish it or leave it first`, 409);
+          }
+          leagues.setActivePlayer(id);
+          setGamePlayer();
+          broadcast('state', game.state());
+          return {};
+        });
+      }
+      if (p === '/api/leagues') return leagueRoute(res, () => ({ league: leagues.createLeague(body) }));
+      if (p === '/api/leagues/update') return leagueRoute(res, () => ({ league: leagues.updateLeague(String(body.id || ''), body) }));
+      if (p === '/api/leagues/remove') {
+        return leagueRoute(res, () => {
+          leagues.removeLeague(String(body.id || ''));
+          if (game.leagueRound && game.leagueRound.leagueId === body.id) game.leagueRound = null;
+          broadcast('state', game.state());
+          return {};
+        });
+      }
+      // {leagueId, week, playerId}: that player's card for that week, on the week's
+      // course (loaded first when it isn't the one in play), from a fresh round
+      if (p === '/api/leagues/play') {
+        let pick;
+        try {
+          pick = leagues.weekToPlay(String(body.leagueId || ''), body.week, String(body.playerId || ''));
+        } catch (error) {
+          if (error instanceof LeagueError) return json(res, { ok: false, error: error.message }, error.status);
+          throw error;
+        }
+        const { league, week } = pick;
+        const c = week.course;
+        const loaded = game.course && (c.courseId
+          ? game.course.source && normalizeCourseSource(game.course.source).courseId === c.courseId
+          : game.course.name === c.name);
+        if (!loaded) {
+          const result = await activationManager.activate({ cached: c.cached, name: c.name });
+          if (result.status === 'superseded' || result.status === 'failed') {
+            return json(res, { ok: false, error: result.diagnostic.message }, result.status === 'failed' ? 500 : 409);
+          }
+        }
+        if (game.practice) game.endPractice();
+        game.reset();
+        leagues.setActivePlayer(String(body.playerId));
+        setGamePlayer();
+        const pl = leagues.player(String(body.playerId));
+        game.leagueRound = {
+          leagueId: league.id, leagueName: league.name, week: week.n,
+          playerId: pl.id, playerName: pl.name, course: c.name,
+        };
+        updatePlayerInfo();
+        broadcast('state', game.state());
+        broadcast('leagues', leagues.state());
+        return json(res, { ok: true, leagueRound: game.leagueRound });
+      }
+      if (p === '/api/leagues/leave') {
+        game.leagueRound = null;
         broadcast('state', game.state());
         return json(res, { ok: true });
       }
@@ -484,9 +746,12 @@ function courseGeometry() {
     ? { lat: game.course.origin.lat, lon: game.course.origin.lon } : null;
   // real trees [[x, y, heightM, crownRadiusM], ...] from canopy height data (non-fingerprinted scenery)
   const canopy = game.course.canopy?.trees || null;
-  // lakes/ponds around the course [{ kind: 'water', poly, name }] (non-fingerprinted
-  // scenery, never part of `surfaces`: drawn, not played)
-  const sceneryWater = game.course.scenery?.water || null;
+  // lakes/ponds around the course [{ kind: 'water', poly, name, played }] (non-fingerprinted
+  // scenery, never part of `surfaces`): all drawn; `played` on those that reach the
+  // course, which play as water (lib/course.js lakesInPlay)
+  const water = game.course.scenery?.water;
+  const played = new Set(lakesInPlay(game.course));
+  const sceneryWater = Array.isArray(water) ? water.map((w) => (played.has(w) ? { ...w, played: true } : w)) : null;
   // Course-wide aerial: bounds only (the image is fetched from /api/course-aerial);
   // never leak the server file path. Drapes the whole course as the ground photo.
   // classes: advertise the runtime NDVI classmap ONLY when it's fresh — i.e. it was

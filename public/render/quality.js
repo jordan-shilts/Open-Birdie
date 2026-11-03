@@ -18,7 +18,7 @@ export const QUALITY_PRESETS = Object.freeze({
   high: Object.freeze({
     level: 'high',
     pixelRatioCap: 2,       // retina where available ...
-    maxPixels: 2.2e6,       // ... but never more than ~1080p worth of pixels per frame
+    maxPixels: 8.4e6,       // ... up to native 4K: dynamic resolution (below) holds 60 fps
     aoScale: 0.5,           // GTAO buffers at half resolution (AO is low-frequency)
     shadowMapSize: 4096,
     shadowRadius: 3,        // PCF kernel scale -> soft penumbra
@@ -30,7 +30,7 @@ export const QUALITY_PRESETS = Object.freeze({
     treeCap: 9000,          // instanced trees across the course
     treeNearM: 200,         // trees nearer than this draw the full leaf-card LOD
     grassScale: 0.5,        // fescue / foreground-grass instance budgets (55k tufts was ~4.5 ms at 1080p)
-    foregroundGrass: true,
+    foregroundGrass: false, // blade patches read as fuzz at the play cameras (config.js grassField)
     flowers: true,
   }),
   low: Object.freeze({
@@ -126,3 +126,30 @@ export function renderPixelRatio({ dpr = 1, width = 0, height = 0, cap = 2, maxP
   return Math.max(0.5, Math.round(pr * 100) / 100);
 }
 
+// Dynamic resolution: hold 60 fps by scaling the render resolution under the preset's
+// budget, the way consoles reach "4K at 60" — full resolution when the GPU has room,
+// down to half (per axis) when it doesn't. Judged per window of frames: too many slow
+// frames step the scale down at once; a run of calm windows creeps it back up. (Frame
+// intervals are vsync-quantised, so a window with no slow frame is the only headroom
+// signal there is.) Pure, so the rule is unit-tested.
+export const DYNAMIC_RES = Object.freeze({
+  min: 0.5, max: 1, slowMs: 1000 / 54, windowFrames: 45, slowShare: 0.12,
+  down: 0.86, up: 1.06, calmWindowsToRise: 3,
+});
+
+export function dynamicResolutionStep({ scale = 1, intervalsMs = [], calmWindows = 0, opts = DYNAMIC_RES } = {}) {
+  const xs = intervalsMs.filter((v) => Number.isFinite(v) && v > 0 && v < 250);
+  if (xs.length < opts.windowFrames) return { scale, calmWindows, changed: false };
+  const slow = xs.filter((v) => v > opts.slowMs).length / xs.length;
+  if (slow > opts.slowShare && scale > opts.min) {
+    return { scale: Math.max(opts.min, Math.round(scale * opts.down * 100) / 100), calmWindows: 0, changed: true };
+  }
+  if (slow === 0) {
+    const calm = calmWindows + 1;
+    if (calm >= opts.calmWindowsToRise && scale < opts.max) {
+      return { scale: Math.min(opts.max, Math.round(scale * opts.up * 100) / 100), calmWindows: 0, changed: true };
+    }
+    return { scale, calmWindows: calm, changed: false };
+  }
+  return { scale, calmWindows: 0, changed: false };
+}

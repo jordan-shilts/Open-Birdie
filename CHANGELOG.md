@@ -4,6 +4,133 @@ All notable changes to Open-Birdie are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **The overhead map shows the hole you're on, and only that hole** — course surfaces carry no hole of
+  their own, so each now goes to the hole whose line of play runs nearest it: this hole's tees, fairway,
+  green and hazards are drawn in full, every other hole's fade into the rough, and a soft light along this
+  hole's corridor (tee to green, and ball to pin) keeps the eye on it. A neighbouring tee or green no longer
+  reads as part of this hole (`yardages.mjs` `holeSurfaces`, `aim-map.js`).
+- **AUTO aims for the safe spot** — the middle of the green when the club gets there (the point furthest
+  inside the green, not the pin), else the middle of this hole's fairway where the ball comes down, else
+  the hole's line of play, wind and shape allowed for (`lib/safe-spot.js`, `lib/predict.js` aimAssist).
+  Doglegs and holes played over water or trees now get a fairway to aim at instead of the straight line to
+  the pin; AUTO says where it aims ("Aiming at the middle of the fairway"), and the map marks the spot
+  (AUTO · FAIRWAY) until the aim is moved. Putts still read the line to the cup.
+- **Short shots are planned as partial swings** — inside the shortest full shot in the bag (a lob wedge's
+  full carry), the planner showed a full swing of the club in hand, so a 15 yd chip read as an 80 yd landing
+  band. Each club is now predicted as the partial swing that finishes at the pin: its own launch with less
+  ball speed and spin, in proportion, with the ball speed to aim for ("34 mph ball speed to the pin · full
+  carries 76") and a landing band that shrinks with the swing. A 7-iron chips and runs, a lob wedge flies.
+  Further out every club is still swung in full, so a club that flies the green still shows it
+  (`lib/predict.js` `partialSwing`).
+- **Aiming in yards** — the aim reads as yards left or right of the pin at the club's carry ("7 yd L", "On
+  pin") on the bottom bar and on the map, where the aim line runs solid to a target ring at the carry and
+  faint beyond; a ghost line shows where a click would aim, and a double-click aims back at the pin.
+### Added
+- **Players and leagues** — a roster of everyone who plays on the simulator (a name and an optional handicap
+  index; the round card is the player switcher), and leagues: some of the roster playing a season of weeks, a
+  course each week, scored net or gross. A league round starts from the week's board (Play, per player; the
+  week's course loads if it isn't the one in play) and its card posts itself when the round is finished; the
+  first card a player finishes for a week is the one that counts. Each week pays 10 · 8 · 6 · 5 · 4 · 3 · 2
+  points for 1st to 7th and 1 for every other card, ties sharing, and the standings add them up with cards
+  played, average to par, best round and weeks won. Kept in `DATA_DIR/leagues.json` (`lib/leagues.js`,
+  `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
+
+### Fixed
+- **Lakes beside the course are water, not dry ground** — the lakes fetched around a course (Lake Hazeltine,
+  beside 16–18) were drawn but played as rough, so a drive that splashed into the lake on 16 sat on the
+  water and was played from there. A lake that reaches the course (inside its outline or within the 15 m
+  out-of-bounds buffer of it, or any lake when the outline can't be trusted, as at Hazeltine) is now a
+  penalty area, all of it, even where it runs past the outline; a pond wholly beyond the outline stays out
+  of bounds. The prediction, the safe spot and the map's hazard yardages count those lakes too
+  (`lib/course.js` `lakesInPlay`).
+- **A ball in the water is dropped where it crossed the edge** — the lateral drop was taken around the spot
+  where the ball came down, so a ball that flew far into a lake found only water within reach and was
+  replayed from where it was hit. The drop is now beside the last point of its path over dry ground, as the
+  rules have it (`lib/game.js`).
+- **A tree no longer stretches the landing area across the whole hole** — the predicted landing and
+  resting areas come from launches one sigma either side of the typical one, and when one of those met a
+  tree the shot itself flies clear of, its drop 35 yd out stretched a drive's area to 615 yd ("lands
+  35–558 yd" on Hazeltine's 14th). Such a launch now gives way to its clean twin, and no one launch moves
+  the ball more than a fifth of the way it goes in that estimate (`lib/predict.js` `spreadCov`).
+- **The range & games board stays clear of the last shot** — since the lineup HUD, the board and the last-shot
+  panel shared the top-left corner and drew over each other. While a game is on, the last shot now stacks under
+  the board (and steps aside when the board leaves it no room), and both board buttons fit its width. Where a
+  practice green is mapped under the range's tee (Hazeltine), the lineup read every range ball as a putt and
+  picked the putter; the range spot now plays as the tee it is (`lib/predict.js`).
+- **The launch monitor keeps the club you pick on it** — after every shot Open-Birdie sent the monitor a
+  player update with the new distance to the pin, and that update repeated Open-Birdie's own club (Driver
+  unless picked here); OpenFlight applies the club from every update, so a club chosen on the monitor
+  snapped back to Driver after each shot. Updates now carry only what changed; a club is sent when it is
+  picked in Open-Birdie (`lib/openconnect.js`).
+
+### Changed
+- **No more grass fuzz** — the camera grass field is off (`config.js` `grassField`), with the older ball
+  patch it had replaced, and parkland courses no longer scatter tall fescue tufts in the mown rough: from the
+  play cameras the blades read as a dark speckle around the tee and in the rough, and the tufts as stray
+  wisps, not grass. The turf carries the grass on its own (below). That frees 0.7-2.2 ms a frame on an Apple
+  M3 Pro at ~1080p internal, where shots now run at ~79-81 fps (p95 frame ~15.5 ms). Links courses keep their
+  golden fescue. Switched back on, the field draws only where the camera looks: each ring is fitted to the
+  view every frame and fades by true distance (`grass-field.js`, `scene.js`, `quality.js`).
+- **Ground with wear and structure** (`turf.js` v42) — tee boxes and fairways carry sand-and-seed filled
+  divots (one chance per 0.6 m cell: about 0.8 a square metre on a tee, bunched where shots come down on a
+  fairway; `divots.js`, which the grass field also reads, when on, to grow no blades in them). The tee box
+  ends at a crisp mow line instead of glowing into the rough (the aerial photo's tint is held back over the
+  rough round it). The rough is mown in faint ~5 m passes, at half the fairway stripes' strength, with 3-7 m
+  lush/thin patches, so the slopes stop reading as felt. The turf additions cost 0.1-0.3 ms.
+- **4K at 60 fps by dynamic resolution** — High now renders up to native 4K, and the render resolution
+  follows the frame rate: a window of slow frames steps it down (to half per axis at most), a run of calm
+  ones creeps it back up, and Auto only falls to Low once the scale is spent. Changes wait until the camera
+  is back at address (a resize reallocates every full-screen target — ~0.5 s at 4K — so never mid-flight),
+  big screens start near 1080p worth of pixels, and a contrast-adaptive sharpening pass (after AMD CAS)
+  restores detail in proportion to the upscale (`quality.js`, `scene.js`, `postfx.js`). On an Apple M3 Pro at
+  a 4K output it holds ~57 fps through a shot at a 1080p internal resolution; native 4K needs a desktop GPU.
+- **Terrain detail by distance** — the coarse grid draws as 256 m tiles at 2, 4 or 8 m by distance (tiles
+  touching an HD hole keep full detail so its cutout stays exact) and each 1 m HD hole has a 2 m level past
+  240 m; tiles behind the camera are culled. Every level hangs a 1.5 m skirt under its edges, which closes
+  the see-through cracks where HD holes met the coarse grid (the dotted line along HD tile edges). All levels
+  upload while the course loads (a level first drawn mid-flight stalled ~0.3 s). Triangles per frame on
+  Hazeltine: 16 M -> 8-12 M (`hd-terrain.js`).
+- **Water depth pre-pass only near ponds** — the terrain depth pass behind the pond shallows runs only with a
+  pond within 300 m in view (it redrew the whole terrain whenever any pond was on screen) (`water.js`).
+- **The flight camera zooms in on the drop** — wide through the launch and climb, then the lens closes in
+  1.8x from the apex to touchdown so the falling ball and its landing spot fill the frame, easing partly back
+  out over the roll; the landing vantage also sits closer (`flight-camera.js`).
+- **Daylight that shows the ground** — the default sun sits at 24° (was 36°), a little warmer, with less sky
+  fill, so the 1 m lidar relief reads: mounds, swales, green slopes and bunker faces get a lit and a shaded
+  side, and tree shadows run long across the fairways (`sky-presets.js`, `config.js`).
+- **Turf that behaves like grass** (`turf.js` v39) — mow stripes and the green's checker are a sheen that
+  depends on where you stand (a band is light looking down its grain and dark against it, and the bands
+  swap as you walk round), grass brightens with the sun behind you and darkens looking into it, and the
+  blade texture has real tooth near the player. The palette moved from kelly/lime to olive green, and tees
+  sit in the fairway family instead of glowing above it (`course-character.js`).
+- **Grass blades that read** — the camera's blade field shades each clump dark at the root and bright at
+  the tips, with some older, yellower clumps, slightly wider blades and a longer reach (`grass-field.js`).
+- **Windows that reflect the sky** — glass lifts the sky reflection and some rooms show blinds or lights,
+  instead of every pane being black (`buildings.js`).
+- **Cheaper pond mirrors** — the live water mirrors no longer redraw grass blades, flowers or litter (a pond
+  can't show them) (`water.js`).
+- **Smooth ball flights** (measured on two simulated shots on Hazeltine at High, 1920x1143, Apple M3 Pro:
+  48-49 -> 59-60 fps average; the worst frame 485 -> 35 ms):
+  - the shot tracer, glows, apex drop line and landing ring compiled their shaders the first time they drew,
+    mid-flight (~0.45 s stalls at launch, apex and landing); every program is now compiled while the course
+    loads, against the HDR target the frame really draws into, and each effect is drawn once (sub-millimetre)
+    so the GPU pipeline exists too; one tracer material stays alive so its program survives each shot;
+  - GTAO reads the main pass's depth and rebuilds normals from it instead of drawing the whole course into
+    its own buffers (fades out 35-70 m, where depth-only normals printed halos behind trees);
+  - the pond mirrors draw a 6 m stand-in for the terrain (the full terrain is ~3.7 M triangles on an HD
+    course) and render at 512 px; triangles per frame 29 M -> 16 M;
+  - the shadow map is cached: it redraws only for a new hole, sky or scenery, at most ~10x a second while
+    the near trees follow a moving camera, and twice a second regardless (the ball's contact shadow is the
+    soft blob, so the ball no longer forces a redraw every frame);
+  - the HUD panels no longer use a backdrop blur over the live canvas (the compositor re-blurred them as the
+    frame changed: every ~5th frame took twice as long), with a little more opacity instead;
+  - turf: the collar taps run only within 70 m, the rough's own noise only on rough, the sun-play roll uses
+    two octaves.
+- **Faster turf** — the turf shader's ~65 noise samples a pixel read one texture tap each instead of four
+  `sin()` hashes (same smoothstep value noise). With the mirror change, frames are 10-12% faster on Hazeltine
+  (25.1 -> 22.5 ms at a tee with ponds in view, 21.6 -> 19.1 ms at a green; 1600x900, Apple M3 Pro).
+
 ### Added
 - **Researched scorecards in play** — the five courses researched in `docs/research/course-data` (Pebble Beach,
   Chambers Bay, Bandon Dunes, the Old Course, TPC Sawgrass) play with their real par, stroke index, scorecard
@@ -13,6 +140,23 @@ All notable changes to Open-Birdie are documented here.
   and laid over the course a round plays only when its holes really are the researched ones (most pars agree,
   lengths within 15% of a tee; `lib/course-reference.js`). It never touches the cached course, so HD bundles
   keep matching.
+- **Mulligans** — after a round shot lands, Mulligan in the bottom bar (or M) takes it back: the ball,
+  strokes, aim and score go back to how they stood before it, and the scorecard counts it on that hole (a
+  Mull. row, and a chip in the round summary). One shot back, only on the hole being played, never on the
+  range (`lib/game.js` `mulligan`, `POST /api/mulligan`).
+- **Saved shots** — ★ Save on the last-shot panel (or in the new Saved panel) keeps a shot with its launch,
+  its result and its flight in `DATA_DIR/saved-shots.json` (the newest 200). Saved lists them, and Replay
+  flies one again from where it was hit on the loaded course, side view and all, without touching the round;
+  a live shot that comes in mid-replay ends the replay first (`lib/saved-shots.js`, `/api/saved-shots`).
+- **Three more mini games** (`lib/practice.js`). **Putting challenge**: 9 putts at a real cup, the green of the
+  hole the round is on (else hole 1's): 3, 5, 8, 12, 16, 20, 25, 30 and 40 ft, each from its own side of the
+  cup and on the green all the way to it (on a green too small for the long ones they come in to the longest
+  it has); most holed wins, the fewest feet left breaks a tie. **Up and down**: 6 chips from 1-9 m off the
+  same green, 8-30 yd from the cup and all round it, from the fairway or the rough (never sand, water or out
+  of bounds); 10 points for a chip-in, 5 / 3 / 2 / 1 inside 3 / 6 / 10 / 20 ft. **Distance ladder**: flags at
+  50 to 175 yd on the range, 25 yd apart; a ball that stops within 7 yd of the current one climbs to the next;
+  12 balls, and clearing all six ends it. Each new ball round the green re-frames the camera behind it, facing
+  the cup; the board says what's next ("putt 4 of 9 · 12 ft", "rung 4 of 6 · 125 yd").
 - **Trees grown from real branch structures** — every species (oak, maple, birch, pine, spruce/fir) has
   three generated models, two open-grown and one grown in closed woods (`tree-gen.js`): broadleaves grow by
   space colonization inside a lobed crown, spruce has whorls of drooping branches, pine a bare bole under

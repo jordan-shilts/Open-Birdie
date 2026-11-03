@@ -22,8 +22,16 @@ choices or surveyed course marking is off the table.
 Penalties stay (so play still *means* something), but every resolution is forgiving and
 auto-computable from data we already have. Notably, the "all red" choice also happens to
 match the **modern real-world default** — an unmarked penalty area is treated as red — and
-the crossing point a lateral drop needs is **already captured** in the shot simulation
-(`sim.events` water event).
+the crossing point a lateral drop needs is **already captured** in the shot simulation:
+the last point of the ball's path (`sim.points`) over playable ground before it finished
+in the water. Not the `sim.events` water event: that is where it came down, which for a
+ball that flew in can be far out in a lake.
+
+Lakes around the course (`course.scenery.water`, fetched apart from the course's own
+surfaces) are penalty areas too when they reach the course: inside its outline or within
+the 15 m buffer of it, all of each such lake, since OSM often leaves a lake the holes run
+along out of the course outline. A pond wholly beyond that stays out of bounds; with no
+trusted outline every lake is played (`lib/course.js` `lakesInPlay`).
 
 ---
 

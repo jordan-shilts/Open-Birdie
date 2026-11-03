@@ -9,8 +9,12 @@
 // browser-only; crypto.subtle is available in both).
 
 import * as THREE from 'three';
+import { sha256Hex as sha256HexJs } from './sha256.js';
 
 async function sha256Hex(bytes) {
+  // crypto.subtle exists only on secure pages: over plain http from another machine
+  // (the PC on the home network) it is missing, and every bundle used to fail here
+  if (!globalThis.crypto?.subtle) return sha256HexJs(bytes);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }

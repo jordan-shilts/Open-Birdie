@@ -18,121 +18,257 @@
 <body>
 <div id="scene"></div>
 
+<!-- Everything over the 3D view. #hud is zoomed to the window (app.js), so one layout
+     reads the same on a laptop, a 1080p monitor and a 4K TV. -->
+<div id="hud">
+
 <header id="topbar">
-  <div class="player-chip">
-    <div class="avatar">🏌</div>
-    <div class="player-meta">
-      <div class="player-name">PLAYER 1</div>
-      <div id="course-name" class="player-course">no course loaded</div>
+  <div class="round-card">
+    <div class="avatar" id="player-avatar" aria-hidden="true">P1</div>
+    <div class="round-meta">
+      <div class="player-name" id="player-name">Player 1</div>
+      <div id="course-name" class="course-name">no course loaded</div>
+      <button id="league-chip" class="league-chip hidden" title="League round in play: open the league"></button>
     </div>
-    <div id="score-chip" class="score-chip">E</div>
+    <div id="score-chip" class="score-chip" title="Score to par">E</div>
   </div>
-  <div id="hole-pills" class="hole-pills"></div>
+
+  <div class="hole-card">
+    <div class="hole-num" id="stat-hole" role="button" tabindex="0" title="Open the scorecard"><span class="lbl">HOLE</span><b id="hud-hole">–</b></div>
+    <div class="hole-body">
+      <div class="hole-facts">
+        <div class="fact"><span class="lbl">PAR</span><b id="hud-par">–</b></div>
+        <div class="fact"><span class="lbl">LENGTH</span><b id="hud-len">–</b></div>
+        <div class="fact"><span class="lbl">STROKES</span><b id="hud-strokes">–</b></div>
+      </div>
+      <div id="hole-pills" class="hole-pills" aria-label="Holes"></div>
+    </div>
+  </div>
+
   <div class="spacer"></div>
-  <div class="stat-cluster">
-    <div class="stat" id="stat-hole" role="button" tabindex="0" title="Open scorecard"><span>HOLE</span><b id="hud-hole">–</b></div>
-    <div class="stat"><span>PAR</span><b id="hud-par">–</b></div>
-    <div class="stat"><span>LENGTH</span><b id="hud-len">–</b></div>
-    <div class="stat accent"><span>TO PIN</span><b id="hud-pin">–</b></div>
-    <div class="stat"><span>STROKES</span><b id="hud-strokes">–</b></div>
-  </div>
-  <div id="lm-status" title="Launch monitor connection"><span class="dot"></span><span id="lm-text">LM: waiting</span></div>
-  <button id="btn-course" class="btn">Course</button>
-  <button id="btn-games" class="btn" title="Driving range and mini games on this course">Range &amp; games</button>
-  <button id="btn-score" class="btn">Scorecard</button>
-  <button id="btn-flyover" class="btn" title="Fly over the current hole (F) — any key or click skips">Flyover</button>
-  <button id="btn-free" class="btn" title="Free course-creator camera (C)">Free look</button>
-  <button id="btn-gfx" class="btn" title="Graphics quality — click to cycle Auto / High / Low">Graphics</button>
-  <button id="btn-sky" class="btn" title="Time of day — click to cycle Morning / Midday / Golden hour">Sky</button>
+
+  <div id="lm-status" title="Launch monitor connection (Open Connect)"><span class="dot"></span><span id="lm-text">Monitor offline</span></div>
+  <nav class="top-actions" aria-label="Views">
+    <button id="btn-flyover" class="icon-btn" title="Fly over the hole (F); any key or click skips">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17c3.5-7 8-10.5 15-11"/><path d="M14 3.5 18.5 6 16 10.5"/><circle cx="5" cy="18.5" r="1.6"/></svg><span>Flyover</span>
+    </button>
+    <button id="btn-score" class="icon-btn" title="Scorecard">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M9.5 4.5v15"/></svg><span>Scorecard</span>
+    </button>
+    <button id="btn-saved" class="icon-btn" title="Your saved shots">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.8l2.5 5.1 5.6.8-4 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-4 5.6-.8z"/></svg><span>Saved</span><i class="count hidden" id="saved-count"></i>
+    </button>
+    <button id="btn-games" class="icon-btn" title="Driving range and mini games on this course">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" class="fill"/></svg><span>Range</span>
+    </button>
+    <button id="btn-league" class="icon-btn" title="Leagues: players, a course a week, standings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4.5h8v5a4 4 0 0 1-8 0z"/><path d="M8 6.5H4.5a3 3 0 0 0 3.6 3.4M16 6.5h3.5a3 3 0 0 1-3.6 3.4"/><path d="M12 13.5V17M8.5 19.5h7M10 17h4"/></svg><span>League</span>
+    </button>
+    <button id="btn-menu" class="icon-btn" aria-haspopup="menu" aria-expanded="false" title="Menu">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>Menu</span>
+    </button>
+  </nav>
 </header>
 
-<div id="course-status" class="hidden" role="status" aria-live="polite"></div>
+<div id="main-menu" class="menu hidden" role="menu" aria-label="Menu">
+  <button id="btn-course" class="menu-item" role="menuitem">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10" r="2.3"/></svg>
+    <span>Change course</span>
+  </button>
+  <button id="btn-conditions-menu" class="menu-item" role="menuitem">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/></svg>
+    <span>Course conditions</span><kbd>W</kbd>
+  </button>
+  <button id="btn-free" class="menu-item" role="menuitem">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/></svg>
+    <span id="btn-free-label">Free look camera</span><kbd>C</kbd>
+  </button>
+  <div class="menu-sep"></div>
+  <div class="menu-row"><span class="lbl">AUTO CLUB</span><div class="seg" id="seg-autoclub" role="radiogroup" aria-label="Pick the club that fits at each new lie"></div></div>
+  <div class="menu-row"><span class="lbl">GRAPHICS</span><div class="seg" id="seg-gfx" role="radiogroup" aria-label="Graphics quality"></div></div>
+  <div class="menu-row"><span class="lbl">TIME OF DAY</span><div class="seg" id="seg-sky" role="radiogroup" aria-label="Time of day"></div></div>
+  <div class="menu-sep"></div>
+  <button id="btn-bag-reset" class="menu-item danger" role="menuitem">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/></svg>
+    <span>Reset my club averages</span>
+  </button>
+</div>
 
+<div id="player-menu" class="menu hidden" role="menu" aria-label="Who is playing"></div>
+
+<div id="course-status" class="hidden" role="status" aria-live="polite"></div>
 <div id="freecam-hint" class="hidden"><b>WASD</b> move · <b>drag</b> look · <b>wheel</b> zoom · <b>Q/E</b> height · <b>C</b> exit</div>
 
-<aside id="shotpanel" class="hidden">
-  <div class="panel-eyebrow">LAST SHOT</div>
-  <div class="dcard-row hero">
-    <div class="dcard"><span class="dlabel">CARRY</span><b id="sd-carry" class="dval">–</b></div>
-    <div class="dcard"><span class="dlabel">TOTAL</span><b id="sd-total" class="dval">–</b></div>
+<!-- left column: conditions, last shot -->
+<button id="cond-widget" class="cond-widget" title="Course conditions (W)">
+  <span class="wind-dial" aria-hidden="true">
+    <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" class="dial-ring"/><g id="cw-arrow"><path d="M24 9v26" class="dial-shaft"/><path d="M17.5 28.5 24 37l6.5-8.5z" class="dial-head"/></g></svg>
+  </span>
+  <span class="cond-text">
+    <span class="lbl">WIND</span>
+    <b id="cw-wind">Calm</b>
+    <span class="cond-sub" id="cw-sub">70°F · sea level · normal</span>
+  </span>
+</button>
+
+<aside id="shotpanel" class="hidden" aria-label="Last shot">
+  <div class="sp-head">
+    <span class="lbl" id="sp-label">LAST SHOT</span><span class="sp-club" id="sp-club"></span>
+    <button id="sp-save" class="sp-save" aria-pressed="false" title="Save this shot to your saved shots">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.8l2.5 5.1 5.6.8-4 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-4 5.6-.8z"/></svg><span>Save</span>
+    </button>
   </div>
-  <div class="dcard-row">
-    <div class="dcard"><span class="dlabel">BALL SPEED</span><b id="sd-speed" class="dval">–</b></div>
-    <div class="dcard"><span class="dlabel">SPIN</span><b id="sd-spin" class="dval">–</b></div>
+  <div class="sp-hero">
+    <div class="tile big"><span class="lbl">CARRY</span><b id="sd-carry">–</b></div>
+    <div class="tile big"><span class="lbl">TOTAL</span><b id="sd-total">–</b></div>
   </div>
-  <div class="dcard-row">
-    <div class="dcard"><span class="dlabel">LAUNCH V/H</span><b id="sd-launch" class="dval">–</b></div>
-    <div class="dcard"><span class="dlabel">SPIN AXIS</span><b id="sd-axis" class="dval">–</b></div>
-  </div>
-  <div class="dcard-row">
-    <div class="dcard"><span class="dlabel">OFFLINE</span><b id="sd-offline" class="dval">–</b></div>
-    <div class="dcard"><span class="dlabel">APEX</span><b id="sd-apex" class="dval">–</b></div>
+  <div class="sp-vs" id="sd-vs"></div>
+  <div class="sp-grid">
+    <div class="tile"><span class="lbl">BALL SPEED</span><b id="sd-speed">–</b></div>
+    <div class="tile"><span class="lbl">SPIN</span><b id="sd-spin">–</b></div>
+    <div class="tile"><span class="lbl">LAUNCH V / H</span><b id="sd-launch">–</b></div>
+    <div class="tile"><span class="lbl">SPIN AXIS</span><b id="sd-axis">–</b></div>
+    <div class="tile"><span class="lbl">OFFLINE</span><b id="sd-offline">–</b></div>
+    <div class="tile"><span class="lbl">APEX</span><b id="sd-apex">–</b></div>
   </div>
 </aside>
 
-<section id="flightview" class="hidden" aria-label="Shot side view">
-  <div class="fv-head"><span class="fv-title" data-fv="title">SIDE VIEW</span><span class="fv-stat" data-fv="stat"></span></div>
-  <svg role="img" aria-label="Side view of the current shot: height in feet against distance in yards"></svg>
+<!-- bottom-left: the shot in front of you -->
+<section id="shot-card" aria-label="This shot">
+  <div class="sc-top">
+    <div class="sc-pin"><span class="lbl">TO PIN</span><b id="lie-pin">–</b></div>
+    <div class="sc-plays" id="sc-plays-box"><span class="lbl">PLAYS LIKE</span><b id="sc-plays">–</b></div>
+  </div>
+  <div class="sc-fb" id="sc-fb" title="Front and back of the green on the line to the pin"></div>
+  <div class="sc-why" id="sc-why"></div>
+  <div class="sc-row">
+    <div><span class="lbl">LIE</span><b id="hud-lie">–</b></div>
+    <div><span class="lbl">CLUB</span><b id="lie-club">Driver</b></div>
+    <div><span class="lbl">ELEVATION</span><b id="sc-elev">–</b></div>
+  </div>
 </section>
 
+<!-- right column: the shot planner (side view + overhead aim map) -->
+<aside id="planner" class="hidden" aria-label="Shot planner">
+  <div class="pl-head">
+    <div>
+      <span class="lbl" id="pl-eyebrow">PREDICTED · DRIVER</span>
+      <div class="pl-source" id="pl-source">Typical numbers until you hit a few</div>
+    </div>
+    <div class="pl-topin"><span class="lbl">TO PIN</span><b id="mm-topin">–</b><div class="pl-fb" id="pl-fb" title="Front and back of the green"></div></div>
+  </div>
+  <div class="pl-band">
+    <div class="pl-band-read"><span class="lbl">LANDS</span><b id="pl-band">–</b></div>
+    <div class="seg mini" id="seg-spread" role="radiogroup" aria-label="How wide the landing band is drawn">
+      <button type="button" data-value="tight" role="radio" title="Tight: where about two in three of these swings land">Tight</button>
+      <button type="button" data-value="generous" role="radio" title="Generous: where about 19 in 20 of these swings land">Generous</button>
+    </div>
+  </div>
+
+  <section id="flightview" aria-label="Side view of the shot">
+    <div class="fv-head"><span class="fv-title lbl" data-fv="title">SIDE VIEW</span><span class="fv-stat" data-fv="stat"></span></div>
+    <svg role="img" aria-label="Side view: height in feet against distance in yards"></svg>
+  </section>
+
+  <div class="pl-map" id="pl-map">
+    <canvas id="aim-canvas" aria-label="Overhead aim map of this hole: click or drag to aim, double-click to aim at the pin"></canvas>
+    <div class="pl-map-hint">Drag to aim · double-click: back to the pin</div>
+  </div>
+
+  <div class="pl-tiles">
+    <div class="tile"><span class="lbl">CARRY</span><b id="pl-carry">–</b></div>
+    <div class="tile"><span class="lbl">TOTAL</span><b id="pl-total">–</b></div>
+    <div class="tile"><span class="lbl">ENDS IN</span><b id="pl-lands">–</b></div>
+  </div>
+</aside>
+
 <footer id="bottombar">
-  <div id="clubs"></div>
-  <div class="aim">
-    <span class="muted">AIM</span>
-    <input id="aim-slider" type="range" min="-30" max="30" step="0.5" value="0">
-    <span id="aim-val">0°</span>
+  <div id="clubs" class="club-dock" role="radiogroup" aria-label="Club"></div>
+  <div class="aim-ctl" aria-label="Aim">
+    <button id="aim-left" class="aim-step" title="Aim left (←)" aria-label="Aim left">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6 8.5 12l6 6"/></svg>
+    </button>
+    <div class="aim-read"><span class="lbl">AIM</span><b id="aim-val">0°</b></div>
+    <input id="aim-slider" type="range" min="-30" max="30" step="0.5" value="0" aria-label="Aim offset in degrees">
+    <button id="aim-right" class="aim-step" title="Aim right (→)" aria-label="Aim right">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg>
+    </button>
+    <button id="aim-auto" class="aim-auto" title="Aim for the safe spot: the middle of the green when this club gets there, else the middle of the fairway, allowing for the wind and your shape (A)">AUTO</button>
+    <button id="aim-reset" class="aim-auto ghost" title="Back to the default line (0)">0</button>
   </div>
   <button id="btn-practice" class="btn">Practice shot</button>
+  <button id="btn-mulligan" class="btn hidden" title="Take that shot back and hit it again; the scorecard counts it (M)">↺ Mulligan</button>
   <button id="btn-next" class="btn primary hidden">Next hole ▶</button>
 </footer>
 
-<div id="lie-cluster">
-  <div class="lie-main">
-    <span class="lie-flag">⛳</span>
-    <div><span class="dlabel">TO PIN</span><b id="lie-pin">–</b></div>
+<!-- course conditions editor -->
+<section id="conditions" class="panel hidden" role="dialog" aria-label="Course conditions">
+  <div class="panel-head">
+    <div><span class="lbl">COURSE CONDITIONS</span><h3>How the air and ground play today</h3></div>
+    <button class="panel-x" data-close="conditions" aria-label="Close">×</button>
   </div>
-  <div class="lie-sub">
-    <div><span class="dlabel">LIE</span><b id="hud-lie">–</b></div>
-    <div><span class="dlabel">CLUB</span><b id="lie-club">DR</b></div>
-  </div>
-</div>
-
-<div id="minimap" class="hidden">
-  <div class="mm-head">
-    <div class="mm-titles">
-      <span id="mm-title" class="mm-title">—</span>
-      <span id="mm-sub" class="mm-sub hidden"></span>
+  <div class="cond-presets" id="cond-presets"></div>
+  <div class="cond-body">
+    <div class="wind-editor">
+      <svg id="wind-compass" viewBox="0 0 160 160" aria-label="Wind direction: drag to set where it blows from">
+        <circle cx="80" cy="80" r="70" class="cmp-ring"/>
+        <circle cx="80" cy="80" r="46" class="cmp-inner"/>
+        <g id="cmp-ticks"></g>
+        <g id="cmp-arrow"><path d="M80 28v86" class="cmp-shaft"/><path d="M69 104 80 122l11-18z" class="cmp-head"/><circle cx="80" cy="28" r="6" class="cmp-handle"/></g>
+        <text x="80" y="16" class="cmp-label">TARGET</text>
+      </svg>
+      <div class="wind-read"><b id="ce-wind-read">Calm</b><span id="ce-wind-rel"></span></div>
     </div>
-    <span id="mm-topin" class="mm-topin">—</span>
+    <div class="cond-sliders">
+      <label class="cs"><span class="lbl">WIND</span><input id="ce-wind" type="range" min="0" max="40" step="1"><b id="ce-wind-v">0 mph</b></label>
+      <label class="cs"><span class="lbl">GUSTS</span><input id="ce-gust" type="range" min="0" max="20" step="1"><b id="ce-gust-v">0 mph</b></label>
+      <label class="cs"><span class="lbl">TEMPERATURE</span><input id="ce-temp" type="range" min="20" max="110" step="1"><b id="ce-temp-v">70°F</b></label>
+      <label class="cs"><span class="lbl">ALTITUDE</span><input id="ce-alt" type="range" min="0" max="8000" step="100"><b id="ce-alt-v">0 ft</b></label>
+      <label class="cs"><span class="lbl">HUMIDITY</span><input id="ce-hum" type="range" min="0" max="100" step="5"><b id="ce-hum-v">50%</b></label>
+      <label class="cs"><span class="lbl">FAIRWAYS</span><input id="ce-firm" type="range" min="0" max="1" step="0.05"><b id="ce-firm-v">Normal</b></label>
+      <label class="cs"><span class="lbl">GREEN SPEED</span><input id="ce-stimp" type="range" min="7" max="15" step="0.5"><b id="ce-stimp-v">10.5</b></label>
+    </div>
   </div>
-  <canvas id="mm-canvas" width="240" height="290"></canvas>
-</div>
+  <div class="cond-effects">
+    <div class="lbl" id="ce-effects-title">EFFECT ON THIS SHOT</div>
+    <div id="ce-effects" class="effects"></div>
+  </div>
+</section>
 
-<div id="practice" class="panel hidden">
-  <h3>Practice shot <span class="muted">(no launch monitor needed)</span></h3>
-  <label>Ball speed <input id="ps-speed" type="range" min="5" max="200" value="152" step="1"><b id="ps-speed-v">152 mph</b></label>
-  <label>Launch angle <input id="ps-vla" type="range" min="0" max="45" value="13" step="0.5"><b id="ps-vla-v">13°</b></label>
-  <label>Direction (HLA) <input id="ps-hla" type="range" min="-15" max="15" value="0" step="0.5"><b id="ps-hla-v">0°</b></label>
-  <label>Total spin <input id="ps-spin" type="range" min="0" max="12000" value="2600" step="100"><b id="ps-spin-v">2600 rpm</b></label>
-  <label>Spin axis <input id="ps-axis" type="range" min="-30" max="30" value="0" step="1"><b id="ps-axis-v">0°</b></label>
-  <button id="ps-hit" class="btn primary big">HIT ⛳</button>
+<div id="practice" class="panel hidden" role="dialog" aria-label="Practice shot">
+  <div class="panel-head">
+    <div><span class="lbl">PRACTICE SHOT</span><h3>No launch monitor needed</h3></div>
+    <button class="panel-x" data-close="practice" aria-label="Close">×</button>
+  </div>
+  <label class="cs"><span class="lbl">BALL SPEED</span><input id="ps-speed" type="range" min="5" max="200" value="152" step="1"><b id="ps-speed-v">152 mph</b></label>
+  <label class="cs"><span class="lbl">LAUNCH</span><input id="ps-vla" type="range" min="0" max="45" value="13" step="0.5"><b id="ps-vla-v">13°</b></label>
+  <label class="cs"><span class="lbl">DIRECTION</span><input id="ps-hla" type="range" min="-15" max="15" value="0" step="0.5"><b id="ps-hla-v">0°</b></label>
+  <label class="cs"><span class="lbl">SPIN</span><input id="ps-spin" type="range" min="0" max="12000" value="2600" step="100"><b id="ps-spin-v">2600 rpm</b></label>
+  <label class="cs"><span class="lbl">SPIN AXIS</span><input id="ps-axis" type="range" min="-30" max="30" value="0" step="1"><b id="ps-axis-v">0°</b></label>
+  <button id="ps-hit" class="btn primary big">Hit it</button>
 </div>
 
 <div id="games-menu" class="panel hidden" role="dialog" aria-label="Driving range and mini games">
-  <h3>Range &amp; games <span class="muted">on this course</span></h3>
+  <div class="panel-head">
+    <div><span class="lbl">RANGE &amp; GAMES</span><h3>On this course</h3></div>
+    <button class="panel-x" data-close="games-menu" aria-label="Close">×</button>
+  </div>
   <div class="game-cards">
     <button class="game-card" data-mode="range"><b>Driving range</b><span>Hit from the course's own range at yardage flags. Shot table and club averages.</span></button>
     <button class="game-card" data-mode="closest"><b>Closest to the pin</b><span>5 balls at a par 3. Your best ball counts; an ace wins outright.</span></button>
     <button class="game-card" data-mode="longdrive"><b>Long drive</b><span>6 drives. Only drives that stop inside the grid count.</span></button>
     <button class="game-card" data-mode="targets"><b>Target challenge</b><span>10 balls, a new flag each time. 10 / 5 / 3 / 1 points inside 3 / 8 / 15 / 25 yd.</span></button>
+    <button class="game-card" data-mode="putting"><b>Putting challenge</b><span>9 putts on this hole's green, 3 to 40 ft, each from a new side. Most holed wins; fewest feet left breaks a tie.</span></button>
+    <button class="game-card" data-mode="chipping"><b>Up and down</b><span>6 chips from just off this hole's green. 10 for a chip-in; 5 / 3 / 2 / 1 inside 3 / 6 / 10 / 20 ft.</span></button>
+    <button class="game-card" data-mode="ladder"><b>Distance ladder</b><span>Flags from 50 to 175 yd. Stop within 7 yd of a flag to climb to the next; 12 balls.</span></button>
   </div>
   <p id="games-note" class="muted">Your round is paused while you practise and resumes where you left it.</p>
 </div>
 
 <aside id="practice-board" class="hidden" aria-live="polite">
   <div class="pb-head">
-    <div><div class="panel-eyebrow" id="pb-mode">DRIVING RANGE</div><div id="pb-sub" class="pb-sub"></div></div>
-    <div class="pb-score"><span id="pb-score-label">BALLS</span><b id="pb-score">0</b></div>
+    <div><div class="lbl" id="pb-mode">DRIVING RANGE</div><div id="pb-sub" class="pb-sub"></div></div>
+    <div class="pb-score"><span id="pb-score-label" class="lbl">BALLS</span><b id="pb-score">0</b></div>
   </div>
   <div id="pb-targets" class="pb-chips"></div>
   <table id="pb-shots" class="pb-table"></table>
@@ -143,9 +279,12 @@
   </div>
 </aside>
 
-<div id="scorecard" class="panel hidden">
+<div id="scorecard" class="panel hidden" role="dialog" aria-label="Scorecard">
+  <div class="panel-head">
+    <div><span class="lbl">SCORECARD</span><h3 id="score-title">This round</h3></div>
+    <button class="panel-x" data-close="scorecard" aria-label="Close">×</button>
+  </div>
   <div id="score-summary" class="hidden"></div>
-  <h3 id="score-title">Scorecard</h3>
   <div id="score-table"></div>
   <div class="score-actions">
     <button id="btn-restart" class="btn">Restart round</button>
@@ -153,10 +292,36 @@
   </div>
 </div>
 
+<div id="saved-panel" class="panel hidden" role="dialog" aria-label="Saved shots">
+  <div class="panel-head">
+    <div><span class="lbl">SAVED SHOTS</span><h3 id="saved-title">Your favourites</h3></div>
+    <button class="panel-x" data-close="saved-panel" aria-label="Close">×</button>
+  </div>
+  <button id="saved-add" class="btn saved-add" disabled>★ Save the last shot</button>
+  <div id="saved-list" class="saved-list"></div>
+</div>
+
+<div id="replay-banner" class="hidden" role="status" aria-live="polite"></div>
+
+<div id="league-panel" class="hidden" role="dialog" aria-labelledby="lg-title" tabindex="-1">
+  <header class="lgx-head">
+    <div class="lgx-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4.5h8v5a4 4 0 0 1-8 0z"/><path d="M8 6.5H4.5a3 3 0 0 0 3.6 3.4M16 6.5h3.5a3 3 0 0 1-3.6 3.4"/><path d="M12 13.5V17M8.5 19.5h7M10 17h4"/></svg></div>
+    <div class="lgx-titles"><span class="lbl" id="lg-eyebrow">LEAGUES</span><h3 id="lg-title">Leagues</h3></div>
+    <div class="lgx-headmeta" id="lg-headmeta"></div>
+    <button class="panel-x" data-close="league-panel" aria-label="Close">×</button>
+  </header>
+  <div id="lg-body"></div>
+</div>
+<div id="lg-result" class="hidden"></div>
+
+<div id="toast" class="hidden" role="status" aria-live="polite"></div>
+</div>
+
 <div id="course-modal" class="modal">
   <div class="modal-box">
-    <h2>⛳ Pick a real course <span class="muted">(OpenStreetMap)</span></h2>
-    <p class="muted">Any course mapped with hole lines in OSM is playable. Famous links are usually best-mapped.</p>
+    <span class="lbl">CHOOSE A COURSE</span>
+    <h2>Play a real course</h2>
+    <p class="muted">Any course mapped with hole lines in OpenStreetMap is playable. Famous links are usually the best mapped.</p>
     <div class="row">
       <input id="course-q" type="text" placeholder="Search: e.g. St Andrews Old Course" autofocus>
       <button id="course-search" class="btn primary">Search</button>
@@ -172,8 +337,6 @@
     <div id="course-msg" class="muted"></div>
   </div>
 </div>
-
-<div id="toast" class="hidden"></div>
 
 <script type="module" src="app.js"></script>
 </body>
