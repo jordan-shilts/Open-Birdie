@@ -61,15 +61,37 @@ Everything runs on this PC; no firewall changes needed. (If GSPconnect ever runs
 | AIM slider | rotate the aim line (shots are relative to it) |
 | Club buttons | tells GSPconnect your club; also loads practice presets |
 | Practice shot | hit simulated shots without the launch monitor |
+| Range & games | driving range and mini games on the loaded course (see below) |
 | Course button | search and load any OSM-mapped course |
 | Next ▶ / Pick up | advance to the next hole; pick up to concede a hole you aren't finishing |
 | Hole pills / HOLE | tap a played hole to review it on the scorecard |
 | Scorecard | scores, round-complete summary, restart / new round |
+| Graphics | cycle Auto / High / Low (High: live pond mirrors, grass blades, full tree detail) |
+| Sky | cycle Morning / Midday / Golden hour (sky photo + matching sun and haze) |
+| Flyover / F | fly over the current hole, tee to green; any key or click skips back to the shot |
 | F11 | toggle fullscreen |
 
 Putts are detected automatically when on the green (low speed + low launch).
 Anything stopped inside the gimme distance (8 ft default) is conceded for +1 stroke.
 A ball rolled near the cup at holeable speed drops in.
+
+### Range & games
+
+Practice on the loaded course's real ground. Your round pauses, and **Back to the round**
+picks it up exactly where you left it. Every ball is hit from the game's spot (the putting and
+chipping games move it round the green, ball by ball), with no penalties.
+
+| Mode | How it plays |
+| --- | --- |
+| Driving range | from the course's own range (OpenStreetMap `golf=driving_range`), else hole 1's tee; yellow yardage flags every 50 yd (pick one to aim at); a shot table and club averages |
+| Closest to the pin | 5 balls at a par 3 (the shortest; the others are a click away); balls in the water or out of bounds don't count; an ace ends it |
+| Long drive | 6 drives; only drives that stop inside the grid (25 yd either side of the line) count |
+| Target challenge | 10 balls, a new flag 60–200 yd out each time; 10 / 5 / 3 / 1 points inside 3 / 8 / 15 / 25 yd |
+| Putting challenge | 9 putts on the green of the hole you're on: 3, 5, 8, 12, 16, 20, 25, 30 and 40 ft, each from its own side of the cup (a small green brings the long ones in); most holed wins, fewest feet left breaks a tie |
+| Up and down | 6 chips from just off the same green, 8–30 yd from the cup, all round it (never from sand, water or out of bounds); 10 points for a chip-in, 5 / 3 / 2 / 1 inside 3 / 6 / 10 / 20 ft |
+| Distance ladder | flags at 50, 75, 100, 125, 150 and 175 yd on the range; stop within 7 yd of the current one to climb to the next; 12 balls, and clearing all six ends it |
+
+Shots come from the launch monitor or the Practice shot panel, as in a round.
 
 ## Courses
 
@@ -78,6 +100,12 @@ OpenStreetMap mapping — famous courses are usually excellent. A course needs `
 routing lines to be playable; the loader tells you if they're missing. First load downloads
 geometry + elevation (10–90 s) and caches it in `data/courses/` — afterwards it's instant
 and works offline.
+
+Once a course is playable, its missing scenery follows in the background — real buildings and
+the lakes and ponds around the course (OpenStreetMap), every real tree (canopy height map; needs
+the optional `geotiff` package or the cloud service) and the course-wide aerial photo (USGS, US
+only) — and appears on screen as each layer arrives. It is saved with the course, so this happens
+once per course.
 
 ## Configuration
 
@@ -89,8 +117,192 @@ and works offline.
 | `BIRDIE_SPEED_SCALE` | 1 | multiplier for incoming ball speed; set `2.23694` if your monitor reports m/s (shots play ~2.2× short otherwise) |
 | `BIRDIE_NO_WATCH` | (unset) | set to `1` to skip auto-starting the Uneekor VIEW feed bridge |
 | `BIRDIE_OVERPASS_URLS` | (unset) | comma-separated Overpass interpreter URLs to try before the built-in public mirrors (overpass-api.de, maps.mail.ru, kumi.systems, private.coffee) — useful when they are all at capacity or you run your own |
+| `GOOGLE_MAPS_API_KEY` | (unset) | your own Google Map Tiles API key — turns on the optional Google 3D surroundings (below). Unset = no requests to Google at all |
+| `BIRDIE_ENRICH` | 1 | set to `0` to stop fetching missing scenery (buildings, trees, aerial photo) in the background |
+| `BIRDIE_CACHE_MAX_MB` | 1024 | size cap of the local course cache; the least recently played courses are deleted past it (never the one being played) and are downloaded again when picked. `0` = no cap |
+| `BIRDIE_CLOUD_URL` | (unset) | base URL of an Open-Birdie cloud course service (see [Cloud courses](#cloud-courses)). Unset = everything is built on this computer and no cloud request is ever made |
+| `BIRDIE_CLOUD_BUILD_TOKEN` | (unset) | lets this app ask the cloud to build a course it does not have yet (must match the service's token); without it, such courses are built locally |
 
 Gimme distance: `POST /api/settings {"gimmeYd": feet}` (UI toggle coming later).
+
+### Optional: Google 3D surroundings
+
+With a key, the real houses, trees and lakes around the course stream in as Google
+Photorealistic 3D Tiles. The course itself is still drawn from open data: inside the course's
+terrain rectangle our own terrain, trees and buildings take over, and the Google tiles are
+lifted or lowered to meet our terrain at the edge.
+
+1. In a Google Cloud project with **billing enabled**, enable the **Map Tiles API** and create an
+   API key (restrict it to the Map Tiles API). Each course load starts one tiles session (one
+   root-tileset request); see Google's current Map Tiles pricing.
+2. Start the app with the key in the environment, e.g. `GOOGLE_MAPS_API_KEY=... npm start`
+   (Windows: `setx GOOGLE_MAPS_API_KEY "..."`, then reopen the terminal / restart the app).
+
+The key is handed only to the local window (never to LAN mirrors) and is never logged or
+cached. A rejected key logs one console warning and the game carries on without the tiles.
+Attribution (the Google Maps logo, or the words "Google Maps", plus the data providers for the
+tiles in view) shows at the bottom right, next to the course's own data credit. To use the
+official logo, save Google's logo file as `public/assets/attribution/google-maps-logo.svg`.
+Google's terms apply to everything streamed: no caching or exporting the tiles, and keep the
+attribution visible. `?googleTiles=0` turns the tiles off for a page.
+
+## Cloud courses
+
+Point the app at an Open-Birdie cloud course service and courses are downloaded when you pick
+them instead of being built on your computer, already complete with buildings, real trees and
+the max-quality aerial photo:
+
+```bash
+BIRDIE_CLOUD_URL=https://<your-service> BIRDIE_CLOUD_BUILD_TOKEN=<token> npm start
+```
+
+Or keep the setting in the data dir instead of the environment (the environment wins when both are
+set): `data/cloud.json` = `{"url": "https://<your-service>", "buildToken": "<token>"}`.
+
+- A course the cloud has is downloaded (every file checked against its sha256) into the local
+  cache, which stays under `BIRDIE_CACHE_MAX_MB`.
+- A course the cloud does not have yet is built there (needs the build token); the course picker
+  shows the build's progress, the course is playable as soon as its base data is ready, and its
+  scenery appears when the cloud has added it.
+- If the cloud cannot be reached, the course is built on this computer as before.
+
+### Running the cloud service
+
+The service is [`cloud/server.js`](cloud/server.js) (Node ≥ 22). It builds each course once with
+the same code as the desktop — OSM holes and buildings, USGS 3DEP lidar terrain, the NDVI
+classmap — plus what the desktop app cannot ship: real trees from the canopy height map
+(`geotiff`) and the max-quality tiled aerial (`sharp`). Each course becomes a package (manifest +
+files with sha256) in object storage. It publishes a playable package as soon as the base data is
+ready, then a complete one with the scenery. After that it adds HD holes (1 m lidar terrain and
+0.3 m NAIP imagery) and publishes the package again, so a pick never waits on them. Holes with a
+reviewed manifest in [`tools/hd-course/manifests`](tools/hd-course/manifests) use it; every other
+hole 1–18 of a course in the contiguous US is pinned automatically to the newest NAIP photo that
+covers it (`npm run auto-pin:hd-hole` does the same for a reviewed manifest), on 3 m terrain where
+there is no 1 m lidar. `BIRDIE_CLOUD_AUTO_HD=0` limits HD to the reviewed manifests. This needs
+`tools/` in the deployment (the Vercel builds have it; the container image doesn't). A hole that
+fails is skipped, and the package lists it with the reason (`hdMissing`). Its dependencies are in
+[`cloud/package.json`](cloud/package.json); the image is [`cloud/Dockerfile`](cloud/Dockerfile)
+(`node:22-slim`).
+
+```bash
+# local run, packages in ./cloud-store
+BIRDIE_CLOUD_BUILD_TOKEN=dev-token node cloud/server.js
+BIRDIE_CLOUD_URL=http://localhost:8080 BIRDIE_CLOUD_BUILD_TOKEN=dev-token npm start
+
+# container (build context = repository root)
+docker build -f cloud/Dockerfile -t open-birdie-cloud .
+```
+
+| Env var | Default | Meaning |
+| --- | --- | --- |
+| `PORT` (or `BIRDIE_CLOUD_PORT`) | 8080 | listen port (Railway sets `PORT`) |
+| `BIRDIE_CLOUD_BUILD_TOKEN` | (unset) | bearer token required by `POST /v1/courses`; unset = read-only service |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | | object storage (any S3-compatible store; SigV4-signed, no AWS SDK). Without `S3_BUCKET` packages go to a directory |
+| `S3_FORCE_PATH_STYLE` | 0 | `1` for MinIO and older Railway buckets (an endpoint with a path, like Supabase's, is always path style) |
+| `S3_PUBLIC_ENDPOINT` | `S3_ENDPOINT` | endpoint used in presigned download URLs, when desktops must reach the store under another URL |
+| `BIRDIE_CLOUD_STORE_DIR` | `./cloud-store` | directory store, when `S3_BUCKET` is unset |
+| `BIRDIE_CLOUD_FILES` | `redirect` with S3, else `proxy` | serve files as 302s to presigned URLs, or stream them through the service |
+| `BIRDIE_CLOUD_CONCURRENCY` | 1 | builds running at once (one build per course at a time regardless) |
+| `BIRDIE_CLOUD_MAX_QUEUE` | 16 | builds waiting; beyond that `POST` answers 429 |
+| `BIRDIE_DATA_DIR` | `<tmp>/birdie-cloud-staging` | scratch space for builds in progress |
+| `BIRDIE_OVERPASS_URLS` | (unset) | Overpass mirrors to try first, as on the desktop |
+
+API (JSON; `:key` is the course key, e.g. `osm-relation-9892305`):
+
+| Request | Answer |
+| --- | --- |
+| `GET /v1/courses/:key` | `200` package manifest (`complete: false` while scenery is still being added) · `404` |
+| `POST /v1/courses` with `Authorization: Bearer <token>`, body `{"source":{"osmType":"relation","osmId":9892305},"name":"…","bbox":[s,n,w,e]}` (`"force":true` rebuilds) | `200 {status:"ready", manifest}` · `202 {status, job}` · `401` · `429` queue full · `503` builds disabled |
+| `GET /v1/jobs/:id` | `200 {status: queued\|running\|done\|failed, stage, message, pct, packageId, complete, error, pollMs?}` · `404` (`pollMs`: how often to poll, when the service wants slower than every 2 s) |
+| `GET /v1/courses/:key/files/:sha256` | `302` to a presigned URL (S3) or `200` bytes |
+| `GET /healthz` | `200 {ok, store, builds, files, queue}` |
+
+### Deploying on Railway (service + bucket)
+
+1. New project → deploy this GitHub repository as a service. In the service's variables set
+   `RAILWAY_DOCKERFILE_PATH=cloud/Dockerfile` and `BIRDIE_CLOUD_BUILD_TOKEN` to a long random string.
+2. Add a **Bucket** to the project (Create → Bucket). Give the service the bucket's credentials with
+   reference variables (use your bucket's name in place of `Bucket`):
+   ```
+   S3_ENDPOINT=${{Bucket.ENDPOINT}}
+   S3_BUCKET=${{Bucket.BUCKET}}
+   S3_REGION=${{Bucket.REGION}}
+   S3_ACCESS_KEY_ID=${{Bucket.ACCESS_KEY_ID}}
+   S3_SECRET_ACCESS_KEY=${{Bucket.SECRET_ACCESS_KEY}}
+   ```
+   If the bucket's Credentials tab says to use path-style URLs, add `S3_FORCE_PATH_STYLE=1`.
+3. Settings → Networking → generate a public domain, then check `https://<domain>/healthz`.
+4. Point the desktop app at it: `BIRDIE_CLOUD_URL=https://<domain>` (plus `BIRDIE_CLOUD_BUILD_TOKEN`
+   on machines allowed to start builds).
+
+Railway buckets are private, so downloads go out as presigned redirects straight from the bucket
+(bucket egress is free; proxying through the service would count as service egress).
+
+Other providers work the same way: **Cloudflare R2** (`S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`,
+`S3_REGION=auto`), **Supabase Storage** (`S3_ENDPOINT=https://<project>.supabase.co/storage/v1/s3`),
+or **Coolify + MinIO** (`S3_FORCE_PATH_STYLE=1`, and `S3_PUBLIC_ENDPOINT` if MinIO's address inside
+the server differs from its public one).
+
+Limits: the job queue is in memory (a restart forgets running jobs; desktops ask again, and any
+package already published survives), so run a single instance; files of superseded packages are
+kept in the bucket (no clean-up yet).
+
+### Deploying on Vercel (Blob storage, builds in Vercel Sandbox)
+
+A Vercel Function can't run a 5–10 minute build, so on Vercel the API ([`api/index.js`](api/index.js))
+is a Function over a public **Vercel Blob** store, and each build gets its own **Vercel Sandbox**
+(a microVM) that clones this repository (`BIRDIE_CLOUD_REPO` at `BIRDIE_CLOUD_REF`), installs
+[`cloud/package.json`](cloud/package.json) and runs [`cloud/sandbox-build.js`](cloud/sandbox-build.js).
+Builds write their progress into job records in the store, and the API stops a build's sandbox
+once its record says it is over. Desktops download package files straight from the Blob CDN.
+
+With the [Vercel CLI](https://vercel.com/docs/cli) signed in (`vercel login`):
+
+```bash
+node cloud/vercel/stage.js ../open-birdie-cloud     # the API function + the modules it loads
+cd ../open-birdie-cloud
+vercel link --yes --project open-birdie-cloud
+vercel blob create-store open-birdie-courses --access public   # answer yes: link it to the project
+printf '%s' "$(openssl rand -hex 24)" | vercel env add BIRDIE_CLOUD_BUILD_TOKEN production --sensitive
+printf 'main' | vercel env add BIRDIE_CLOUD_REF production
+vercel deploy --prod
+```
+
+`BIRDIE_CLOUD_REF` is the branch the builds clone: it must contain `cloud/sandbox-build.js`.
+If the store isn't linked (the CLI asks only in an interactive shell), connect it under the
+project's **Storage** tab; that adds `BLOB_READ_WRITE_TOKEN`, which the API hands to each build's
+sandbox. Sandboxes themselves authenticate with the deployment's OIDC token, so there is nothing
+else to configure. `BIRDIE_CLOUD_REPO` builds from another fork; `BIRDIE_OVERPASS_URLS` works as on
+the desktop. Check `https://<project>.vercel.app/healthz`, then point the desktop at it
+(`BIRDIE_CLOUD_URL`, or `data/cloud.json`). A failed build's cause is in the project's function
+logs (`vercel logs --query failed`); the sandbox itself is gone by then.
+
+### Building courses ahead of time
+
+`npm run cloud:build-courses` asks the cloud to build courses before anyone picks them, so the
+first pick downloads in seconds instead of waiting on a build. With no arguments it builds the
+featured courses in [`courses/featured.json`](courses/featured.json) (the course picker's
+suggestions plus the courses with HD hole manifests). It skips courses the cloud already has
+and runs one build at a time. HD holes the cloud still lacks for a passing reason (a timeout, a
+USGS 502, out of time) are asked for again, as is a course built before HD planning existed: the
+build resumes from the cloud's package and only adds the holes. Holes with no imagery or lidar
+are left alone.
+
+```bash
+npm run cloud:build-courses                                    # the featured courses
+npm run cloud:build-courses -- "Pinehurst No. 2" relation/9892305   # by name (searched on OSM) or OSM id
+npm run cloud:build-courses -- --file my-courses.txt           # one name or id per line
+npm run cloud:build-courses -- --status                        # which of them the cloud has
+```
+
+`--force` rebuilds, and `--concurrency N` runs N builds at once. The script uses the desktop's cloud
+settings (`BIRDIE_CLOUD_URL` + `BIRDIE_CLOUD_BUILD_TOKEN`, or `data/cloud.json`).
+
+On Vercel's Hobby plan nothing is ever charged; a feature that runs past its monthly allowance pauses
+until 30 days have passed. The allowances that matter: Blob storage 1 GB (Hazeltine's package is
+11 MB), 2,000 Blob uploads (a build writes ~50 progress records plus its files) and 10,000 reads
+(the desktop polls a running build every 10 s), and 5 Sandbox CPU-hours with sessions of up to
+45 minutes (Hazeltine took 6 minutes).
 
 ## Dev tools
 
@@ -101,8 +313,10 @@ node tools/test-shot.js --speed 150 --vla 13 --spin 2700 --axis -4
 node tools/test-load.js "Course name"   # test course download/parse
 ```
 
-Make a cached course look like the real place (run in this order; each only adds scenery and
-leaves the HD fingerprint alone, except refresh-elevation):
+The app adds buildings, trees and the aerial photo to every course by itself (see Courses).
+These tools run the same code by hand — e.g. to refresh a course after OpenStreetMap edits, or
+to get the max-quality tiled aerial (needs `sharp`). Run them in this order; each only adds
+scenery and leaves the HD fingerprint alone, except refresh-elevation:
 
 ```bash
 node tools/add-buildings.mjs      data/courses/<slug>.json   # OSM building footprints, clubhouse
@@ -120,7 +334,11 @@ node tools/refresh-elevation.mjs  data/courses/<slug>.json   # re-fetch lidar if
 - Aerial imagery: [USGS NAIP / NAIPPlus](https://www.usgs.gov/centers/eros/science/usgs-eros-archive-aerial-photography-national-agriculture-imagery-program-naip) (public domain)
 - Tree positions and heights: Meta and World Resources Institute (WRI),
   [High Resolution Canopy Height Maps](https://registry.opendata.aws/dataforgood-fb-forests/),
-  licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (used by `tools/add-canopy-trees.mjs`)
+  licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (`lib/canopy-fetch.js`)
+- Skies, leaves, needles and bark: [Poly Haven](https://polyhaven.com) (CC0) — see `ASSETS.md`
+- Optional surroundings (only with your own key): Google Photorealistic 3D Tiles, streamed under
+  the [Google Maps Platform terms](https://cloud.google.com/maps-platform/terms), rendered with
+  [3d-tiles-renderer](https://github.com/NASA-AMMOS/3DTilesRendererJS) (Apache-2.0)
 
 ## Known limitations / roadmap
 

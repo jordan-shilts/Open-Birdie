@@ -7,7 +7,7 @@
 // face the golfer sees), then a jittered interior fill, with species grouped into
 // natural stands by low-frequency noise instead of per-tree salt-and-pepper.
 
-export const SPECIES = Object.freeze(['oak', 'pine', 'fir', 'birch']);
+export const SPECIES = Object.freeze(['oak', 'pine', 'fir', 'birch', 'maple']);
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -58,21 +58,21 @@ function vnoise(x, y) {
 }
 
 // Species for a spot: stands of ~60-120 m share a species. Links (dry) courses
-// lean to pines and birch; parkland to oaks and firs.
+// lean to pines and birch; parkland to oaks, maples and firs.
 export function speciesAt(x, y, courseDry = 0, salt = 0) {
   const n = vnoise(x * 0.011 + 3.3, y * 0.011 - 1.7);
-  const j = hash2(x * 0.37 + salt, y * 0.41 - salt) * 0.22 - 0.11;   // a few mixed-in strays
+  const j = hash2(x * 0.37 + salt, y * 0.41 - salt) * 0.14 - 0.07;   // a few mixed-in strays
   const v = Math.min(0.999, Math.max(0, n + j));
   const dry = Math.min(1, Math.max(0, courseDry));
-  // cumulative weights [oak, pine, fir, birch], blended lush -> dry
-  const lush = [0.42, 0.20, 0.28, 0.10];
-  const links = [0.22, 0.46, 0.16, 0.16];
+  // cumulative weights [oak, pine, fir, birch, maple], blended lush -> dry
+  const lush = [0.32, 0.16, 0.22, 0.06, 0.24];
+  const links = [0.2, 0.44, 0.14, 0.14, 0.08];
   let acc = 0;
-  for (let k = 0; k < 4; k++) {
+  for (let k = 0; k < SPECIES.length; k++) {
     acc += lush[k] + (links[k] - lush[k]) * dry;
     if (v < acc) return SPECIES[k];
   }
-  return SPECIES[3];
+  return SPECIES[SPECIES.length - 1];
 }
 
 // Fill one woods polygon. spacing (m) is the interior grid pitch; the edge line is
@@ -124,8 +124,8 @@ export function speciesForCrown(x, y, h, r, courseDry = 0) {
   const ratio = r / Math.max(1, h);
   const stand = speciesAt(x, y, courseDry, 0);
   if (ratio < 0.22) return courseDry > 0.5 || stand === 'pine' ? 'pine' : 'fir';
-  if (ratio < 0.3) return stand === 'pine' || stand === 'fir' ? stand : 'oak';
-  return stand === 'birch' ? 'birch' : 'oak';
+  if (ratio < 0.3) return stand === 'pine' || stand === 'fir' || stand === 'maple' ? stand : 'oak';
+  return stand === 'birch' || stand === 'maple' ? stand : 'oak';
 }
 
 // Instance scale for a real tree of height h and crown radius r, given the species

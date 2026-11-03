@@ -54,6 +54,7 @@ test('server integration keeps cached B active when older network A fails late',
   process.env.BIRDIE_OC_PORT = '0';
   process.env.BIRDIE_NO_AUTOLOAD = '1';
   process.env.BIRDIE_NO_WATCH = '1';
+  process.env.BIRDIE_ENRICH = '0';
   process.env.BIRDIE_DATA_DIR = dataDir;
   process.env.BIRDIE_ART_DIR = path.join(dataDir, 'missing-art');
 
@@ -187,6 +188,7 @@ test('successful startup autoload is committed before the HTTP server reports re
       BIRDIE_OC_PORT: '0',
       BIRDIE_NO_AUTOLOAD: '',
       BIRDIE_NO_WATCH: '1',
+      BIRDIE_ENRICH: '0',
       BIRDIE_DATA_DIR: dataDir,
       BIRDIE_ART_DIR: path.join(dataDir, 'missing-art'),
     },
@@ -231,6 +233,7 @@ test('failed startup autoload logs one redacted diagnostic and listens unloaded'
       BIRDIE_OC_PORT: '0',
       BIRDIE_NO_AUTOLOAD: '',
       BIRDIE_NO_WATCH: '1',
+      BIRDIE_ENRICH: '0',
       BIRDIE_DATA_DIR: dataDir,
       BIRDIE_ART_DIR: path.join(dataDir, 'missing-art'),
     },

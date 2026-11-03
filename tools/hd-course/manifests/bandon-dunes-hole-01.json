@@ -3,7 +3,9 @@
   "course": {
     "name": "Bandon Dunes Golf Resort",
     "cacheVersion": 3,
-    "fingerprint": "5cc7fad9f7bd234c2d2113a2a6905d7dece28260aff8ecc8741e999ef390709d"
+    "courseId": "osm:way:362513477",
+    "fingerprint": "df4e360a4941c8136c57e726812283f6fb407aa80ad6ea0542e20a39c7942f5a",
+    "fingerprintVersion": 2
   },
   "hole": 1,
   "padding": 150,
@@ -16,8 +18,7 @@
     "date": "2022-06-23",
     "gsdM": 0.3,
     "itemIds": [
-      "or_m_4312453_ne_10_030_20220623",
-      "or_m_4312453_se_10_030_20220623"
+      "or_m_4312453_ne_10_030_20220623"
     ]
   },
   "providers": {
@@ -36,21 +37,16 @@
   "discovered": {
     "state": "resolved",
     "bounds": {
-      "minX": -146.71000000000004,
-      "minY": -230.66000000000008,
-      "maxX": 318.28999999999996,
-      "maxY": 414.3399999999999
+      "minX": 355.85,
+      "minY": 514.23,
+      "maxX": 781.85,
+      "maxY": 1162.23
     },
     "assets": [
       {
         "url": "https://naipeuwest.blob.core.windows.net/naip/v002/or/2022/or_030cm_2022/43124/m_4312453_ne_10_030_20220623.tif",
         "contentLength": 1444945879,
         "etag": "0x8DBFAF0BAD1EF9B"
-      },
-      {
-        "url": "https://naipeuwest.blob.core.windows.net/naip/v002/or/2022/or_030cm_2022/43124/m_4312453_se_10_030_20220623.tif",
-        "contentLength": 1420382117,
-        "etag": "0x8DBFB035A0269AF"
       }
     ]
   }

@@ -145,18 +145,36 @@ export async function main(argv) {
     const manifest = loadManifest(opt('manifest'));
     assertBuildable(manifest); // throws HD_MANIFEST_PENDING before any network
     const course = loadCourseFile(opt('course'));
-    assertCourseMatches(manifest, course);
-    const courseDir = path.join(hdCoursesRoot(), slug(manifest.course.name));
-    const stagingDir = path.join(hdBuildCacheRoot(), 'staging', `${slug(manifest.course.name)}-h${manifest.hole}`);
-    fs.rmSync(stagingDir, { recursive: true, force: true });
-    fs.mkdirSync(stagingDir, { recursive: true });
-    const report = makeReport();
-    const result = await compileHole({ manifest, course, stagingDir, courseDir, ...liveProviders(manifest, course), report });
+    const { result, report } = await compileResolvedHole(manifest, course);
     process.stdout.write(`Published bundle ${result.bundleId}\n${report.toString()}\n`);
     return result;
   }
 
   throw new HdCompileError('cli', 'HD_CLI_USAGE', { cmd: cmd ?? null });
+}
+
+// Compile a resolved manifest's hole with the live providers and publish it under
+// hdCoursesRoot() (BIRDIE_DATA_DIR/hd-courses).
+async function compileResolvedHole(manifest, course) {
+  assertCourseMatches(manifest, course);
+  const courseDir = path.join(hdCoursesRoot(), slug(manifest.course.name));
+  const stagingDir = path.join(hdBuildCacheRoot(), 'staging', `${slug(manifest.course.name)}-h${manifest.hole}`);
+  fs.rmSync(stagingDir, { recursive: true, force: true });
+  fs.mkdirSync(stagingDir, { recursive: true });
+  const report = makeReport();
+  const result = await compileHole({ manifest, course, stagingDir, courseDir, ...liveProviders(manifest, course), report });
+  return { result, report };
+}
+
+// Discover + build in one step against a course in memory (the cloud's HD step,
+// cloud/hd-holes.js): the manifest is re-resolved against this exact course first
+// (fingerprint, snapped bounds, pinned NAIP assets re-checked for drift), so a
+// manifest written for an older parse of the same course still builds.
+export async function discoverAndBuildHole({ manifest, course }) {
+  const resolved = await resolveManifest({ manifest, course, providers: { searchNaipCandidates, assertCogDrift } });
+  assertBuildable(resolved);
+  const { result } = await compileResolvedHole(resolved, course);
+  return { ...result, hole: resolved.hole, manifest: resolved };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

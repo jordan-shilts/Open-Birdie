@@ -10,6 +10,13 @@ export const ASSETS = {
     broadleafDiff: `${BASE}trees/broadleaf_diff.jpg`,
     broadleafAlpha: `${BASE}trees/broadleaf_alpha.jpg`,
     broadleafBark: `${BASE}trees/broadleaf_bark.jpg`,
+    // 3D trees (trees.js / leaf-atlas.js)
+    leafDiff: `${BASE}trees/leaves_diff.jpg`,
+    leafAlpha: `${BASE}trees/leaves_alpha.jpg`,
+    pineTwigDiff: `${BASE}trees/pine_twig_diff.jpg`,
+    pineTwigAlpha: `${BASE}trees/pine_twig_alpha.jpg`,
+    oakBark: `${BASE}trees/oak_bark.jpg`,
+    pineBark: `${BASE}trees/pine_bark.jpg`,
   },
   turf: {
     color: `${BASE}turf/grass_color.jpg`,

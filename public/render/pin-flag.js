@@ -9,15 +9,17 @@ import * as THREE from 'three';
 
 const FLAG_W = 0.72, FLAG_H = 0.46;
 
-function flagTexture(label) {
+const RED_FLAG = Object.freeze({ cloth: '#d6322f', hem: '#b8282a', ink: '#ffffff' });
+
+function flagTexture(label, colors = RED_FLAG) {
   const cv = document.createElement('canvas');
   cv.width = 256; cv.height = 160;
   const g = cv.getContext('2d');
-  g.fillStyle = '#d6322f'; g.fillRect(0, 0, 256, 160);
+  g.fillStyle = colors.cloth; g.fillRect(0, 0, 256, 160);
   // a slightly darker hem along the pole side
-  g.fillStyle = '#b8282a'; g.fillRect(0, 0, 14, 160);
+  g.fillStyle = colors.hem; g.fillRect(0, 0, 14, 160);
   if (label) {
-    g.fillStyle = '#ffffff';
+    g.fillStyle = colors.ink;
     g.font = 'bold 104px "Bahnschrift", "DIN Alternate", "Helvetica Neue", Arial, sans-serif';
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(String(label), 136, 86);
@@ -38,7 +40,9 @@ function poleTexture() {
   return t;
 }
 
-export function makePin() {
+// colors: { cloth, hem, ink } for the flag (default red with white numbers; the
+// driving range's yardage flags are yellow).
+export function makePin(colors = RED_FLAG) {
   const g = new THREE.Group();
   g.name = 'pin';
   const pole = new THREE.Mesh(
@@ -55,7 +59,7 @@ export function makePin() {
   const uTime = { value: 0 };
   const flagGeo = new THREE.PlaneGeometry(FLAG_W, FLAG_H, 18, 6);
   flagGeo.translate(FLAG_W / 2, 0, 0); // left edge on the pole
-  const flagMat = new THREE.MeshStandardMaterial({ map: flagTexture(''), roughness: 0.78, side: THREE.DoubleSide });
+  const flagMat = new THREE.MeshStandardMaterial({ map: flagTexture('', colors), roughness: 0.78, side: THREE.DoubleSide });
   flagMat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = uTime;
     sh.vertexShader = sh.vertexShader
@@ -109,12 +113,20 @@ export function makePin() {
       if (v === label) return;
       label = v;
       const old = flagMat.map;
-      flagMat.map = flagTexture(v);
+      flagMat.map = flagTexture(v, colors);
       flagMat.needsUpdate = true;
       old?.dispose();
     },
     // flag streams downwind: rotate the whole pin about its pole
     setWindHeading(rad) { g.rotation.y = rad; },
+    dispose() {
+      g.traverse((o) => {
+        if (!o.isMesh) return;
+        o.geometry.dispose();
+        o.material.map?.dispose();
+        o.material.dispose();
+      });
+    },
   };
 }
 

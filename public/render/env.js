@@ -16,8 +16,11 @@ const sunVec = (azimuth, altitude) => {
 
 // Loads HDRI, returns { envTexture (PMREM, for scene.environment),
 // equirect (for scene.background + skybox), sunDir, horizonColor }.
-export async function loadHDRIEnvironment(renderer) {
-  const equirect = await new HDRLoader().setDataType(THREE.FloatType).loadAsync(ASSETS.hdri());
+// url defaults to the bundled sky; a sun axis given as null comes from the photo.
+export async function loadHDRIEnvironment(renderer, {
+  url = ASSETS.hdri(), sunAzimuthDeg = RENDER_CONFIG.sunAzimuthDeg, sunAltitudeDeg = RENDER_CONFIG.sunAltitudeDeg,
+} = {}) {
+  const equirect = await new HDRLoader().setDataType(THREE.FloatType).loadAsync(url);
   equirect.mapping = THREE.EquirectangularReflectionMapping;
 
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -28,7 +31,7 @@ export async function loadHDRIEnvironment(renderer) {
   // sun direction: each config override (D2) wins on its own axis, else the HDRI's
   // estimate — so the altitude can be set (long, crisp shadows) while the azimuth
   // still follows the sky's bright side
-  const ovAz = RENDER_CONFIG.sunAzimuthDeg, ovAlt = RENDER_CONFIG.sunAltitudeDeg;
+  const ovAz = sunAzimuthDeg, ovAlt = sunAltitudeDeg;
   const est = (ovAz != null && ovAlt != null) ? null : sunSphericalFromEquirect(data, width, height);
   const sph = {
     azimuth: ovAz != null ? THREE.MathUtils.degToRad(ovAz) : est.azimuth,

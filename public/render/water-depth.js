@@ -22,28 +22,65 @@ export function makeWaterDepth(renderer) {
   });
 
   const resolution = new THREE.Vector2();
+  let verified = false;   // framebuffer completeness checked since the last resize
 
   function setSize(w, h) {
     const ratio = renderer.getPixelRatio();
     const W = Math.max(1, Math.floor(w * ratio)), H = Math.max(1, Math.floor(h * ratio));
-    target.setSize(W, H);
+    if (W !== target.width || H !== target.height) {
+      target.setSize(W, H);
+      // RenderTarget.setSize resizes only the colour attachment: the depth texture kept
+      // its old GPU storage, so the next pre-pass hit an incomplete framebuffer
+      // (attachments of different sizes). Free it so it is rebuilt at the new size.
+      depthTexture.dispose();
+      // allocate and check now, not on the first pre-pass: that comes mid-flight as a
+      // pond nears, and allocating a 4K depth target there stalled the frame
+      renderer.initRenderTarget?.(target);
+      verify();
+    }
     resolution.set(W, H); // device pixels, to match gl_FragCoord.xy
+  }
+
+  // Once per size, where the size changes (dynamic resolution only resizes between shots):
+  // a depth texture can keep GPU storage from an earlier size (or from a pass that bound
+  // it first), which leaves this framebuffer incomplete; rebuild both attachments if so.
+  // The status query waits for the GPU to drain — ~50 ms on a Mac — so it must never
+  // run mid-flight, where a pond coming into range used to stall the replay.
+  function verify() {
+    const prevTarget = renderer.getRenderTarget();
+    renderer.setRenderTarget(target);
+    const gl = renderer.getContext();
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      target.dispose();
+      depthTexture.dispose();
+      renderer.setRenderTarget(target);
+    }
+    renderer.setRenderTarget(prevTarget);
+    verified = true;
   }
   setSize(size.x, size.y);
 
   // Only the TERRAIN sits under the water, so render just that mesh into the depth
-  // target — one draw call. No water to hide (it isn't drawn), no material override
-  // (the terrain's own program writes depth fine), so the turf shader is untouched.
+  // target. Its turf material is swapped for a depth-only one for this one render
+  // (the turf shader was the whole cost: ~3.5 ms a frame for depth alone); the
+  // material objects are restored untouched, so nothing recompiles.
+  const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
+  const swapped = [];
   function prepass(terrain, camera) {
     if (!terrain) return;
+    if (!verified) verify();
+    terrain.traverse((o) => { if (o.isMesh) { swapped.push(o, o.material); o.material = depthOnly; } });
     const prevTarget = renderer.getRenderTarget();
     renderer.setRenderTarget(target);
     renderer.clear(true, true, false);
-    renderer.render(terrain, camera);
-    renderer.setRenderTarget(prevTarget);
+    try { renderer.render(terrain, camera); } finally {
+      renderer.setRenderTarget(prevTarget);
+      for (let i = 0; i < swapped.length; i += 2) swapped[i].material = swapped[i + 1];
+      swapped.length = 0;
+    }
   }
 
-  function dispose() { target.dispose(); depthTexture.dispose(); }
+  function dispose() { target.dispose(); depthTexture.dispose(); depthOnly.dispose(); }
 
   return { depthTexture, resolution, prepass, setSize, dispose };
 }

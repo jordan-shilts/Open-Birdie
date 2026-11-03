@@ -112,11 +112,15 @@ export function buildGroundApron({ bounds, hAt, baseColor, segments = 192 }) {
           vec3 c = diffuseColor.rgb * 0.88 * vec3(1.03, 1.015, 0.82) * 0.86;
           c *= 1.0 + 0.30 * m1 + 0.14 * m2 + 0.10 * m3;
           c *= mix(vec3(1.0), vec3(1.16, 1.06, 0.74), straw * 0.55);
+          // woodlots and tree lines: the countryside around a parkland course is
+          // half woods, and a bare green sheet read as a green haze to the horizon
+          float woods = smoothstep(0.5, 0.6, hFbm(w * 0.0055 + 21.0)) * smoothstep(120.0, 420.0, length(w - cameraPosition.xz));
+          c = mix(c, c * vec3(0.4, 0.48, 0.36), woods * 0.85);
           float L = dot(c, vec3(0.299, 0.587, 0.114));
           diffuseColor.rgb = mix(c, vec3(L * 0.85) * vec3(1.1, 1.0, 0.8), 0.4);
         }`);
   };
-  mat.customProgramCacheKey = () => 'ground-apron-v2';
+  mat.customProgramCacheKey = () => 'ground-apron-v3';
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;
   mesh.name = 'groundApron';

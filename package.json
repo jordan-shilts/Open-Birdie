@@ -15,6 +15,9 @@
     "make-icon": "node tools/make-icon.js",
     "discover:hd-hole": "node tools/hd-course/cli.mjs discover",
     "build:hd-hole": "node tools/hd-course/cli.mjs build",
+    "auto-pin:hd-hole": "node tools/hd-course/auto-pin.mjs",
+    "cloud:build-courses": "node tools/cloud-build-courses.mjs",
+    "build:course-reference": "node tools/build-course-reference.mjs",
     "validate:hd-bundle": "node tools/validate-hd-bundle.js",
     "smoke:hd-providers": "node tools/smoke-hd-providers.mjs",
     "generate:course-art-validator": "node tools/course-art/generate-validator.mjs",
@@ -51,8 +54,10 @@
       "!data",
       "!docs",
       "!test",
-      "!.claude"
+      "!.claude",
+      "!node_modules/three/examples/fonts"
     ],
+    "onNodeModuleFile": "build/keep-three-addons.cjs",
     "asar": true,
     "asarUnpack": [
       "tools/uneekor-watch.js"
@@ -81,6 +86,7 @@
     }
   },
   "dependencies": {
+    "3d-tiles-renderer": "0.5.3",
     "pngjs": "^7.0.0",
     "three": "^0.184.0"
   },

@@ -1041,6 +1041,7 @@ test('server port 0 reports a bound port and no-autoload suppresses only startup
         BIRDIE_PORT: '0',
         BIRDIE_OC_PORT: '0',
         BIRDIE_NO_WATCH: '1',
+        BIRDIE_ENRICH: '0',
         BIRDIE_NO_AUTOLOAD: noAutoload ? '1' : '',
         BIRDIE_DATA_DIR: dataDir,
       },

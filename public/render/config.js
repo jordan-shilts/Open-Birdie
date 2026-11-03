@@ -10,16 +10,24 @@ export const RENDER_CONFIG = {
   // 2.0), which flattened the course into soft, shadowless haze and turned every
   // undulation into a blotch. A real clear day is lit by the sun: crisp tree shadows,
   // bright even turf. Sky stays as fill.
-  toneMappingExposure: 0.7,
-  environmentIntensity: 0.4,
-  sunIntensity: 5.0,
-  fogDensity: 0.00035, // aerial-perspective fog (atmosphere.js curve: linear + quadratic) to the HDRI horizon
+  toneMappingExposure: 0.8,
+  environmentIntensity: 0.32,
+  sunIntensity: 5.2,
+  fogDensity: 0.00042, // aerial-perspective fog (atmosphere.js curve: linear + quadratic) to the HDRI horizon; each time-of-day preset sets its own (sky-presets.js)
   groundApron: true,   // countryside ring past the course edge + horizon haze band (horizon.js)
+  // Google Photorealistic 3D Tiles around the course (google-tiles.js). Only ever loads when
+  // the server has the user's GOOGLE_MAPS_API_KEY; false = never, even with a key. While they
+  // show, the apron + haze band above hide.
+  googleTiles: true,
+  googleTilesErrorTarget: 20,  // screen-space error (px) to refine to — Google's recommended 20; Low graphics x1.5
+  googleTilesCacheMB: 320,     // loaded-tile memory budget (LRU); Low graphics halves it
+  googleTilesClipEdgeM: 6,     // dithered seam width just inside the course rectangle, where our terrain takes over
+  googleTilesGain: 1.5,        // lift for the unlit photogrammetry under ACES at exposure 0.7 (untuned: no key to test with)
   skyboxHeight: 30, // GroundedSkybox projection height (world meters); tuned in Task 7
   // Sun direction: null = auto-estimate from the HDRI's brightest texel.
   // Set BOTH (degrees) to override when the estimate is wrong on a diffuse HDRI (D2).
   sunAzimuthDeg: null,
-  sunAltitudeDeg: 36, // either axis can be set alone; 36 deg gives long, readable tree shadows
+  sunAltitudeDeg: 24, // either axis can be set alone; 24 deg rakes the lidar relief and gives long tree shadows (36 lit it flat)
   hdriFile: 'puresky_4k.hdr',
   // Material-first ground (2026-07-04 plan): the aerial TINTS the lit turf instead of
   // replacing it; the raw photo only crossfades in at TRUE far range. Weights are the
@@ -63,7 +71,12 @@ export const RENDER_CONFIG = {
   // which has its own fescue). The vertex shader collapses blades past the fade radius, so a
   // patch placed around the address point reads as real foreground grass at the orbit camera
   // without re-triggering the sub-pixel smear in the mid/far field (reality-tested out there).
-  foregroundGrass: true,
+  // Off: from the play cameras the blades read as a dark speckle (fuzz) around the tee and in
+  // the rough, not grass, and cost 0.6-1.7 ms a frame; the turf shader carries the grass on its
+  // own (divots, crisp tee box, mown rough). true brings back real blades around the camera on
+  // every mown + rough surface (grass-field.js), drawn only where the camera looks.
+  grassField: false,
+  foregroundGrass: false, // the older ball patch below, off with the field (quality presets set it)
   foregroundGrassRadius: 18,    // m — patch radius around the ball/address point (tight = dense)
   foregroundGrassCap: 24000,    // spot clumps (× ~4 blades); the fade culls everything far
   foregroundGrassHeight: 0.08,  // m — short fairway-cut blade (exaggerated to read at distance)

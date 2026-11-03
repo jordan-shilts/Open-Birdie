@@ -19,8 +19,10 @@ import { replaceGtaoNoiseTexture } from './gtao-noise.js';
 const GRADE_SHADER = {
   uniforms: {
     tDiffuse: { value: null },
-    uContrast: { value: 1.1 },
-    uSaturation: { value: 1.16 },
+    // natural: the old 1.16 saturation pushed sunlit turf toward lime once the sun
+    // became the key light
+    uContrast: { value: 1.08 },
+    uSaturation: { value: 1.08 },
     uVignette: { value: 0.34 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -39,14 +41,38 @@ const GRADE_SHADER = {
     }`,
 };
 
+// Contrast-adaptive sharpening (after AMD FidelityFX CAS): restores detail when the frame
+// is rendered under the display's resolution (dynamic resolution, retina budgets),
+// sharpening flat detail more than edges that are already crisp.
+const CAS_SHADER = {
+  uniforms: { tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2(1 / 1920, 1 / 1080) }, uSharp: { value: 0.2 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform vec2 uTexel; uniform float uSharp; varying vec2 vUv;
+    void main(){
+      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      vec3 n = texture2D(tDiffuse, vUv + vec2(0.0, uTexel.y)).rgb, s = texture2D(tDiffuse, vUv - vec2(0.0, uTexel.y)).rgb;
+      vec3 e = texture2D(tDiffuse, vUv + vec2(uTexel.x, 0.0)).rgb, w = texture2D(tDiffuse, vUv - vec2(uTexel.x, 0.0)).rgb;
+      vec3 mn = min(c, min(min(n, s), min(e, w))), mx = max(c, max(max(n, s), max(e, w)));
+      vec3 amp = sqrt(clamp(min(mn, 1.0 - mx) / max(mx, vec3(1e-4)), 0.0, 1.0));
+      vec3 wt = -amp / mix(8.0, 5.0, uSharp);
+      vec3 col = ((n + s + e + w) * wt + c) / (1.0 + 4.0 * wt);
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+    }`,
+};
+
 export class PostFX {
   constructor(renderer, scene, camera) {
     this.renderer = renderer;
     const size = renderer.getSize(new THREE.Vector2());
 
     // EffectComposer reads renderer.getPixelRatio() and uses HalfFloat targets,
-    // so the scene stays HDR/linear until OutputPass tone-maps it.
-    this.composer = new EffectComposer(renderer);
+    // so the scene stays HDR/linear until OutputPass tone-maps it. The targets carry a
+    // depth TEXTURE so GTAO can read the main pass's depth instead of drawing the whole
+    // course again into its own normal/depth buffers (one geometry pass a frame fewer).
+    const target = new THREE.WebGLRenderTarget(Math.max(1, size.x), Math.max(1, size.y), { type: THREE.HalfFloatType });
+    target.depthTexture = new THREE.DepthTexture(Math.max(1, size.x), Math.max(1, size.y));
+    this.composer = new EffectComposer(renderer, target);
     this.composer.addPass(new RenderPass(scene, camera));
 
     // GTAO for contact grounding (tree bases, terrain folds, bunker lips). Small
@@ -86,6 +112,19 @@ export class PostFX {
       gtao.setSize = (w, h) => gtaoSetSize(Math.max(1, Math.round(w * this.aoScale)), Math.max(1, Math.round(h * this.aoScale)));
       this.composer.addPass(gtao);
       this.gtao = gtao;
+      // read the scene depth the RenderPass just wrote; normals are rebuilt from it
+      // (GTAO's own normal pass — and its whole-scene draw — is skipped)
+      gtao.setGBuffer(this.composer.readBuffer.depthTexture);
+      // Normals rebuilt from depth go wrong at depth edges past a few dozen metres (a
+      // 12 km far plane leaves little depth precision), where AO printed dark tree-shaped
+      // halos on the turf behind distant trees. A 1.6 m contact AO only matters up close
+      // (grounding.js lays the tree-base contact shadows), so fade it out from 35 to 70 m.
+      const gm = gtao.gtaoMaterial;
+      gm.fragmentShader = gm.fragmentShader.replace(
+        'ao = pow(ao, scale);',
+        'ao = pow(ao, scale);\n\t\t\tao = mix(ao, 1.0, smoothstep(35.0, 70.0, length(viewPos)));',
+      );
+      gm.needsUpdate = true;
     }
 
     // Bloom must NOT touch turf: sun-lit bright grass (esp. the greens) sits near
@@ -106,6 +145,9 @@ export class PostFX {
     // (The last pass renders to the default framebuffer, so preserveDrawingBuffer
     // still captures the composited frame for the screenshot/recording path.)
     this.composer.addPass(new SMAAPass());
+    // sharpening last, over the antialiased frame (setSharpness follows the upscale)
+    this.cas = new ShaderPass(CAS_SHADER);
+    this.composer.addPass(this.cas);
   }
 
   // Graphics quality (quality.js): toggle the optional passes live.
@@ -120,9 +162,17 @@ export class PostFX {
     // multiplies by pixelRatio internally and propagates to every pass.
     this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.composer.setSize(w, h);
+    const pr = this.renderer.getPixelRatio();
+    this.cas.uniforms.uTexel.value.set(1 / Math.max(1, w * pr), 1 / Math.max(1, h * pr));
+  }
+
+  setSharpness(v) {
+    this.cas.uniforms.uSharp.value = v;
   }
 
   render() {
+    // the composer ping-pongs its targets: point GTAO at the one the scene renders into
+    if (this.gtao?.enabled) this.gtao.setGBuffer(this.composer.readBuffer.depthTexture);
     this.composer.render();
   }
 }

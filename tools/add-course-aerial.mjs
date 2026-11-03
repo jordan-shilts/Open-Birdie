@@ -7,7 +7,9 @@
 // (~0.3 m over urban areas like Tacoma) over NAIP (0.6 m) elsewhere. 0.3 m is 2x
 // sharper than plain NAIP. A full course at 0.3 m exceeds the service's single-
 // request pixel cap, so the bbox is TILED and mosaicked with sharp. Falls back to
-// a single NAIP 0.6 m request if a tile fails.
+// a single NAIP 0.6 m request if a tile fails. (lib/aerial.js fetchCourseAerialTiled
+// does the work; the cloud service runs the same code for every course, while the
+// desktop app auto-fetches the single-request aerial, which needs no sharp.)
 //
 // Registration is linear: tiles are requested in EPSG:4326 over the course's
 // lat/lon bbox, which maps 1:1 to the course's equirectangular local metres (same
@@ -20,75 +22,31 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+
 const require = createRequire(import.meta.url);
 const sharp = require('sharp');
+const { fetchCourseAerialTiled } = require('../lib/aerial.js');
+const { atomicWriteOwned, courseBounds } = require('../lib/course.js');
 
 const file = process.argv[2];
 if (!file) { console.error('usage: node tools/add-course-aerial.mjs <course.json>'); process.exit(1); }
 const course = JSON.parse(fs.readFileSync(file, 'utf8'));
-const { lat: lat0, lon: lon0 } = course.origin;
-const mPerLat = 111132.95;
-const mPerLon = 111319.49 * Math.cos((lat0 * Math.PI) / 180);
 
-let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-const eat = (pts) => { for (const [x, y] of pts || []) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; } };
-for (const s of course.surfaces || []) eat(s.poly);
-for (const h of course.holes || []) eat(h.line);
-if (course.boundary) eat(course.boundary);
-const pad = 60;
-minX -= pad; minY -= pad; maxX += pad; maxY += pad;
-
-const PLUS = 'https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer/exportImage';
-const NAIP = 'https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPImagery/ImageServer/exportImage';
-const GSD_M = 0.3;     // NAIPPlus HRO native over urban areas
-const TILE_M = 1100;   // ~3700 px/tile at 0.3 m — under the exportImage cap (~4100)
-const MAX_DIM = 8192;  // texture/GPU ceiling for the mosaic long axis
-
-const wm = maxX - minX, hm = maxY - minY;
-// Coarsen gsd only if the course is so large the mosaic would exceed MAX_DIM.
-const gsd = Math.max(GSD_M, Math.max(wm, hm) / MAX_DIM);
-const W = Math.round(wm / gsd), H = Math.round(hm / gsd);
-
-async function exportTile(base, tx0, ty0, tx1, ty1, pw, ph) {
-  const bw = lon0 + tx0 / mPerLon, be = lon0 + tx1 / mPerLon;
-  const bs = lat0 + ty0 / mPerLat, bn = lat0 + ty1 / mPerLat;
-  const u = `${base}?bbox=${bw},${bs},${be},${bn}&bboxSR=4326&imageSR=4326&size=${pw},${ph}&format=jpgpng&f=image`;
-  const r = await fetch(u, { headers: { 'User-Agent': 'Open-Birdie/0.8 (course aerial)' } });
-  if (!r.ok) throw new Error(`exportImage HTTP ${r.status}`);
-  const b = Buffer.from(await r.arrayBuffer());
-  if (b.length < 2000 || !(b[0] === 0xff || b[0] === 0x89)) throw new Error(`bad image (len ${b.length})`);
-  return sharp(b).resize(pw, ph, { fit: 'fill' }).toBuffer(); // snap to exact tile px so the mosaic aligns
+const result = await fetchCourseAerialTiled({ origin: course.origin, bounds: courseBounds(course), sharp });
+if (result.status !== 'ok') {
+  console.error(result.status === 'none'
+    ? 'no NAIP imagery covers this course (outside the US?); nothing written'
+    : `aerial fetch failed (${result.reason}); nothing written`);
+  process.exit(1);
 }
-
-let composites = [];
-let provider = `NAIPPlus ${gsd.toFixed(2)}m`;
-try {
-  for (let ty = minY; ty < maxY - 1e-6; ty += TILE_M) {
-    for (let tx = minX; tx < maxX - 1e-6; tx += TILE_M) {
-      const tx1 = Math.min(tx + TILE_M, maxX), ty1 = Math.min(ty + TILE_M, maxY);
-      const pw = Math.max(1, Math.round((tx1 - tx) / gsd)), ph = Math.max(1, Math.round((ty1 - ty) / gsd));
-      const left = Math.round((tx - minX) / gsd);
-      const top = Math.round((maxY - ty1) / gsd); // image row 0 = north = maxY
-      composites.push({ input: await exportTile(PLUS, tx, ty, tx1, ty1, pw, ph), left, top });
-    }
-  }
-} catch (err) {
-  console.error(`tiled NAIPPlus failed (${err.message}) — falling back to single NAIP 0.6 m`);
-  const sc = Math.min(1 / 0.6, 4000 / Math.max(wm, hm));
-  const fw = Math.round(wm * sc), fh = Math.round(hm * sc);
-  const buf = await exportTile(NAIP, minX, minY, maxX, maxY, fw, fh);
-  composites = [{ input: await sharp(buf).resize(W, H, { fit: 'fill' }).toBuffer(), left: 0, top: 0 }];
-  provider = 'NAIP 0.6m (fallback)';
-}
-
-const mosaic = await sharp({ create: { width: W, height: H, channels: 3, background: { r: 70, g: 95, b: 65 } } })
-  .composite(composites).jpeg({ quality: 88 }).toBuffer();
 
 const slug = path.basename(file).replace(/\.json$/i, '');
 const aerialName = `${slug}.aerial.jpg`;
-fs.writeFileSync(path.join(path.dirname(file), aerialName), mosaic);
+atomicWriteOwned(path.join(path.dirname(file), aerialName), result.buf);
 
-course.aerial = { file: aerialName, bounds: { minX: +minX.toFixed(2), minY: +minY.toFixed(2), maxX: +maxX.toFixed(2), maxY: +maxY.toFixed(2) } };
-fs.writeFileSync(file, JSON.stringify(course));
-console.log(`saved ${aerialName} (${W}x${H}, ${(mosaic.length / 1024 | 0)} KB, ${provider}) covering ${wm.toFixed(0)}x${hm.toFixed(0)} m @ ${gsd.toFixed(2)} m/px`);
+// The NDVI classmap (if any) was built for these same padded bounds, so it stays.
+course.aerial = { ...(course.aerial || {}), file: aerialName, bounds: result.bounds, quality: 'tiled' };
+atomicWriteOwned(file, JSON.stringify(course));
+const { minX, minY, maxX, maxY } = result.bounds;
+console.log(`saved ${aerialName} (${result.width}x${result.height}, ${(result.buf.length / 1024 | 0)} KB, ${result.provider}) covering ${(maxX - minX).toFixed(0)}x${(maxY - minY).toFixed(0)} m @ ${result.gsdM.toFixed(2)} m/px`);
 console.log(`course.aerial.bounds = ${JSON.stringify(course.aerial.bounds)}`);

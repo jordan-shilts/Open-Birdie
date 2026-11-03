@@ -64,9 +64,14 @@ function addBladeShader(material, refs, opts = {}) {
         }`;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', header)
+      // lit like the ground the blades grow from: a flat strip's own normal shades it
+      // black whenever it faces away from the sun
+      .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = normalize(vec3(normal) * 0.25 + vec3(0.0, 1.0, 0.0));')
       .replace('#include <begin_vertex>', body);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n normal = normalize(vNormal); nonPerturbedNormal = normal;');
   };
-  material.customProgramCacheKey = () => `grass-${wind ? 'w' : ''}${fade ? 'f' : ''}`;
+  material.customProgramCacheKey = () => `grass-up-${wind ? 'w' : ''}${fade ? 'f' : ''}`;
 }
 
 // spots: [{x,y,s}], hAt, V, opts. Returns { mesh, windUpdate }.

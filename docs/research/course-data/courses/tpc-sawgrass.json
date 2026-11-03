@@ -1,0 +1,1026 @@
+{
+  "course": "TPC Sawgrass - THE PLAYERS Stadium Course",
+  "slug": "tpc-sawgrass",
+  "location": {
+    "city": "Ponte Vedra Beach",
+    "region": "Florida",
+    "country": "USA",
+    "lat": 30.198,
+    "lon": -81.394
+  },
+  "data_as_of": "TPC Sawgrass Stadium Course scorecard (PDF posted on tpc.com January 2025, still linked from the course page in 2026; no edition date printed). Tournament yardage from THE PLAYERS Championship 2026 (Mar 12-15, 2026), unchanged from 2025.",
+  "sources": [
+    {
+      "id": "S1",
+      "title": "TPC Sawgrass Stadium Course scorecard (PDF)",
+      "url": "https://tpc.com/sawgrass/wp-content/uploads/sites/51/2025/01/TPC_Sawgrass-Scorecard.pdf",
+      "publisher": "TPC Sawgrass (PGA TOUR)"
+    },
+    {
+      "id": "S2",
+      "title": "2025 THE PLAYERS Stadium Course Yardage Guide (PDF)",
+      "url": "https://tpc.com/sawgrass/wp-content/uploads/sites/51/2025/07/207-b6d2408d1fcfca6d19523f5606ff2498_2025_PS_Yardage_Guide.pdf",
+      "publisher": "TPC Sawgrass (PGA TOUR)"
+    },
+    {
+      "id": "S3",
+      "title": "THE PLAYERS Championship 2026 course stats",
+      "url": "https://www.pgatour.com/tournaments/2026/the-players-championship/R2026011/course-stats",
+      "publisher": "PGA TOUR"
+    },
+    {
+      "id": "S4",
+      "title": "THE PLAYERS Stadium Course hole-by-hole",
+      "url": "https://theplayers.com/course",
+      "publisher": "THE PLAYERS Championship (PGA TOUR)"
+    },
+    {
+      "id": "S5",
+      "title": "THE PLAYERS Championship 2026 tournament fact sheet (TPC Sawgrass Stadium)",
+      "url": "https://www.bigga.org.uk/asset/B92A984A%2D9E62%2D45FD%2DA046EDF769177ACB/",
+      "publisher": "GCSAA tournament fact sheet (hosted by BIGGA)"
+    },
+    {
+      "id": "S6",
+      "title": "The 2021 Players Championship: Golf course facts",
+      "url": "https://gcmonline.com/course/profiles/news/2021-players-championship-course",
+      "publisher": "Golf Course Management (GCSAA)"
+    },
+    {
+      "id": "S7",
+      "title": "The Players Stadium Course at TPC Sawgrass set to reopen with drivable par 4, other changes (Nov 2016)",
+      "url": "https://www.golfpass.com/travel-advisor/articles/the-players-stadium-course-at-tpc-sawgrass-set-to-reopen-with-drivable-par-4-other-changes",
+      "publisher": "GolfPass / Golf Advisor"
+    },
+    {
+      "id": "S8",
+      "title": "What is the size of the island green par-3 17th hole at TPC Sawgrass and The Players? (2026)",
+      "url": "https://thegolfnewsnet.com/ryan_ballengee/2026/03/14/what-is-the-size-of-the-island-green-par-3-17th-hole-at-tpc-sawgrass-and-the-players-125558/",
+      "publisher": "Golf News Net"
+    },
+    {
+      "id": "S9",
+      "title": "Island green numbers",
+      "url": "https://www.golfchannel.com/news/article-matt-adams-island-green-numbers",
+      "publisher": "Golf Channel"
+    },
+    {
+      "id": "S10",
+      "title": "Facts, figures and memorable moments at the par-3 17th on TPC Sawgrass' Stadium Course (Mar 2024)",
+      "url": "https://www.nbcsports.com/golf/news/facts-figures-and-memorable-moments-at-the-par-3-17th-on-tpc-sawgrass-stadium-course",
+      "publisher": "NBC Sports / Golf Channel"
+    },
+    {
+      "id": "S11",
+      "title": "How Fast Are The Greens At TPC Sawgrass? (Mar 2025)",
+      "url": "https://www.golfmonthly.com/news/how-fast-greens-at-tpc-sawgrass",
+      "publisher": "Golf Monthly"
+    },
+    {
+      "id": "S12",
+      "title": "Internal out of bounds added on 18th hole at THE PLAYERS (Mar 2021)",
+      "url": "https://www.pgatour.com/article/news/latest/2021/03/09/internal-out-of-bounds-added-the-players-championship-18th-hole-sawgrass-bryson-dechambeau",
+      "publisher": "PGA TOUR"
+    },
+    {
+      "id": "S13",
+      "title": "TPC Sawgrass new tees for 2025",
+      "url": "https://golf.com/news/2025-tpc-sawgrass-new-tees/",
+      "publisher": "GOLF.com"
+    },
+    {
+      "id": "S14",
+      "title": "TPC Sawgrass Stadium Course profile",
+      "url": "https://thefriedegg.com/courses/tpc-sawgrass-stadium-course",
+      "publisher": "The Fried Egg"
+    },
+    {
+      "id": "S15",
+      "title": "Players Championship changes to the island green 17th hole",
+      "url": "https://golf.com/travel/players-championship-changes-island-green-17th-hole/",
+      "publisher": "GOLF.com"
+    },
+    {
+      "id": "S16",
+      "title": "TPC at Sawgrass (coordinates only)",
+      "url": "https://en.wikipedia.org/wiki/TPC_at_Sawgrass",
+      "publisher": "Wikipedia"
+    },
+    {
+      "id": "S17",
+      "title": "Stadium Course Scorecard (secondary copy of the card, ratings and slopes)",
+      "url": "https://www.golfpass.com/travel-advisor/courses/15881-tpc-sawgrass-the-players-stadium-course/scorecard-and-layout",
+      "publisher": "GolfPass"
+    },
+    {
+      "id": "S18",
+      "title": "THE PLAYERS Championship 2023 tournament fact sheet",
+      "url": "https://www.gcsaa.org/docs/default-source/tournament-fact-sheets/pga-tour/2023/3.09-the-players-(pga-tour).pdf",
+      "publisher": "GCSAA"
+    },
+    {
+      "id": "S19",
+      "title": "TPC Sawgrass Players Stadium course: Scorecard and course breakdown for 2025 The Players Championship host",
+      "url": "https://thegolfnewsnet.com/golfnewsnetteam/2025/03/10/tpc-sawgrass-players-stadium-course-scorecard-and-course-breakdown-for-2025-the-players-championship-host-135552/",
+      "publisher": "Golf News Net"
+    }
+  ],
+  "tees": [
+    {
+      "name": "The Players",
+      "total_yards": 7352,
+      "par": 72,
+      "rating": 76.8,
+      "slope": 155,
+      "sex": "M",
+      "source": "S1"
+    },
+    {
+      "name": "Blue",
+      "total_yards": 6670,
+      "par": 72,
+      "rating": 73.9,
+      "slope": 148,
+      "sex": "M",
+      "source": "S1"
+    },
+    {
+      "name": "B&W Blended",
+      "total_yards": 6396,
+      "par": 72,
+      "rating": 72.3,
+      "slope": 144,
+      "sex": "M",
+      "source": "S1"
+    },
+    {
+      "name": "White",
+      "total_yards": 6086,
+      "par": 72,
+      "rating": 70.8,
+      "slope": 138,
+      "sex": "M",
+      "source": "S1"
+    },
+    {
+      "name": "White",
+      "total_yards": 6086,
+      "par": 72,
+      "rating": 77.4,
+      "slope": 149,
+      "sex": "F",
+      "source": "S1"
+    },
+    {
+      "name": "W&G Blended",
+      "total_yards": 5509,
+      "par": 72,
+      "rating": 68.1,
+      "slope": 126,
+      "sex": "M",
+      "source": "S1"
+    },
+    {
+      "name": "W&G Blended",
+      "total_yards": 5509,
+      "par": 72,
+      "rating": 74.0,
+      "slope": 141,
+      "sex": "F",
+      "source": "S1, S17"
+    },
+    {
+      "name": "Green",
+      "total_yards": 5019,
+      "par": 72,
+      "rating": 65.8,
+      "slope": 116,
+      "sex": "M",
+      "source": "S1"
+    },
+    {
+      "name": "Green",
+      "total_yards": 5019,
+      "par": 72,
+      "rating": 71.1,
+      "slope": 134,
+      "sex": "F",
+      "source": "S1"
+    },
+    {
+      "name": "PLAYERS Championship 2026",
+      "total_yards": 7352,
+      "par": 72,
+      "rating": null,
+      "slope": null,
+      "sex": "M",
+      "source": "S3"
+    }
+  ],
+  "greens": {
+    "grass": "TifEagle bermudagrass, overseeded with Poa trivialis for THE PLAYERS (regrassed from MiniVerde in the 2016 renovation)",
+    "typical_stimp": "About 13 for THE PLAYERS (reported for 2025); daily-play speed not published",
+    "average_size_sqft": 5500,
+    "notes": "Greens are mowed at 0.100 in. for the tournament (S6, S18). Speed figure from S11. Grass history from S6 and S7. The 17th green is 3,912 sq ft (S8), smaller than the course average.",
+    "source": "S5, S6, S7, S11"
+  },
+  "boundaries": {
+    "ob_summary": "No course-wide OB map or OB local rule was found; the scorecard prints none. The only documented OB is an internal OB left of the 18th-hole lake, added by the PGA TOUR for the 2021 PLAYERS (S12) and not confirmed for later years.",
+    "penalty_area_summary": "18 water hazards (lakes and lagoons), with water in play on 17 holes per the 2026 fact sheet. The official hole descriptions (S4) put water on Nos. 1, 2, 4, 6, 7, 9, 11, 12, 13, 14, 15, 16, 17 and 18. Water around the 17th island green is about 4 ft deep (S9). These are penalty areas, not OB.",
+    "source": "S5, S4, S12"
+  },
+  "holes": [
+    {
+      "number": 1,
+      "name": null,
+      "par": 4,
+      "handicap": 11,
+      "yards": {
+        "The Players": 424,
+        "Blue": 394,
+        "B&W Blended": 360,
+        "White": 360,
+        "W&G Blended": 360,
+        "Green": 292,
+        "PLAYERS Championship 2026": 424
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Water (penalty area) along the right side of the landing area.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 40,
+        "width_yards": null,
+        "slope": null,
+        "features": "Long, narrow green; large bunkers front and left, grass bunkers front-right, right and behind.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Slight dogleg right with a narrow landing area; trees left, long fairway bunker right (S4). Mounds (moguls) past the right fairway bunker were strengthened and three pot bunkers added in 2016 (S18). TPC's yardage guide calls it a mirror image of No. 10 (S2). Women's handicap 11 (S1)."
+    },
+    {
+      "number": 2,
+      "name": null,
+      "par": 5,
+      "handicap": 15,
+      "yards": {
+        "The Players": 555,
+        "Blue": 507,
+        "B&W Blended": 507,
+        "White": 469,
+        "W&G Blended": 469,
+        "Green": 381,
+        "PLAYERS Championship 2026": 555
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most. Landing area is sloped.",
+        "source": "S5, S4",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Water right off the tee, plus a small pond right that guards the approach from about 175 yards out.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 33,
+        "width_yards": null,
+        "slope": null,
+        "features": "Deep sand and grass bunkers around the green; spectator mounds.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Short, reachable par 5; trees both sides (S4). New tournament tee in 2025 took it from 532 to 555 yards (S13). Women's handicap 1 (S1)."
+    },
+    {
+      "number": 3,
+      "name": null,
+      "par": 3,
+      "handicap": 17,
+      "yards": {
+        "The Players": 182,
+        "Blue": 160,
+        "B&W Blended": 160,
+        "White": 134,
+        "W&G Blended": 134,
+        "Green": 97,
+        "PLAYERS Championship 2026": 182
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most. Green is pushed up above the surrounding ground and tends to reject approaches (Fried Egg).",
+        "source": "S5, S14",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "No water in the official hole description.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 30,
+        "width_yards": null,
+        "slope": "Two tiers, sloping back to front.",
+        "features": "Bunker front, grass bunkers right, large bunker left and back-left.",
+        "source": "S2, S4, S14",
+        "confidence": "medium"
+      },
+      "notes": "Women's handicap 17 (S1)."
+    },
+    {
+      "number": 4,
+      "name": null,
+      "par": 4,
+      "handicap": 9,
+      "yards": {
+        "The Players": 387,
+        "Blue": 359,
+        "B&W Blended": 359,
+        "White": 324,
+        "W&G Blended": 263,
+        "Green": 263,
+        "PLAYERS Championship 2026": 387
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most. Steep, sloped mounds left of the fairway.",
+        "source": "S5, S4",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Water and a deep bunker right of the fairway; water across the front and left of the green.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 25,
+        "width_yards": null,
+        "slope": "Two tiers, very undulating.",
+        "features": "Shallowest green on the course (25-yd depth); small deep bunkers right and behind; spectator mounds behind.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Short par 4 that demands accuracy (S4). Women's handicap 5 (S1)."
+    },
+    {
+      "number": 5,
+      "name": null,
+      "par": 4,
+      "handicap": 3,
+      "yards": {
+        "The Players": 469,
+        "Blue": 446,
+        "B&W Blended": 422,
+        "White": 422,
+        "W&G Blended": 360,
+        "Green": 360,
+        "PLAYERS Championship 2026": 469
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "No water in the official hole description.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 34,
+        "width_yards": null,
+        "slope": "Rolling.",
+        "features": "Deep, narrow green; grass and sand bunkers, a waste area and palms around it.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Dogleg right with a generous landing area; long bunker down the right (S4). Women's handicap 7 (S1)."
+    },
+    {
+      "number": 6,
+      "name": null,
+      "par": 4,
+      "handicap": 13,
+      "yards": {
+        "The Players": 413,
+        "Blue": 360,
+        "B&W Blended": 360,
+        "White": 333,
+        "W&G Blended": 333,
+        "Green": 269,
+        "PLAYERS Championship 2026": 413
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most. Green is slightly raised above the fairway; no figure is published.",
+        "source": "S5, S4",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Water down the left (lake enlarged in the 2016 renovation, when mounding between Nos. 6 and 7 was replaced by water).",
+        "source": "S4, S7"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 29,
+        "width_yards": null,
+        "slope": "Two tiers; slopes right to left and back to front.",
+        "features": "Bunkers and palms around the green.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Target-style hole; dense trees right, two fairway bunkers left (S4). New tournament tee in 2025 (393 to 413 yards) and the overhanging tree near the tee was restored (S13, S5). Women's handicap 13 (S1)."
+    },
+    {
+      "number": 7,
+      "name": null,
+      "par": 4,
+      "handicap": 1,
+      "yards": {
+        "The Players": 450,
+        "Blue": 407,
+        "B&W Blended": 382,
+        "White": 382,
+        "W&G Blended": 329,
+        "Green": 329,
+        "PLAYERS Championship 2026": 450
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Water and a large fairway bunker along most of the left side (lake added in the 2016 renovation).",
+        "source": "S4, S7"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 34,
+        "width_yards": null,
+        "slope": "Falls away sharply off the back.",
+        "features": "Bunkers front and left.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Long, slight dogleg right; thick trees right. The tee was moved about 5 yards right when the lake was enlarged (S4). Women's handicap 9 (S1)."
+    },
+    {
+      "number": 8,
+      "name": null,
+      "par": 3,
+      "handicap": 7,
+      "yards": {
+        "The Players": 236,
+        "Blue": 195,
+        "B&W Blended": 168,
+        "White": 168,
+        "W&G Blended": 168,
+        "Green": 121,
+        "PLAYERS Championship 2026": 236
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most. Green sits at grade with an open front (Fried Egg).",
+        "source": "S5, S14",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "No water in the official hole description.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 36,
+        "width_yards": null,
+        "slope": "Sloping.",
+        "features": "Deep, narrow green ringed by sand and grass bunkers; open at the front for running shots.",
+        "source": "S2, S4, S14",
+        "confidence": "medium"
+      },
+      "notes": "Longest par 3 on the course (S1, S4). Women's handicap 15 (S1)."
+    },
+    {
+      "number": 9,
+      "name": null,
+      "par": 5,
+      "handicap": 5,
+      "yards": {
+        "The Players": 601,
+        "Blue": 546,
+        "B&W Blended": 546,
+        "White": 522,
+        "W&G Blended": 453,
+        "Green": 453,
+        "PLAYERS Championship 2026": 601
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Large lake right of the fairway; it is the same lake that runs along the left of No. 18.",
+        "source": "S4, S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 32,
+        "width_yards": null,
+        "slope": "Slopes steeply from the front to the back right.",
+        "features": "Very thin green; banked bunkers left and behind; spectator mound behind.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Longest hole (S1). Woods left affect the second shot (S4). A tee added in the 2016 renovation gives the option of playing it about 20 yards longer (S18). Women's handicap 3 (S1)."
+    },
+    {
+      "number": 10,
+      "name": null,
+      "par": 4,
+      "handicap": 12,
+      "yards": {
+        "The Players": 419,
+        "Blue": 392,
+        "B&W Blended": 392,
+        "White": 351,
+        "W&G Blended": 247,
+        "Green": 247,
+        "PLAYERS Championship 2026": 419
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "No water in the official hole description.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 38,
+        "width_yards": null,
+        "slope": "Falls away from the player.",
+        "features": "Looks large from the fairway but is narrow; two bunkers front-right, grass bunkers left.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Dogleg left; large bunker left, dense trees right (S4). TPC's yardage guide calls it a mirror image of No. 1 (S2). Women's handicap 10 (S1)."
+    },
+    {
+      "number": 11,
+      "name": null,
+      "par": 5,
+      "handicap": 8,
+      "yards": {
+        "The Players": 573,
+        "Blue": 519,
+        "B&W Blended": 469,
+        "White": 469,
+        "W&G Blended": 395,
+        "Green": 395,
+        "PLAYERS Championship 2026": 573
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Water splits the fairway in the second-shot area and continues around the back of the green.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 35,
+        "width_yards": null,
+        "slope": null,
+        "features": "Bunker across the front; closely mown run-off on the left.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Dense trees and a very large bunker beside the driving area (S4). New tee in 2025 (558 to 573 yards); the left fairway bunker was moved back (S13). Women's handicap 2 (S1)."
+    },
+    {
+      "number": 12,
+      "name": null,
+      "par": 4,
+      "handicap": 16,
+      "yards": {
+        "The Players": 365,
+        "Blue": 332,
+        "B&W Blended": 332,
+        "White": 296,
+        "W&G Blended": 296,
+        "Green": 243,
+        "PLAYERS Championship 2026": 365
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Water left of the green and alongside the long bunker that runs up the left of the fairway.",
+        "source": "S4, S7"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 39,
+        "width_yards": null,
+        "slope": "Several tiers; slopes sharply toward the water on the left.",
+        "features": "Pot bunkers and rough ground right; trees beyond the green for drives that run through.",
+        "source": "S2, S4, S7",
+        "confidence": "medium"
+      },
+      "notes": "Rebuilt in 2016 as a drivable dogleg-left par 4 (about 302 yards from a forward tee option) (S7, S4). Women's handicap 14 (S1)."
+    },
+    {
+      "number": 13,
+      "name": null,
+      "par": 3,
+      "handicap": 18,
+      "yards": {
+        "The Players": 183,
+        "Blue": 156,
+        "B&W Blended": 156,
+        "White": 141,
+        "W&G Blended": 141,
+        "Green": 109,
+        "PLAYERS Championship 2026": 183
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Water along the entire left side.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 28,
+        "width_yards": null,
+        "slope": "Three tiers; the left side drops steeply toward the water.",
+        "features": "Two small, deep bunkers.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Women's handicap 18 (S1)."
+    },
+    {
+      "number": 14,
+      "name": null,
+      "par": 4,
+      "handicap": 4,
+      "yards": {
+        "The Players": 485,
+        "Blue": 436,
+        "B&W Blended": 377,
+        "White": 377,
+        "W&G Blended": 334,
+        "Green": 334,
+        "PLAYERS Championship 2026": 485
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most. Driving area has two tiers. Mounds with grass bunkers sit right of the fairway; larger, deeper moguls with palms, oaks and native grasses were added in the right rough in 2024.",
+        "source": "S5, S4",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Water and a fairway bunker left of the driving area.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 35,
+        "width_yards": null,
+        "slope": "Severe undulations and long slopes.",
+        "features": "Very large green; bunkers front-left, right and behind.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Hardest hole at the 2025 PLAYERS (difficulty rank 1) (S2). A large bunker lies between the driving area and the green (S4). Women's handicap 12 (S1)."
+    },
+    {
+      "number": 15,
+      "name": null,
+      "par": 4,
+      "handicap": 6,
+      "yards": {
+        "The Players": 470,
+        "Blue": 421,
+        "B&W Blended": 366,
+        "White": 366,
+        "W&G Blended": 366,
+        "Green": 288,
+        "PLAYERS Championship 2026": 470
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Tee shot carries over water.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 38,
+        "width_yards": null,
+        "slope": null,
+        "features": "Large bunker left, small bunker front-right, grass bunkers right and behind.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Dogleg right; fairway bunker down the right (S4). In 2016 the rough right of the fairway bunker was replaced with trees and natural areas (S18). Women's handicap 8 (S1)."
+    },
+    {
+      "number": 16,
+      "name": null,
+      "par": 5,
+      "handicap": 10,
+      "yards": {
+        "The Players": 537,
+        "Blue": 486,
+        "B&W Blended": 486,
+        "White": 470,
+        "W&G Blended": 410,
+        "Green": 410,
+        "PLAYERS Championship 2026": 537
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Water down the right side starting about 150 yards from the green, held by a bulkhead, and wrapping behind the green.",
+        "source": "S4"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 34,
+        "width_yards": null,
+        "slope": "Two tiers; slopes left to right toward the water.",
+        "features": "Spectator mound behind the green.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Reachable par 5 (S4) and the easiest hole at the 2025 PLAYERS (S2); oak trees block the left (S4). New tee in 2025 (523 to 537 yards) (S13). Women's handicap 4 (S1)."
+    },
+    {
+      "number": 17,
+      "name": null,
+      "par": 3,
+      "handicap": 14,
+      "yards": {
+        "The Players": 141,
+        "Blue": 128,
+        "B&W Blended": 128,
+        "White": 115,
+        "W&G Blended": 115,
+        "Green": 92,
+        "PLAYERS Championship 2026": 141
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": "No hole-specific out-of-bounds information was found; the scorecard prints no OB local rule.",
+        "source": "S1",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "Island green: water surrounds the green on every side except the walkway (about 4 ft deep).",
+        "source": "S4, S9"
+      },
+      "green": {
+        "size_sqft": 3912,
+        "depth_yards": 26,
+        "width_yards": 27,
+        "slope": null,
+        "features": "3,912 sq ft, 78 ft deep x 81 ft wide (Golf News Net). Wide green that narrows to the right; one small pot bunker, placed on the right by the official hole guide (S4). In 2016 the collar was narrowed, which enlarged the putting surface. Contours were softened in 2007.",
+        "source": "S2, S4, S8, S9, S10, S15",
+        "confidence": "medium"
+      },
+      "notes": "Often called the Island Green (a nickname, not an official hole name). A drop area sits about 75 yards from the centre of the green (S9). The walkway is in play (S8). Women's handicap 16 (S1)."
+    },
+    {
+      "number": 18,
+      "name": null,
+      "par": 4,
+      "handicap": 2,
+      "yards": {
+        "The Players": 462,
+        "Blue": 426,
+        "B&W Blended": 426,
+        "White": 387,
+        "W&G Blended": 336,
+        "Green": 336,
+        "PLAYERS Championship 2026": 462
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "roughly level",
+        "description": "No per-hole elevation figure is published. The whole course sits between 16 and 22 ft above sea level, so tee-to-green change is a few feet at most.",
+        "source": "S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": true,
+        "sides": [
+          "left (beyond the lake)"
+        ],
+        "description": "Internal OB left of the lake for play of No. 18, added by the PGA TOUR for the 2021 PLAYERS to stop drives played over the water toward the 9th fairway. Not confirmed for later years or for daily play.",
+        "source": "S12",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": "Lake along the entire left side; the same lake borders the right of No. 9.",
+        "source": "S4, S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 38,
+        "width_yards": null,
+        "slope": null,
+        "features": "Grass bunkers front-right; one bunker left and long; spectator mound behind the green.",
+        "source": "S2, S4",
+        "confidence": "medium"
+      },
+      "notes": "Dogleg left; spectator mounds and trees right (S4). Second-hardest hole at the 2025 PLAYERS (S2). Women's handicap 6 (S1)."
+    }
+  ],
+  "gaps": [
+    "Elevation: no per-hole tee-to-green figure is published anywhere searched. The only number is the course-wide range of 16-22 ft above sea level (S5), so change_ft is null on every hole. Raised greens (Nos. 3, 6) and mounding (Nos. 4, 14, 18) are described in words only.",
+    "Out of bounds: no hole-by-hole OB information (property lines, homes, roads) was found, and the scorecard prints no OB local rule. out_of_bounds.present is null on Nos. 1-17. The 18th-hole internal OB is documented only for the 2021 PLAYERS.",
+    "Green size: only the 17th green's area (3,912 sq ft) is published; the other 17 are null. Width is published only for No. 17 (81 ft). Average green size is 5,500 sq ft (2021, 2023 and 2026 fact sheets); an older Golf Channel piece says 4,500 sq ft average and 4,000 sq ft for No. 17.",
+    "Green depth: taken from the 'Depth =' value on each hole page of TPC's 2025 yardage guide (S2). The guide prints no unit or label; yards is inferred because No. 17's value of 26 equals the published 78-ft depth (S8) and No. 3's 30 matches '30 yards deep' in hole guides. Confidence is medium.",
+    "17th green depth conflict: 78 ft (Golf News Net 2026; TPC guide 26 yds) vs 68 ft (NBC Sports 2024). 78 ft is used. The pot bunker is placed on the right by the official guide (S4) but front-left by Golf News Net (S8).",
+    "Green slope: no slope or tier description was found for Nos. 1, 2, 11, 15, 17 and 18.",
+    "Green speed: the tournament speed (~13) is from Golf Monthly (S11), not an official PGA TOUR figure. Daily-play speed was not found.",
+    "Yardage conflict: TPC's July 2025 yardage guide (S2) prints a different 'THE PLAYERS' tee column (423/532/177/384/471/393/451/237/602/424/558/369/181/481/470/523/141/462 = 7,279, essentially the pre-2025 tournament set). It also gives No. 15 as 396 yards (not 366) for the B&W Blended, White and W&G Blended tees, making those totals 6,426, 6,116 and 5,539. The scorecard PDF (S1) is used here; both documents add up internally. GolfPass (S17) matches the scorecard. All tee totals in this file sum correctly.",
+    "Scorecard edition: the scorecard PDF has no printed date or edition; the 2025 date comes from its upload path on tpc.com.",
+    "Course rating: the women's ratings on the card are labelled 'Ladies' White', 'Ladies' Blended' and 'Ladies' Green'. 'Ladies' Blended' is mapped to W&G Blended (5,509 yds) because GolfPass gives that pairing. Wikipedia lists an older 7,245-yd / 76.4 / 155 rating. No USGA NCRDB page could be checked directly.",
+    "Penalty areas: the 2026 fact sheet says water is in play on 17 holes. The official hole descriptions mention water on only 14 holes, with none on Nos. 3, 5, 8 or 10. Hazard placement is from the theplayers.com descriptions, which still list 2024 yardages; layout changes since then are tee moves only (S13).",
+    "Hole names: the Stadium Course has no official hole names. 'Island Green' for No. 17 is a nickname, so every name is null.",
+    "Grass labels: PGA TOUR course stats list 'Overseeded Bermudagrass' (2026) and 'Tifsport Bermudagrass' for greens (2024). The TifEagle base comes from S6/S7; the 2024 PGA TOUR label looks like a template error.",
+    "Schema fit: the card gives separate women's handicaps. handicap holds the men's value; the women's value is in each hole's notes."
+  ]
+}

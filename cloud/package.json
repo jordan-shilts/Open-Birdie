@@ -1,0 +1,23 @@
+{
+  "name": "open-birdie-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-Birdie cloud course service: builds course packages once and serves them to the desktop app (see README.md, Cloud courses)",
+  "type": "commonjs",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node cloud/server.js"
+  },
+  "dependencies": {
+    "@vercel/blob": "2.8.2",
+    "ajv": "8.20.0",
+    "geotiff": "3.0.5",
+    "pngjs": "7.0.0",
+    "proj4": "2.20.9",
+    "sharp": "0.35.2"
+  },
+  "license": "MIT"
+}
