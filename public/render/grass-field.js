@@ -14,6 +14,7 @@
 // the field ends without a line. Three rings: a dense one at the camera, the play
 // ring, and the rough out to ~30 m (a mown cut is sub-pixel by then).
 import * as THREE from 'three';
+import { DIVOT_GLSL } from './divots.js';
 
 // One clump: three tapered, slightly curved blades fanned around a point.
 // position.y runs 0 (base) -> 1 (tip); x/z are metres at unit width.
@@ -70,7 +71,7 @@ const GRASS_VERT = /* glsl */`
     float a = texelFetch(uHeight, i, 0).r, b = texelFetch(uHeight, i + ivec2(1, 0), 0).r;
     float c = texelFetch(uHeight, i + ivec2(0, 1), 0).r, d = texelFetch(uHeight, i + ivec2(1, 1), 0).r;
     return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-  }`;
+  }${DIVOT_GLSL}`;
 
 const GRASS_BEGIN = /* glsl */`
   vec3 transformed;
@@ -90,6 +91,10 @@ const GRASS_BEGIN = /* glsl */`
       float bare = max(smoothstep(0.25, 0.6, mown.g), smoothstep(0.15, 0.45, max(aux.g, aux.b)));
       cut = smoothstep(0.35, 0.75, mown.r);
       h = mix(uBladeH.y, uBladeH.x, cut) * (0.65 + 0.7 * hh.x) * (1.0 - bare) * inside * fk;
+      // no blades in a divot: the turf paints the scar there (divots.js)
+      vec2 dvC; mat2 dvRot; vec2 dvR; float dvLook;
+      if (h > 0.0 && cut > 0.5 && divotCell(sim - uBounds.xy, uBounds.zw, uMown, uAux, dvC, dvRot, dvR, dvLook))
+        h *= step(1.0, divotE(sim - uBounds.xy, dvC, dvRot, dvR));
       // the turf's own base colour, one clump in seven a shade yellower (older blades)
       float older = step(0.86, fract(hh.x * 7.31 + hh.y * 3.17));
       vGrassCol = texture2D(uBase, suv).rgb * mix(vec3(1.0), vec3(1.25, 1.1, 0.62), older * 0.55) * (0.78 + 0.44 * hh.x);
@@ -140,7 +145,7 @@ function grassMaterial(u) {
       // a blade's back face must keep the up normal (DoubleSide flips it: black blades)
       .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n normal = normalize(vNormal); nonPerturbedNormal = normal;');
   };
-  m.customProgramCacheKey = () => 'grass-field-v4';
+  m.customProgramCacheKey = () => 'grass-field-v5';
   return m;
 }
 

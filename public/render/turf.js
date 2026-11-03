@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { ASSETS } from './assets.js';
 import { RENDER_CONFIG } from './config.js';
+import { DIVOT_GLSL } from './divots.js';
 
 const loader = new THREE.TextureLoader();
 
@@ -231,7 +232,10 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
               // (gVic, a ~4 m dilation) not just on-green — the low-freq aerial otherwise
               // smears a soft green halo just OUTSIDE the crisp mow line the base composite
               // made. gVic fades out so the tint returns to full on the open fescue.
-              tw *= clamp(1.0 - 0.9 * gVic - 0.35 * m, 0.0, 1.0);
+              // v42: and over the ~2 m of rough round a tee box (the soft aux tee band
+              // outside the crisp mow line), or the photo's lighter cut glows past the
+              // tee's edge into the rough
+              tw *= clamp(1.0 - 0.9 * gVic - 0.35 * m - 0.7 * smoothstep(0.05, 0.4, aux.r) * (1.0 - mCrisp), 0.0, 1.0);
               grass *= mix(vec3(1.0), tint, tw);
               // FAR PHOTO CROSSFADE — keeps the shipped "real place" overview (raw RGB;
               // a global de-light flattens real fairway/dune/sand albedo into milky grey
@@ -282,7 +286,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           float s = 0.0, a = 0.5;
           for (int k = 0; k < 4; k++){ s += a * tNoise(p); p *= 2.03; a *= 0.5; }
           return s;
-        }${macroDecl}`)
+        }${DIVOT_GLSL}${macroDecl}`)
       .replace('#include <map_fragment>', `#include <map_fragment>
         #ifdef USE_MAP
         {
@@ -367,6 +371,9 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           // apron is composited above in baseCol (gDil / collarBand computed there).
           float gEdge = gCrisp;                                  // crisp green membership
           float wx = vMapUv.x * uExt.x, wy = vMapUv.y * uExt.y;
+          // the ground a pixel steps across, per screen axis (divot edge AA, below; taken
+          // here, outside any branch, where screen derivatives are defined)
+          vec2 wdx = dFdx(vec2(wx, wy)), wdy = dFdy(vec2(wx, wy));
           // procedural grain: fine "tooth" (~0.5-4m) + broad patches (~8-20m), so the
           // turf reads as real grass at the orbit camera instead of a flat plastic
           // sheet. Strong on purpose — this is the fix for the "Minecraft" look.
@@ -422,7 +429,9 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           // OSM lacks (its feather is reconciled in Task 3).
           // AUX surfaces (soft ~1.8 m): R = tee, G = water, B = bunker.
           vec4 aux = texture2D(uBunker, vMapUv);
-          float teeK = smoothstep(0.35, 0.65, aux.r) * mCrisp;
+          // v42: full strength right up to the crisp mow line (the soft aux band is ~0.5 AT
+          // the tee's edge, so the old 0.35-0.65 ramp left a lighter rim inside the box)
+          float teeK = smoothstep(0.15, 0.35, aux.r) * mCrisp;
           // Tees are cut short and cross-mown, not striped like a fairway: drop the bold
           // fairway bands there and lay a fine checker instead (below).
           // clean turf: real stripes are a sheen, not paint — with a sun-dominant key the
@@ -439,7 +448,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
             float tb1 = sin((wx * 0.71 + wy * 0.71) * (3.14159265 / 1.6));
             float tb2 = sin((wx * -0.71 + wy * 0.71) * (3.14159265 / 1.6));
             grass *= 1.0 + 0.05 * ((smoothstep(-0.5, 0.5, tb1) - 0.5) + (smoothstep(-0.5, 0.5, tb2) - 0.5)) * teeK * sFade;
-            grass *= mix(1.0, mix(0.82, 0.86, uTurfClean), teeK); // the tee palette reads hot next to the darker rough (a lit pad in the sun-dominant key)
+            grass *= mix(1.0, mix(0.86, 0.91, uTurfClean), teeK); // the tee palette reads hot next to the darker rough (a lit pad in the sun-dominant key); v42: less, now the photo's glow round it is gone
           }
           // GREEN (v29): calm fine grain + a SUBTLE checker mow + a gentle contour roll,
           // all gated by the SOFT edge (gEdge) so the putting-surface character fades
@@ -515,6 +524,15 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
               vec3 dryTint = mix(vec3(1.20, 1.08, 0.70), vec3(1.06, 1.03, 0.92), uCourseDry);
               grass *= mix(vec3(1.0), dryTint, straw * 0.55 * roughOnly * mix(1.0, 0.05, uTurfClean)); // straw / olive patches (links; watered parkland rough stays green)
               grass *= 1.0 + (0.34 * macroR + 0.18 * macroR2) * roughK * mix(1.0, 0.2, uTurfClean); // broad drift, to the horizon
+              // v42: rough is mown too, in wider passes than the fairway: a faint sheen band
+              // (~5 m, the fairway's direction; light along the grain, dark against it) and
+              // 3-7 m lush/thin patches give the slopes the meso-scale structure whose lack
+              // read as felt from the address view
+              float rbd = sin((wx * 0.82 + wy * 0.57) * (3.14159265 / 5.0));
+              float rSheen = (smoothstep(-0.55, 0.55, rbd) * 2.0 - 1.0) * (0.35 + 0.65 * dot(toCamH, vec2(-0.57, 0.82)));
+              float rPatch = tFbm2(vec2(wy, wx) * 0.14 + 6.1) - 0.375;
+              grass *= 1.0 + (0.085 * rSheen * sFade + 0.32 * rPatch) * roughOnly;   // half the fairway's: rough must not read as fairway
+              grass *= mix(vec3(1.0), vec3(1.03, 1.02, 0.93), clamp(rPatch * 3.0, 0.0, 1.0) * 0.5 * roughOnly);   // thin patches a touch yellower
             }
             grass *= mix(1.0, 0.86, roughOnly);                                   // rough sits darker than the cut
             grass *= mix(1.0, 1.06, firstCut);                                    // first cut: a step lighter, cleaner
@@ -543,6 +561,28 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           // clean parkland turf keeps its colour: the 40% pull is a links tan-fescue tune
           grass = mix(grass, vec3(gLum * mix(0.85, 0.92, uTurfClean)) * vec3(1.1, 1.0, 0.8), mix(0.4, 0.22, uTurfClean)); // *0.85 darkens so desaturating doesn't LIGHTEN the green to pale
           ${macroBlend}
+          // v42 DIVOTS (divots.js): sand-and-seed scars on tees and fairways, inside ~45 m
+          // (a 10 cm scar is under a pixel past that); the grass field grows no blades in them.
+          // High quality only, like the other close-range extras
+          #ifdef TURF_HQ
+          float dvFade = 1.0 - smoothstep(25.0, 45.0, length(vViewPosition));
+          vec2 dvC; mat2 dvRot; vec2 dvR; float dvLook;
+          if (dvFade > 0.0 && divotCell(vec2(wx, wy), uExt, uMask, uBunker, dvC, dvRot, dvR, dvLook)) {
+            // edge AA from the distance one pixel over on each screen axis (finite
+            // differences: no derivatives needed in this branch); a divot under a pixel
+            // fades with its share of the pixel instead of smearing to full strength
+            float e0 = divotE(vec2(wx, wy), dvC, dvRot, dvR);
+            float dvAA = clamp(abs(divotE(vec2(wx, wy) + wdx, dvC, dvRot, dvR) - e0) + abs(divotE(vec2(wx, wy) + wdy, dvC, dvRot, dvR) - e0), 0.02, 3.0);
+            float cov = (1.0 - smoothstep(1.0 - dvAA, 1.0 + dvAA, e0)) / max(1.0, dvAA);
+            if (cov > 0.0) {
+              vec3 fill = mix(vec3(0.36, 0.29, 0.16), vec3(0.16, 0.20, 0.07), smoothstep(0.6, 0.95, dvLook)); // fresh sand-seed .. healing
+              fill *= 0.82 + 0.36 * tNoise(vec2(wx, wy) * 40.0);                        // grains and seed
+              fill *= mix(1.0, 0.6, smoothstep(0.45, 0.95, divotAlong(vec2(wx, wy), dvC, dvRot, dvR))); // torn front edge
+              fill *= mix(1.0, 0.72, smoothstep(0.7, 1.0, e0));                         // the cut wall
+              grass = mix(grass, fill, cov * dvFade);
+            }
+          }
+          #endif
           // Soft highlight rolloff: light mown/aerial areas + mow-stripe peaks were
           // washing out to pale rectangles. Compress grass values above ~0.66.
           grass = grass / (1.0 + 0.5 * max(vec3(0.0), grass - 0.66));
@@ -602,7 +642,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           }
         }`);
   };
-  mat.customProgramCacheKey = () => `turf-grain-v41-smoothing${macro ? '-macro' : ''}${hq ? '' : '-lq'}`; // v41: distance/surface-gated taps (v40: texture value noise; v39: view-dependent sheen)
+  mat.customProgramCacheKey = () => `turf-grain-v42-divots${macro ? '-macro' : ''}${hq ? '' : '-lq'}`; // v42: divots, crisp tee box, rough sheen (v41: distance/surface-gated taps; v40: texture value noise)
   // textures injected via onBeforeCompile (+ the canvas masks) aren't reachable from
   // the standard material slots, so register them for disposal on course reload.
   mat.userData.disposeTextures = [detail, sand, maskTex, bunkerMaskTex, ...(surfaceMaskRaw ? [maskRawTex] : [])];

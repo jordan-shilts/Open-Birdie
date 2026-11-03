@@ -12,6 +12,20 @@ All notable changes to Open-Birdie are documented here.
   picked in Open-Birdie (`lib/openconnect.js`).
 
 ### Changed
+- **Grass blade by blade, drawn only where the camera looks** — the camera grass field has three rings (a
+  dense one at the camera for the low cameras, the play ring, and the rough out to 30 m); each clump leans
+  its own way so neighbours catch the sun differently, and the thin blade tips glow when backlit. Every
+  frame each ring is fitted to the view (blocks of the ring tested against the camera with the ground's
+  height range under them) and fades by true distance, so the address view no longer draws the near ring
+  below the frame and a high camera draws none; a blade is five vertices. On an Apple M3 Pro at ~1080p
+  internal the grass costs 0.4-0.6 ms at address (was ~1.5-2 ms), and shots run at ~74 fps with a p95 frame
+  of ~17 ms (was ~30 ms) (`grass-field.js`).
+- **Ground with wear and structure** (`turf.js` v42) — tee boxes and fairways carry sand-and-seed filled
+  divots (one chance per 0.6 m cell: about 0.8 a square metre on a tee, bunched where shots come down on a
+  fairway), and the grass grows no blades in them (`divots.js`, shared by both shaders). The tee box ends at
+  a crisp mow line instead of glowing into the rough (the aerial photo's tint is held back over the rough
+  round it). The rough is mown in faint ~5 m passes, at half the fairway stripes' strength, with 3-7 m
+  lush/thin patches, so the slopes stop reading as felt. The turf additions cost 0.1-0.3 ms.
 - **4K at 60 fps by dynamic resolution** — High now renders up to native 4K, and the render resolution
   follows the frame rate: a window of slow frames steps it down (to half per axis at most), a run of calm
   ones creeps it back up, and Auto only falls to Low once the scale is spent. Changes wait until the camera
