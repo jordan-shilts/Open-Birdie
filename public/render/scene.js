@@ -1273,12 +1273,12 @@ export class GolfScene {
   }
 
   _addGrass(geo, group) {
+    // golden-tipped fescue belongs on links; watered parkland rough is mown, so its tall
+    // tufts stood alone in the rough as stray wisps (and cost ~0.1-0.6 ms): none there
+    if ((this._courseDry || 0) < 0.5) return;
     const spots = this._grassSpots(geo);
     if (!spots.length) return;
-    // golden-tipped fescue belongs on links; watered parkland rough is green to the tip
-    const parkland = (this._courseDry || 0) < 0.5;
-    const { mesh, windUpdate } = buildGrass(spots, (x, y) => this.hAt(x, y), V,
-      parkland ? { colorBase: 0x40602c, colorTip: 0x86964f } : {});
+    const { mesh, windUpdate } = buildGrass(spots, (x, y) => this.hAt(x, y), V);
     if (mesh) { group.add(mesh); this._grassWind = windUpdate; }
   }
 

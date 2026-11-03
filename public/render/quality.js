@@ -30,7 +30,7 @@ export const QUALITY_PRESETS = Object.freeze({
     treeCap: 9000,          // instanced trees across the course
     treeNearM: 200,         // trees nearer than this draw the full leaf-card LOD
     grassScale: 0.5,        // fescue / foreground-grass instance budgets (55k tufts was ~4.5 ms at 1080p)
-    foregroundGrass: true,
+    foregroundGrass: false, // blade patches read as fuzz at the play cameras (config.js grassField)
     flowers: true,
   }),
   low: Object.freeze({
