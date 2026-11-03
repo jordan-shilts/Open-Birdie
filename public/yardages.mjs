@@ -98,8 +98,9 @@ function raySpans(poly, ball, fx, fy) {
 export const hazardText = (hz) => (hz.open ? `${Math.round(hz.frontYd)}+` : `${Math.round(hz.frontYd)}–${Math.round(hz.backYd)}`);
 
 // Bunkers and water near the line of play (compass heading aimDeg from the ball), each
-// with its front and back in yards along the line, and those points. Only the course's
-// own surfaces: lakes from the scenery layer are drawn, not played, so they are no hazard.
+// with its front and back in yards along the line, and those points: the course's own
+// bunkers and water, and the lakes around it that are in play (geo.sceneryWater with
+// `played`, lib/course.js lakesInPlay); a pond beyond the boundary is no hazard.
 // - Water the line itself crosses is a carry: where the line goes in and comes out
 //   (onLine). A creek across the fairway reads 150–170, not its far corners. Water still
 //   going at maxM is open: its back is unknown.
@@ -133,7 +134,8 @@ export function hazardsAlong(geo, ball, aimDeg, { maxM = Infinity, step = 3 } = 
       at: [sx / pts.length, sy / pts.length], uMin, uMax, side: uMin + uMax >= 0 ? 1 : -1,
     };
   };
-  for (const su of geo?.surfaces || []) {
+  const lakes = (geo?.sceneryWater || []).filter((w) => w && w.played).map((w) => ({ kind: 'water', poly: w.poly }));
+  for (const su of [...(geo?.surfaces || []), ...lakes]) {
     if ((su.kind !== 'bunker' && su.kind !== 'water') || !su.poly || su.poly.length < 3) continue;
     const water = su.kind === 'water';
     const carries = [];

@@ -75,8 +75,18 @@ test('a lake the tee shot crosses and then runs beside the fairway: the carry, t
   near(beside.backYd, 350 / YD);
 });
 
-test('lakes from the scenery layer are drawn, not played: no marks', () => {
-  assert.deepEqual(hazardsAlong({ sceneryWater: [{ kind: 'water', poly: rect(-50, 20, 50, 300) }] }, { x: 0, y: 0 }, 0), []);
+test('lakes around the course that are in play are marked like the course\'s own water', () => {
+  // a lake the line crosses: its carry
+  const [carry] = hazardsAlong({ sceneryWater: [{ kind: 'water', poly: rect(-50, 150, 50, 170), played: true }] }, { x: 0, y: 0 }, 0);
+  assert.equal(carry.kind, 'water');
+  assert.equal(carry.onLine, true);
+  near(carry.frontYd, 150 / YD); near(carry.backYd, 170 / YD);
+  // one beside the fairway: the stretch beside the line
+  const [beside] = hazardsAlong({ sceneryWater: [{ kind: 'water', poly: rect(30, 100, 120, 200), played: true }] }, { x: 0, y: 0 }, 0);
+  assert.equal(beside.kind, 'water');
+  assert.ok(!beside.onLine && beside.side === 1);
+  // a pond beyond the course boundary is drawn, not played: no hazard
+  assert.deepEqual(hazardsAlong({ sceneryWater: [{ kind: 'water', poly: rect(-50, 150, 50, 170) }] }, { x: 0, y: 0 }, 0), []);
 });
 
 test('water still going at the cut-off is open-ended: "400+"', () => {

@@ -30,6 +30,17 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **Lakes beside the course are water, not dry ground** — the lakes fetched around a course (Lake Hazeltine,
+  beside 16–18) were drawn but played as rough, so a drive that splashed into the lake on 16 sat on the
+  water and was played from there. A lake that reaches the course (inside its outline or within the 15 m
+  out-of-bounds buffer of it, or any lake when the outline can't be trusted, as at Hazeltine) is now a
+  penalty area, all of it, even where it runs past the outline; a pond wholly beyond the outline stays out
+  of bounds. The prediction, the safe spot and the map's hazard yardages count those lakes too
+  (`lib/course.js` `lakesInPlay`).
+- **A ball in the water is dropped where it crossed the edge** — the lateral drop was taken around the spot
+  where the ball came down, so a ball that flew far into a lake found only water within reach and was
+  replayed from where it was hit. The drop is now beside the last point of its path over dry ground, as the
+  rules have it (`lib/game.js`).
 - **A tree no longer stretches the landing area across the whole hole** — the predicted landing and
   resting areas come from launches one sigma either side of the typical one, and when one of those met a
   tree the shot itself flies clear of, its drop 35 yd out stretched a drive's area to 615 yd ("lands

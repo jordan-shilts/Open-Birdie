@@ -8,7 +8,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { OpenConnectServer, toOpenConnectClub } = require('./lib/openconnect');
-const { searchCourses, loadCourse, listCached, loadCached } = require('./lib/course');
+const { searchCourses, loadCourse, listCached, loadCached, lakesInPlay } = require('./lib/course');
 const {
   cloudConfigFromEnv,
   cloudSceneryProviders,
@@ -746,9 +746,12 @@ function courseGeometry() {
     ? { lat: game.course.origin.lat, lon: game.course.origin.lon } : null;
   // real trees [[x, y, heightM, crownRadiusM], ...] from canopy height data (non-fingerprinted scenery)
   const canopy = game.course.canopy?.trees || null;
-  // lakes/ponds around the course [{ kind: 'water', poly, name }] (non-fingerprinted
-  // scenery, never part of `surfaces`: drawn, not played)
-  const sceneryWater = game.course.scenery?.water || null;
+  // lakes/ponds around the course [{ kind: 'water', poly, name, played }] (non-fingerprinted
+  // scenery, never part of `surfaces`): all drawn; `played` on those that reach the
+  // course, which play as water (lib/course.js lakesInPlay)
+  const water = game.course.scenery?.water;
+  const played = new Set(lakesInPlay(game.course));
+  const sceneryWater = Array.isArray(water) ? water.map((w) => (played.has(w) ? { ...w, played: true } : w)) : null;
   // Course-wide aerial: bounds only (the image is fetched from /api/course-aerial);
   // never leak the server file path. Drapes the whole course as the ground photo.
   // classes: advertise the runtime NDVI classmap ONLY when it's fresh — i.e. it was
