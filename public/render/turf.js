@@ -277,6 +277,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
           return texture2D(uTurfNoise, (i + f + 0.5) / 256.0).r;
         }
+        float tFbm2(vec2 p){ return 0.5 * tNoise(p) + 0.25 * tNoise(p * 2.03); }
         float tFbm(vec2 p){
           float s = 0.0, a = 0.5;
           for (int k = 0; k < 4; k++){ s += a * tNoise(p); p *= 2.03; a *= 0.5; }
@@ -310,11 +311,14 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           // mow line; distance-faded (a play/mid feature — the far photo owns past ~60 m).
           float gDistFade = 1.0 - smoothstep(45.0, 70.0, length(vViewPosition));
           vec2 co = vec2(0.8) / uExt;
-          float gDil = (gRaw
-            + texture2D(uMaskRaw, vMapUv + vec2(co.x, 0.0)).g + texture2D(uMaskRaw, vMapUv - vec2(co.x, 0.0)).g
-            + texture2D(uMaskRaw, vMapUv + vec2(0.0, co.y)).g + texture2D(uMaskRaw, vMapUv - vec2(0.0, co.y)).g
-            + texture2D(uMaskRaw, vMapUv + co).g + texture2D(uMaskRaw, vMapUv - co).g
-            + texture2D(uMaskRaw, vMapUv + vec2(co.x, -co.y)).g + texture2D(uMaskRaw, vMapUv + vec2(-co.x, co.y)).g) * (1.0 / 9.0);
+          float gDil = gRaw;
+          if (gDistFade > 0.0) {   // v41: the collar's 8 taps only where it can show (< 70 m); explicit LOD, as in any branch
+            gDil = (gRaw
+              + textureLod(uMaskRaw, vMapUv + vec2(co.x, 0.0), 0.0).g + textureLod(uMaskRaw, vMapUv - vec2(co.x, 0.0), 0.0).g
+              + textureLod(uMaskRaw, vMapUv + vec2(0.0, co.y), 0.0).g + textureLod(uMaskRaw, vMapUv - vec2(0.0, co.y), 0.0).g
+              + textureLod(uMaskRaw, vMapUv + co, 0.0).g + textureLod(uMaskRaw, vMapUv - co, 0.0).g
+              + textureLod(uMaskRaw, vMapUv + vec2(co.x, -co.y), 0.0).g + textureLod(uMaskRaw, vMapUv + vec2(-co.x, co.y), 0.0).g) * (1.0 / 9.0);
+          }
           float collarBand = clamp(gDil, 0.0, 1.0) * (1.0 - gCrisp) * gDistFade;
           // Base-colour stack: rough(splat) -> collar apron -> putting surface. The green
           // gets a full crisp override (a distinct putting colour); the collar an apron green
@@ -459,10 +463,11 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           // shaded) is what reads as a lit 3D surface; the isotropic grain above only
           // reads as texture. Faked in albedo — cheap, GTAO-safe, turf normal is ~flat.
           vec2 sp = vec2(wx, wy) * 0.085;                  // ~12m roll wavelength (survives distance)
-          float gx = tFbm(sp + vec2(0.07, 0.0)) - tFbm(sp - vec2(0.07, 0.0));
-          float gy = tFbm(sp + vec2(0.0, 0.07)) - tFbm(sp - vec2(0.0, 0.07));
+          // v41: the broad ~12 m roll only needs two octaves (half the taps; gain doubled below)
+          float gx = tFbm2(sp + vec2(0.07, 0.0)) - tFbm2(sp - vec2(0.07, 0.0));
+          float gy = tFbm2(sp + vec2(0.0, 0.07)) - tFbm2(sp - vec2(0.0, 0.07));
           vec2 sunDir = normalize(vec2(0.55, -0.84));      // HDRI sun's horizontal bearing
-          float rake = clamp((gx * sunDir.x + gy * sunDir.y) * 7.0, -0.6, 0.6);
+          float rake = clamp((gx * sunDir.x + gy * sunDir.y) * 14.0, -0.6, 0.6);
           grass *= 1.0 + 0.09 * rake * mix(1.0, 0.25, uTurfClean); // GENTLE — 0.22 was carving dark shade-bands into the hills
           // v39 BLADE LIGHT: turf is a forest of thin blades, not a sheet. Looking down-sun
           // you see their lit faces and none of their shadows (the bright hot spot around
@@ -487,11 +492,14 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
             float firstCut = 0.0;
             #ifdef TURF_HQ
             // first cut / intermediate rough: a ~2.2 m band hugging every mown or green edge
-            vec2 fo = vec2(2.2) / uExt;
-            vec4 f1 = texture2D(uMaskRaw, vMapUv + vec2(fo.x, 0.0)), f2 = texture2D(uMaskRaw, vMapUv - vec2(fo.x, 0.0));
-            vec4 f3 = texture2D(uMaskRaw, vMapUv + vec2(0.0, fo.y)), f4 = texture2D(uMaskRaw, vMapUv - vec2(0.0, fo.y));
-            float near4 = max(max(max(f1.r, f1.g), max(f2.r, f2.g)), max(max(f3.r, f3.g), max(f4.r, f4.g)));
-            firstCut = clamp(near4, 0.0, 1.0) * roughK;
+            // (v41: only on rough — a distance cut-off drew a visible ring at its range)
+            if (roughK > 0.0) {
+              vec2 fo = vec2(2.2) / uExt;
+              vec4 f1 = textureLod(uMaskRaw, vMapUv + vec2(fo.x, 0.0), 0.0), f2 = textureLod(uMaskRaw, vMapUv - vec2(fo.x, 0.0), 0.0);
+              vec4 f3 = textureLod(uMaskRaw, vMapUv + vec2(0.0, fo.y), 0.0), f4 = textureLod(uMaskRaw, vMapUv - vec2(0.0, fo.y), 0.0);
+              float near4 = max(max(max(f1.r, f1.g), max(f2.r, f2.g)), max(max(f3.r, f3.g), max(f4.r, f4.g)));
+              firstCut = clamp(near4, 0.0, 1.0) * roughK;
+            }
             // tussocks: clumpy value at ~0.7 m, faded out before it can alias
             float clumpFade = 1.0 - smoothstep(18.0, 55.0, viewD);
             if (clumpFade > 0.0 && roughK > 0.0) {   // coherent branch: skip the fbm far out
@@ -499,13 +507,15 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
               grass *= 1.0 + (0.30 * tuft - 0.12) * roughK * (1.0 - firstCut) * clumpFade * mix(1.0, 0.3, uTurfClean);
             }
             #endif
-            float straw = smoothstep(0.50, 0.80, tFbm(vec2(wy, wx) * 0.065 + 21.0));
-            float macroR = tFbm(vec2(wx, wy) * 0.0075 + 9.0) - 0.47;
-            float macroR2 = tFbm(vec2(wy, wx) * 0.021 + 2.0) - 0.47;
-            vec3 dryTint = mix(vec3(1.20, 1.08, 0.70), vec3(1.06, 1.03, 0.92), uCourseDry);
             float roughOnly = roughK * (1.0 - firstCut);
-            grass *= mix(vec3(1.0), dryTint, straw * 0.55 * roughOnly * mix(1.0, 0.05, uTurfClean)); // straw / olive patches (links; watered parkland rough stays green)
-            grass *= 1.0 + (0.34 * macroR + 0.18 * macroR2) * roughK * mix(1.0, 0.2, uTurfClean); // broad drift, to the horizon
+            if (roughK > 0.0) {   // v41: the rough's own patches (12 noise taps) skip mown ground and greens
+              float straw = smoothstep(0.50, 0.80, tFbm(vec2(wy, wx) * 0.065 + 21.0));
+              float macroR = tFbm(vec2(wx, wy) * 0.0075 + 9.0) - 0.47;
+              float macroR2 = tFbm(vec2(wy, wx) * 0.021 + 2.0) - 0.47;
+              vec3 dryTint = mix(vec3(1.20, 1.08, 0.70), vec3(1.06, 1.03, 0.92), uCourseDry);
+              grass *= mix(vec3(1.0), dryTint, straw * 0.55 * roughOnly * mix(1.0, 0.05, uTurfClean)); // straw / olive patches (links; watered parkland rough stays green)
+              grass *= 1.0 + (0.34 * macroR + 0.18 * macroR2) * roughK * mix(1.0, 0.2, uTurfClean); // broad drift, to the horizon
+            }
             grass *= mix(1.0, 0.86, roughOnly);                                   // rough sits darker than the cut
             grass *= mix(1.0, 1.06, firstCut);                                    // first cut: a step lighter, cleaner
             // wet banks: darker, cooler, lusher grass within ~2 m of water
@@ -592,7 +602,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           }
         }`);
   };
-  mat.customProgramCacheKey = () => `turf-grain-v40-smoothing${macro ? '-macro' : ''}${hq ? '' : '-lq'}`; // v40: texture value noise (v39: view-dependent mow sheen, blade light, near tooth)
+  mat.customProgramCacheKey = () => `turf-grain-v41-smoothing${macro ? '-macro' : ''}${hq ? '' : '-lq'}`; // v41: distance/surface-gated taps (v40: texture value noise; v39: view-dependent sheen)
   // textures injected via onBeforeCompile (+ the canvas masks) aren't reachable from
   // the standard material slots, so register them for disposal on course reload.
   mat.userData.disposeTextures = [detail, sand, maskTex, bunkerMaskTex, ...(surfaceMaskRaw ? [maskRawTex] : [])];

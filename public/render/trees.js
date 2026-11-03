@@ -389,6 +389,8 @@ export class TreeField {
   setNearDistance(m) { this.nearM = m; this._last.t = -1e9; }
 
   // Re-bucket instances for this camera (cheap; skipped when the camera is still).
+  // Returns true when the per-LOD instance sets were rebuilt (the shadow casters may
+  // have changed); false when the camera hasn't moved enough to matter.
   update(camera, timeSec = 0) {
     this.shared.uTime.value = timeSec;
     // sun direction in view space for leaf translucency
@@ -397,7 +399,7 @@ export class TreeField {
     const L = this._last;
     const now = performance.now();
     const moved = camera.position.distanceToSquared(L.pos) > 1.0 || dir.dot(L.dir) < 0.9997;
-    if (!moved && now - L.t < 1000) return;
+    if (!moved && now - L.t < 1000) return false;
     L.pos.copy(camera.position); L.dir.copy(dir); L.t = now;
     // widened frustum so a frame of lag never shows a pop at the screen edge
     const cc = this._cullCam;
@@ -442,6 +444,7 @@ export class TreeField {
       nN += out[0]; nM += out[1]; nF += out[2];
     }
     this.stats = { near: nN, mid: nM, far: nF };
+    return true;
   }
 
   dispose() {

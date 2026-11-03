@@ -108,6 +108,13 @@ export class GolfScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.shadowMap.enabled = true;
+    // Cached shadows: the sun is fixed and almost every caster is static, so the shadow
+    // map is redrawn only when the casters can have changed (see _frame) — the hole fit,
+    // the sky, a scenery rebuild, the tree set re-bucketed as the camera moves — instead
+    // of re-rendering every tree into a 4096 map every frame.
+    this.renderer.shadowMap.autoUpdate = false;
+    this._shadowsDirty = true;
+    this._shadowAt = -Infinity;
     // PCF with a per-light radius (quality.js shadowRadius) is the soft-shadow path
     // in current three; PCFSoftShadowMap is deprecated and silently mapped to it.
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -130,7 +137,9 @@ export class GolfScene {
       new THREE.SphereGeometry(0.085, 18, 14),
       new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 })
     );
-    this.ball.castShadow = true;
+    // the soft contact shadow (shot-fx ballShadow) grounds the ball; leaving it out of the
+    // shadow map is what lets the map be cached (a moving caster forced a redraw a frame)
+    this.ball.castShadow = false;
     this.scene.add(this.ball);
 
     // pin + cloth flag (pin-flag.js) and the current hole's tee markers
@@ -239,6 +248,7 @@ export class GolfScene {
         if (sh.map) { sh.map.dispose(); sh.map = null; }
       }
       sh.radius = p.shadowRadius;
+      this._shadowsDirty = true;
     }
     this.postfx?.setQuality({ gtao: p.gtao, bloom: p.bloom, aoScale: p.aoScale ?? 1 });
     if (this.container) this.resize();
@@ -577,9 +587,12 @@ export class GolfScene {
     this._addFlowers(geo, group);
     this._addGrassField(group);
     this._addFairwayGrass(geo, group);
-    // ground cover stays out of the pond mirrors: they can't show it, and re-drawing
-    // it (the camera grass field alone is ~100k instances) was most of a mirror's cost
-    this._waterSetMirrorSkip?.(group.children.slice(groundCoverFrom));
+    // the pond mirrors leave out ground cover (they can't show it; the camera grass field
+    // alone is ~100k instances) and swap the full terrain for a 6 m stand-in
+    const groundCover = group.children.slice(groundCoverFrom);
+    const mirrorGround = this._waterSetMirrorSkip ? this._mirrorTerrainMesh(b) : null;
+    if (mirrorGround) group.add(mirrorGround);
+    this._waterSetMirrorSkip?.([...groundCover, ...(mirrorGround ? [terrain] : [])], mirrorGround ? [mirrorGround] : []);
     // LIDAR green meshes are a visual enhancement — never let a bug here break
     // the course load (the picker, physics, base render must still work). With an
     // HD bundle the high-res terrain + aerial already supply the greens, and
@@ -603,7 +616,47 @@ export class GolfScene {
 
     this.courseGroup = group;
     this.scene.add(group);
+    this._shadowsDirty = true;
+    this._warmShaders();
     this.googleTiles.setCourse(geo); // re-fit (or drop) Google's surroundings for this course
+  }
+
+  // Compile every program the course can need before play starts, in parallel where the
+  // driver allows. The shot presentation (tracer, glows, apex drop line, landing ring)
+  // only draws mid-flight, so its first frames used to compile right then: ~0.45 s
+  // stalls at launch, apex and landing (ANGLE/Metal compiles are slow). Each shot also
+  // disposed its tracer's material, which released the program and recompiled it on the
+  // next shot — one tracer material kept alive (never drawn) keeps that program cached.
+  _warmShaders() {
+    if (!this._warmTracer) {
+      this._warmTracer = new ShotTracer([V(0, 0, 0), V(0, 0, 1)], [0, 1]);
+      this._warmTracer.mesh.visible = false;
+      this.scene.add(this._warmTracer.mesh);
+    }
+    const fx = [this._warmTracer.mesh, this.ballShadow, this.headGlow, this.apexGlow, this.dropLine, this.landRing];
+    const was = fx.map((o) => o.visible);
+    fx.forEach((o) => { o.visible = true; });
+    // Compile against the composer's HDR target: a program's variant depends on where it
+    // draws (an offscreen target means linear output, no tone mapping), so warming for
+    // the screen built programs the frame never uses. compileAsync gathers the visible
+    // materials synchronously, then waits on the driver.
+    const prevTarget = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(this.postfx?.composer?.readBuffer || null);
+    const done = this.renderer.compileAsync(this.scene, this.camera);
+    this.renderer.setRenderTarget(prevTarget);
+    fx.forEach((o, i) => { o.visible = was[i]; });
+    // A compiled program isn't the whole cost: the first DRAW of each blend/target
+    // combination builds its GPU pipeline (on Metal ~0.45 s each). So once the programs
+    // are ready, draw every effect for one frame, sub-millimetre, just ahead of the camera.
+    done.then(() => {
+      if (this.anim || !this.postfx) return;   // a shot already started: nothing to protect
+      const at = this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3).add(this.camera.position);
+      const saved = fx.map((o) => ({ vis: o.visible, pos: o.position.clone(), scale: o.scale.clone() }));
+      fx.forEach((o) => { o.visible = true; o.position.copy(at); o.scale.setScalar(1e-3); });
+      try { this.postfx.render(); } finally {
+        fx.forEach((o, i) => { o.visible = saved[i].vis; o.position.copy(saved[i].pos); o.scale.copy(saved[i].scale); });
+      }
+    }).catch((e) => console.warn('[render] shader warm-up:', e && e.message));
   }
 
   async compileVisualCaptureShaders() {
@@ -723,6 +776,7 @@ export class GolfScene {
       },
     };
     const turfMat = makeTurfMaterial(this._turfInputs);
+    this._turfMat = turfMat;   // shared by the mirrors' terrain stand-in
     if (this._hdPatches.length) {
       // Unified terrain: a coarse mesh with EVERY HD rect cut out + one HD mesh per
       // patch filling the cutouts, sharing boundaries with zero positive-area overlap.
@@ -904,6 +958,42 @@ export class GolfScene {
     fillKind(['bunker'], this._pal.bunker, 1.2);
     fillKind(['water'], this._pal.water, 1.5);
     return cv;
+  }
+
+  // The terrain as the pond mirrors draw it: a 6 m grid of the ground the turf shows
+  // (hAt, HD patches included) in the turf's own material, visible only while a mirror
+  // renders. A reflection shows banks and the course beyond, where 1 m relief can't
+  // read, and re-drawing the full terrain (~3.7 M triangles on an HD course) was most
+  // of a mirror's cost.
+  _mirrorTerrainMesh(b) {
+    if (!this._turfMat) return null;
+    const step = 6, extX = b.maxX - b.minX, extY = b.maxY - b.minY;
+    const nx = Math.max(2, Math.ceil(extX / step) + 1), ny = Math.max(2, Math.ceil(extY / step) + 1);
+    const pos = new Float32Array(nx * ny * 3), uv = new Float32Array(nx * ny * 2);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const x = b.minX + Math.min(i * step, extX), y = b.minY + Math.min(j * step, extY), k = j * nx + i;
+        pos[k * 3] = x; pos[k * 3 + 1] = this.hAt(x, y); pos[k * 3 + 2] = -y;
+        uv[k * 2] = (x - b.minX) / extX; uv[k * 2 + 1] = (y - b.minY) / extY;
+      }
+    }
+    const idx = new Uint32Array((nx - 1) * (ny - 1) * 6);
+    let n = 0;
+    for (let j = 0; j < ny - 1; j++) {
+      for (let i = 0; i < nx - 1; i++) {
+        const a = j * nx + i, c = a + nx;
+        idx[n++] = a; idx[n++] = a + 1; idx[n++] = c; idx[n++] = a + 1; idx[n++] = c + 1; idx[n++] = c;
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    g.setIndex(new THREE.BufferAttribute(idx, 1));
+    g.computeVertexNormals();
+    const mesh = new THREE.Mesh(g, this._turfMat);
+    mesh.name = 'mirrorTerrain';
+    mesh.visible = false;
+    return mesh;
   }
 
   // Channel mask over the terrain for the given surface kinds — black elsewhere.
@@ -1452,6 +1542,7 @@ export class GolfScene {
   }
 
   _fitShadows(hole) {
+    this._shadowsDirty = true;
     const cx = (hole.tee[0] + hole.pin[0]) / 2, cy = (hole.tee[1] + hole.pin[1]) / 2;
     const cz = this.hAt(cx, cy);
     const center = V(cx, cy, cz);
@@ -1781,7 +1872,7 @@ export class GolfScene {
     this._updateShotFx(frameTime);
     this._haze?.update(this.camera);
     if (this._treeWind) this._treeWind(frameTime);
-    if (this._treeField) this._treeField.update(this.camera, frameTime);
+    const treesMoved = this._treeField ? this._treeField.update(this.camera, frameTime) : false;
     if (this._grassField) this._grassField.update(this.camera, frameTime);
     if (this.scene.fog && this._fogDensity) {
       // haze lies in the low air: looking down from a flyover or overview the light
@@ -1801,6 +1892,16 @@ export class GolfScene {
     const pondsInView = this._waterMirrors ? this._waterMirrors(this.camera) : 1;
     if (this.waterDepth && this._foamOn && this._terrain && pondsInView) this.waterDepth.prepass(this._terrain, this.camera);
     this.googleTiles.update(); // Google tile LOD/visibility for the camera just placed
+    // Redraw the cached shadow map when its casters can have changed: at once for a new
+    // hole / sky / scenery, at most ~10x a second while the tree set follows a moving
+    // camera (a tree crossing the near-LOD ring 200 m out can wait 0.1 s for its shadow),
+    // and twice a second regardless (swaying crowns, the flag). Stills always redraw.
+    const nowS = performance.now() / 1000;
+    if (fixed || this._shadowsDirty || (treesMoved && nowS - this._shadowAt > 0.1) || nowS - this._shadowAt > 0.5) {
+      this.renderer.shadowMap.needsUpdate = true;
+      this._shadowsDirty = false;
+      this._shadowAt = nowS;
+    }
     this.postfx.render();
     if (fixed) {
       this._lastVisualCapture = {

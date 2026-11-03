@@ -19,6 +19,23 @@ All notable changes to Open-Birdie are documented here.
   instead of every pane being black (`buildings.js`).
 - **Cheaper pond mirrors** — the live water mirrors no longer redraw grass blades, flowers or litter (a pond
   can't show them) (`water.js`).
+- **Smooth ball flights** (measured on two simulated shots on Hazeltine at High, 1920x1143, Apple M3 Pro:
+  48-49 -> 59-60 fps average; the worst frame 485 -> 35 ms):
+  - the shot tracer, glows, apex drop line and landing ring compiled their shaders the first time they drew,
+    mid-flight (~0.45 s stalls at launch, apex and landing); every program is now compiled while the course
+    loads, against the HDR target the frame really draws into, and each effect is drawn once (sub-millimetre)
+    so the GPU pipeline exists too; one tracer material stays alive so its program survives each shot;
+  - GTAO reads the main pass's depth and rebuilds normals from it instead of drawing the whole course into
+    its own buffers (fades out 35-70 m, where depth-only normals printed halos behind trees);
+  - the pond mirrors draw a 6 m stand-in for the terrain (the full terrain is ~3.7 M triangles on an HD
+    course) and render at 512 px; triangles per frame 29 M -> 16 M;
+  - the shadow map is cached: it redraws only for a new hole, sky or scenery, at most ~10x a second while
+    the near trees follow a moving camera, and twice a second regardless (the ball's contact shadow is the
+    soft blob, so the ball no longer forces a redraw every frame);
+  - the HUD panels no longer use a backdrop blur over the live canvas (the compositor re-blurred them as the
+    frame changed: every ~5th frame took twice as long), with a little more opacity instead;
+  - turf: the collar taps run only within 70 m, the rough's own noise only on rough, the sun-play roll uses
+    two octaves.
 - **Faster turf** — the turf shader's ~65 noise samples a pixel read one texture tap each instead of four
   `sin()` hashes (same smoothstep value noise). With the mirror change, frames are 10-12% faster on Hazeltine
   (25.1 -> 22.5 ms at a tee with ponds in view, 21.6 -> 19.1 ms at a green; 1600x900, Apple M3 Pro).

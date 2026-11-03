@@ -1,7 +1,10 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
-  --bg: rgba(255, 255, 255, 0.84);
-  --bg-card: rgba(255, 255, 255, 0.88);
+  /* HUD panels are solid-ish rather than frosted: a backdrop blur over the live 3D
+     canvas is re-blurred by the compositor as the frame changes (it doubled every
+     ~5th frame's time), so they carry a little more opacity instead */
+  --bg: rgba(255, 255, 255, 0.88);
+  --bg-card: rgba(255, 255, 255, 0.91);
   --bg-solid: #f5f8f3;
   --fg: #16221a;
   --muted: #5f6f62;
@@ -44,7 +47,7 @@ body {
 .player-chip {
   display: flex; align-items: center; gap: 10px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
-  padding: 6px 8px 6px 6px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+  padding: 6px 8px 6px 6px; box-shadow: var(--shadow);
 }
 .avatar {
   width: 34px; height: 34px; border-radius: 50%; flex: none;
@@ -78,7 +81,7 @@ body {
 .stat {
   display: flex; flex-direction: column; align-items: center; line-height: 1.1;
   background: var(--bg); border: 1px solid var(--line); border-radius: 9px;
-  padding: 4px 11px; min-width: 52px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+  padding: 4px 11px; min-width: 52px; box-shadow: var(--shadow);
 }
 .stat span { font-size: 9px; letter-spacing: 1px; color: var(--muted); font-weight: 700; }
 .stat b { font-size: 18px; font-weight: 600; }
@@ -87,7 +90,7 @@ body {
 #lm-status {
   display: flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 20px;
   background: var(--bg); border: 1px solid var(--line); font-size: 11px; color: var(--muted);
-  backdrop-filter: blur(10px); white-space: nowrap; font-weight: 600;
+  white-space: nowrap; font-weight: 600;
 }
 #lm-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #b3bdb5; }
 #lm-status.connected { color: var(--fg); }
@@ -97,7 +100,7 @@ body {
 .btn {
   background: var(--bg); color: var(--fg); border: 1px solid var(--line);
   border-radius: 9px; padding: 8px 15px; font-size: 13px; font-weight: 600; cursor: pointer;
-  backdrop-filter: blur(10px); transition: border-color .15s, background .15s;
+  transition: border-color .15s, background .15s;
 }
 .btn:hover { border-color: var(--accent); color: var(--accent); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -110,7 +113,7 @@ body {
   position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%); z-index: 11;
   background: var(--bg); color: var(--fg); border: 1px solid var(--line);
   border-radius: 9px; padding: 7px 14px; font-size: 13px; font-weight: 600;
-  box-shadow: var(--shadow); backdrop-filter: blur(10px); white-space: nowrap;
+  box-shadow: var(--shadow); white-space: nowrap;
 }
 #freecam-hint b { color: var(--accent); }
 /* background course progress: scenery arriving, cloud download */
@@ -118,7 +121,7 @@ body {
   position: fixed; top: 74px; left: 50%; transform: translateX(-50%); z-index: 11;
   background: var(--bg); color: var(--muted); border: 1px solid var(--line);
   border-radius: 9px; padding: 5px 12px; font-size: 12px; font-weight: 600;
-  box-shadow: var(--shadow); backdrop-filter: blur(10px); white-space: nowrap;
+  box-shadow: var(--shadow); white-space: nowrap;
   max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis;
   pointer-events: none;
 }
@@ -154,7 +157,7 @@ body {
 .dcard {
   flex: 1; min-width: 0; display: flex; flex-direction: column;
   background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px;
-  padding: 7px 12px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+  padding: 7px 12px; box-shadow: var(--shadow);
 }
 .dcard .dval { display: block; font-size: 22px; font-weight: 600; line-height: 1.04; letter-spacing: 0.3px; }
 .dcard .dunit { display: block; font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.6px; margin-top: 1px; }
@@ -164,8 +167,8 @@ body {
 /* A dark "broadcast screen" variant of the frosted panels so the amber trace reads. */
 #flightview {
   position: fixed; right: 16px; top: 74px; z-index: 10; width: 360px;
-  background: rgba(13, 21, 16, 0.74); border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 12px;
-  padding: 9px 11px 6px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+  background: rgba(13, 21, 16, 0.82); border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 12px;
+  padding: 9px 11px 6px; box-shadow: var(--shadow);
   color: #f2f1ec;
 }
 .fv-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 2px 2px; }
@@ -200,13 +203,13 @@ body {
 #clubs .club {
   width: 38px; height: 34px; border-radius: 8px; border: 1px solid var(--line);
   background: var(--bg); color: var(--fg); font-size: 12px; font-weight: 700; cursor: pointer;
-  backdrop-filter: blur(10px); transition: border-color .15s, background .15s;
+  transition: border-color .15s, background .15s;
 }
 #clubs .club:hover { border-color: var(--accent); }
 #clubs .club.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .aim {
   display: flex; align-items: center; gap: 9px; background: var(--bg); border: 1px solid var(--line);
-  border-radius: 10px; padding: 7px 13px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+  border-radius: 10px; padding: 7px 13px; box-shadow: var(--shadow);
 }
 .aim > span:first-child { font-size: 10px; letter-spacing: 1px; color: var(--muted); font-weight: 700; }
 .aim input { width: 160px; accent-color: var(--accent); }
@@ -216,7 +219,7 @@ body {
 #lie-cluster {
   position: fixed; left: 16px; bottom: 76px; z-index: 10;
   background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
-  padding: 11px 15px; box-shadow: var(--shadow); backdrop-filter: blur(10px); min-width: 158px;
+  padding: 11px 15px; box-shadow: var(--shadow); min-width: 158px;
 }
 .lie-main { display: flex; align-items: center; gap: 11px; margin-bottom: 9px; }
 .lie-flag { font-size: 20px; }
@@ -255,7 +258,7 @@ body {
 #minimap {
   position: fixed; right: 16px; bottom: 80px; z-index: 10; width: 240px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
-  padding: 10px 11px 11px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+  padding: 10px 11px 11px; box-shadow: var(--shadow);
 }
 .mm-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 2px 8px; }
 .mm-title { font-size: 11px; font-weight: 800; letter-spacing: 0.3px; color: var(--fg); }
@@ -266,7 +269,7 @@ body {
 .panel {
   position: fixed; z-index: 20; right: 16px; bottom: 80px; width: 300px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 14px;
-  padding: 16px 18px; box-shadow: var(--shadow); backdrop-filter: blur(14px);
+  padding: 16px 18px; box-shadow: var(--shadow);
 }
 .panel h3 { font-size: 14px; margin-bottom: 14px; font-weight: 800; }
 .panel label { display: grid; grid-template-columns: 96px 1fr 72px; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
@@ -322,7 +325,7 @@ body {
   position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 30;
   background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
   padding: 13px 24px; font-size: 16px; font-weight: 800; text-align: center;
-  backdrop-filter: blur(12px); box-shadow: var(--shadow); transition: opacity 0.4s;
+  box-shadow: var(--shadow); transition: opacity 0.4s;
 }
 #toast .sub { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 3px; }
 
@@ -396,7 +399,7 @@ body {
 #practice-board {
   position: fixed; left: 16px; bottom: 196px; z-index: 10; width: 290px; max-height: 44vh; overflow-y: auto;
   background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
-  padding: 11px 13px 12px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+  padding: 11px 13px 12px; box-shadow: var(--shadow);
 }
 .pb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
 .pb-head .panel-eyebrow { margin-bottom: 2px; color: var(--accent); }

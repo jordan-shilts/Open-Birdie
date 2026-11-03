@@ -47,8 +47,12 @@ export class PostFX {
     const size = renderer.getSize(new THREE.Vector2());
 
     // EffectComposer reads renderer.getPixelRatio() and uses HalfFloat targets,
-    // so the scene stays HDR/linear until OutputPass tone-maps it.
-    this.composer = new EffectComposer(renderer);
+    // so the scene stays HDR/linear until OutputPass tone-maps it. The targets carry a
+    // depth TEXTURE so GTAO can read the main pass's depth instead of drawing the whole
+    // course again into its own normal/depth buffers (one geometry pass a frame fewer).
+    const target = new THREE.WebGLRenderTarget(Math.max(1, size.x), Math.max(1, size.y), { type: THREE.HalfFloatType });
+    target.depthTexture = new THREE.DepthTexture(Math.max(1, size.x), Math.max(1, size.y));
+    this.composer = new EffectComposer(renderer, target);
     this.composer.addPass(new RenderPass(scene, camera));
 
     // GTAO for contact grounding (tree bases, terrain folds, bunker lips). Small
@@ -88,6 +92,19 @@ export class PostFX {
       gtao.setSize = (w, h) => gtaoSetSize(Math.max(1, Math.round(w * this.aoScale)), Math.max(1, Math.round(h * this.aoScale)));
       this.composer.addPass(gtao);
       this.gtao = gtao;
+      // read the scene depth the RenderPass just wrote; normals are rebuilt from it
+      // (GTAO's own normal pass — and its whole-scene draw — is skipped)
+      gtao.setGBuffer(this.composer.readBuffer.depthTexture);
+      // Normals rebuilt from depth go wrong at depth edges past a few dozen metres (a
+      // 12 km far plane leaves little depth precision), where AO printed dark tree-shaped
+      // halos on the turf behind distant trees. A 1.6 m contact AO only matters up close
+      // (grounding.js lays the tree-base contact shadows), so fade it out from 35 to 70 m.
+      const gm = gtao.gtaoMaterial;
+      gm.fragmentShader = gm.fragmentShader.replace(
+        'ao = pow(ao, scale);',
+        'ao = pow(ao, scale);\n\t\t\tao = mix(ao, 1.0, smoothstep(35.0, 70.0, length(viewPos)));',
+      );
+      gm.needsUpdate = true;
     }
 
     // Bloom must NOT touch turf: sun-lit bright grass (esp. the greens) sits near
@@ -125,6 +142,8 @@ export class PostFX {
   }
 
   render() {
+    // the composer ping-pongs its targets: point GTAO at the one the scene renders into
+    if (this.gtao?.enabled) this.gtao.setGBuffer(this.composer.readBuffer.depthTexture);
     this.composer.render();
   }
 }

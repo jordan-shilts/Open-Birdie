@@ -106,9 +106,11 @@ const POND_FRAG = /* glsl */`
     #include <fog_fragment>
   }`;
 
-function mirrorPond(geom, shared, skip) {
+function mirrorPond(geom, shared, skip, only) {
+  // 512 px: the ripple field distorts the reflection by more than a texel anyway, and a
+  // 1024 mirror filled 4x the pixels re-rendering the course every other frame
   const refl = new Reflector(geom, {
-    textureWidth: 1024, textureHeight: 1024, clipBias: 0.003, color: 0xc4d0cc,
+    textureWidth: 512, textureHeight: 512, clipBias: 0.003, color: 0xc4d0cc,
     shader: {
       name: 'PondMirror',
       uniforms: {
@@ -130,18 +132,22 @@ function mirrorPond(geom, shared, skip) {
   // Reflector re-renders the scene in onBeforeRender, which fires for EVERY pass that
   // draws the pond (the main pass, the AO normal pass, other ponds' mirrors). Render
   // only when the budget asked for it this frame, once, and never nested in another
-  // pond's mirror. Ground cover (grass blades, flowers, litter: `skip`) stays out of
-  // the mirror: a pond can't show it, and redrawing it was most of a mirror's cost.
+  // pond's mirror. Ground cover (grass blades, flowers, litter) and the full terrain
+  // (`skip`) stay out of the mirror, and a cheap terrain stand-in (`only`) takes the
+  // terrain's place: a pond can't show blades or 1 m relief, and redrawing them was
+  // most of a mirror's cost.
   const render = refl.onBeforeRender.bind(refl);
   refl.onBeforeRender = (...args) => {
     if (!refl.userData.refresh || inMirror) return;
     refl.userData.refresh = false;
     inMirror = true;
-    const hidden = [];
+    const hidden = [], shown = [];
     for (const o of skip) if (o.visible) { o.visible = false; hidden.push(o); }
+    for (const o of only) if (!o.visible) { o.visible = true; shown.push(o); }
     try { render(...args); } finally {
       inMirror = false;
       for (const o of hidden) o.visible = true;
+      for (const o of shown) o.visible = false;
     }
   };
   return refl;
@@ -174,6 +180,7 @@ function skyPond(geom, shared) {
 export function buildWater(ponds, sunDir, depth) {
   const meshes = [];
   const mirrorSkip = [];   // objects left out of the live mirrors (setMirrorSkip)
+  const mirrorOnly = [];   // objects drawn only inside them
   const reflect = RENDER_CONFIG.waterReflect;
   const shared = {
     uTime: { value: 0 },
@@ -200,7 +207,7 @@ export function buildWater(ponds, sunDir, depth) {
     const g = new THREE.ShapeGeometry(shape);
     // a hair over the flattened water line: the bank where it rises out draws the shore
     const level = p.level + 0.03;
-    const m = reflect ? mirrorPond(g, shared, mirrorSkip) : skyPond(g, shared);
+    const m = reflect ? mirrorPond(g, shared, mirrorSkip, mirrorOnly) : skyPond(g, shared);
     m.rotation.x = -Math.PI / 2;
     m.position.y = level;
     m.updateMatrixWorld(true);
@@ -252,6 +259,9 @@ export function buildWater(ponds, sunDir, depth) {
     setSky: (tex) => { shared.uSky.value = tex; },
     updateMirrors,
     setFoamDepth,
-    setMirrorSkip: (objects) => { mirrorSkip.length = 0; mirrorSkip.push(...objects.filter(Boolean)); },
+    setMirrorSkip: (objects, only = []) => {
+      mirrorSkip.length = 0; mirrorSkip.push(...objects.filter(Boolean));
+      mirrorOnly.length = 0; mirrorOnly.push(...only.filter(Boolean));
+    },
   };
 }
