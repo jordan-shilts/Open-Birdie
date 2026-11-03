@@ -4,6 +4,16 @@ All notable changes to Open-Birdie are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Mulligans** — after a round shot lands, Mulligan in the bottom bar (or M) takes it back: the ball,
+  strokes, aim and score go back to how they stood before it, and the scorecard counts it on that hole (a
+  Mull. row, and a chip in the round summary). One shot back, only on the hole being played, never on the
+  range (`lib/game.js` `mulligan`, `POST /api/mulligan`).
+- **Saved shots** — ★ Save on the last-shot panel (or in the new Saved panel) keeps a shot with its launch,
+  its result and its flight in `DATA_DIR/saved-shots.json` (the newest 200). Saved lists them, and Replay
+  flies one again from where it was hit on the loaded course, side view and all, without touching the round;
+  a live shot that comes in mid-replay ends the replay first (`lib/saved-shots.js`, `/api/saved-shots`).
+
 ### Fixed
 - **The launch monitor keeps the club you pick on it** — after every shot Open-Birdie sent the monitor a
   player update with the new distance to the pin, and that update repeated Open-Birdie's own club (Driver

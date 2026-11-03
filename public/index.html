@@ -54,6 +54,9 @@
     <button id="btn-score" class="icon-btn" title="Scorecard">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M9.5 4.5v15"/></svg><span>Scorecard</span>
     </button>
+    <button id="btn-saved" class="icon-btn" title="Your saved shots">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.8l2.5 5.1 5.6.8-4 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-4 5.6-.8z"/></svg><span>Saved</span><i class="count hidden" id="saved-count"></i>
+    </button>
     <button id="btn-games" class="icon-btn" title="Driving range and mini games on this course">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" class="fill"/></svg><span>Range</span>
     </button>
@@ -103,7 +106,12 @@
 </button>
 
 <aside id="shotpanel" class="hidden" aria-label="Last shot">
-  <div class="sp-head"><span class="lbl">LAST SHOT</span><span class="sp-club" id="sp-club"></span></div>
+  <div class="sp-head">
+    <span class="lbl" id="sp-label">LAST SHOT</span><span class="sp-club" id="sp-club"></span>
+    <button id="sp-save" class="sp-save" aria-pressed="false" title="Save this shot to your saved shots">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.8l2.5 5.1 5.6.8-4 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-4 5.6-.8z"/></svg><span>Save</span>
+    </button>
+  </div>
   <div class="sp-hero">
     <div class="tile big"><span class="lbl">CARRY</span><b id="sd-carry">–</b></div>
     <div class="tile big"><span class="lbl">TOTAL</span><b id="sd-total">–</b></div>
@@ -183,6 +191,7 @@
     <button id="aim-reset" class="aim-auto ghost" title="Back to the default line (0)">0</button>
   </div>
   <button id="btn-practice" class="btn">Practice shot</button>
+  <button id="btn-mulligan" class="btn hidden" title="Take that shot back and hit it again; the scorecard counts it (M)">↺ Mulligan</button>
   <button id="btn-next" class="btn primary hidden">Next hole ▶</button>
 </footer>
 
@@ -273,6 +282,17 @@
     <button id="btn-changecourse" class="btn hidden">Change course</button>
   </div>
 </div>
+
+<div id="saved-panel" class="panel hidden" role="dialog" aria-label="Saved shots">
+  <div class="panel-head">
+    <div><span class="lbl">SAVED SHOTS</span><h3 id="saved-title">Your favourites</h3></div>
+    <button class="panel-x" data-close="saved-panel" aria-label="Close">×</button>
+  </div>
+  <button id="saved-add" class="btn saved-add" disabled>★ Save the last shot</button>
+  <div id="saved-list" class="saved-list"></div>
+</div>
+
+<div id="replay-banner" class="hidden" role="status" aria-live="polite"></div>
 
 <div id="toast" class="hidden" role="status" aria-live="polite"></div>
 </div>
