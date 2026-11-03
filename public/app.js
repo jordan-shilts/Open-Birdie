@@ -7,6 +7,7 @@ import { FlightView } from './flight-view.js';
 import { AimMap } from './aim-map.js';
 import { ConditionsUI } from './conditions-ui.js';
 import { Lineup, clubByLabel, writeAutoClub } from './lineup.js';
+import { LeaguesUI } from './leagues-ui.js';
 import { parseQualitySetting, qualityLabel } from './render/quality.js';
 import { parseSkySetting, SKY_ORDER, SKY_PRESETS } from './render/sky-presets.js';
 
@@ -27,6 +28,14 @@ const readSky = () => { try { return localStorage.getItem(SKY_KEY); } catch { re
 let skySetting = parseSkySetting(query.get('sky') || (visualCaptureEnabled ? 'midday' : readSky()));
 const scene = new GolfScene($('scene'), { quality: gfxSetting, autoQuality: !visualCaptureEnabled, sky: skySetting });
 const flightView = new FlightView($('flightview'));
+const leaguesUI = new LeaguesUI({
+  toast: (main, sub) => showToast(main, sub),
+  clearStage: () => {
+    for (const id of ['scorecard', 'games-menu']) $(id).classList.add('hidden');
+    $('btn-score').classList.remove('active');
+    $('btn-games').classList.remove('active');
+  },
+});
 
 // ---------- HUD scale: one layout, zoomed to the window (laptop .. 4K TV) ----------
 function fitHud() {
@@ -128,6 +137,9 @@ function applyState(s) {
   if (!s.loaded) { openCourseModal(); return; }
   const pr = s.practice || null;   // driving range / mini game session (the round is paused)
   $('course-name').textContent = s.courseName.split(',')[0];
+  $('player-name').textContent = s.player ? s.player.name : 'Player 1';
+  $('player-avatar').textContent = s.player ? s.player.initials : 'P1';
+  leaguesUI.setGameState(s);
   if (pr) {
     const closest = pr.mode === 'closest' && pr.holeRef != null;
     const green = greenGame(pr);
@@ -339,6 +351,8 @@ es.addEventListener('course-progress', (e) => {
   el.textContent = text;
   el.classList.remove('hidden');
 });
+es.addEventListener('leagues', (e) => leaguesUI.setData(JSON.parse(e.data)));
+es.addEventListener('league-card', (e) => leaguesUI.cardPosted(JSON.parse(e.data)));
 es.addEventListener('lm', (e) => {
   const lm = JSON.parse(e.data);
   $('lm-status').classList.toggle('connected', lm.connected);
@@ -751,11 +765,13 @@ $('btn-next').onclick = async () => {
 };
 function toggleScorecard() {
   reviewHole = null;
+  if ($('scorecard').classList.contains('hidden')) leaguesUI.toggle(false);   // one panel mid-screen at a time
   $('scorecard').classList.toggle('hidden');
   $('btn-score').classList.toggle('active', !$('scorecard').classList.contains('hidden'));
   if (state) buildScorecard(state);
 }
 $('btn-score').onclick = toggleScorecard;
+$('btn-league').onclick = () => leaguesUI.toggle();
 $('stat-hole').onclick = toggleScorecard;   // the HOLE badge opens the scorecard (phone hole-nav)
 $('stat-hole').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleScorecard(); } };
 $('btn-restart').onclick = () => { reviewHole = null; fetch('/api/reset', { method: 'POST' }); $('scorecard').classList.add('hidden'); };
@@ -778,6 +794,7 @@ document.querySelectorAll('[data-close]').forEach((b) => {
   b.onclick = () => {
     $(b.dataset.close).classList.add('hidden');
     if (b.dataset.close === 'scorecard') $('btn-score').classList.remove('active');
+    if (b.dataset.close === 'league-panel') $('btn-league').classList.remove('active');
     if (b.dataset.close === 'games-menu') $('btn-games').classList.remove('active');
   };
 });
@@ -1019,12 +1036,15 @@ window.addEventListener('keydown', (e) => {
   const k = String(e.key || '');
   if (k === 'Escape') {
     closeMenu();
-    for (const id of ['conditions', 'practice', 'games-menu', 'scorecard']) $(id).classList.add('hidden');
+    for (const id of ['conditions', 'practice', 'games-menu', 'scorecard', 'league-panel', 'player-menu']) $(id).classList.add('hidden');
+    leaguesUI.closeResult();
     $('btn-score').classList.remove('active');
+    $('btn-league').classList.remove('active');
     return;
   }
   if (k.toLowerCase() === 'f') { if (!animating && scene.flyover.start()) e.preventDefault(); return; }
   if (k.toLowerCase() === 'w') { conditions.toggle(); return; }
+  if (k.toLowerCase() === 'l') { leaguesUI.toggle(); return; }
   if (animating) return;
   if (k === 'ArrowLeft' || k === 'ArrowRight') {
     e.preventDefault();

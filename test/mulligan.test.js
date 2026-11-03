@@ -102,3 +102,15 @@ test('no mulligan after moving on, in practice, or after a reset or a new course
   assert.equal(g.mulligan(), false);
   assert.deepEqual(g.state().mulligans, [0, 0, 0]);
 });
+
+test('no mulligans in a league round: its card is a competition\'s', () => {
+  const g = new Game();
+  g.setCourse(course(2));
+  g.leagueRound = { leagueId: 'l1', leagueName: 'Tuesday', week: 1, playerId: 'p1', playerName: 'Ana' };
+  assert.ok(g.handleShot(iron));
+  assert.equal(g.state().canMulligan, false);
+  assert.equal(g.mulligan(), false);
+  assert.equal(g.strokes, 1);
+  g.leagueRound = null;                                 // left the league round: back to a casual one
+  assert.equal(g.state().canMulligan, true);
+});

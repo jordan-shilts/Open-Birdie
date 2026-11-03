@@ -31,6 +31,7 @@ const { Game, CLUB_FULL } = require('./lib/game');
 const { PRESETS, conditionsState, loadConditionsFile, saveConditionsFile } = require('./lib/conditions');
 const { createBag } = require('./lib/bag');
 const { createSavedShots } = require('./lib/saved-shots');
+const { createLeagues, LeagueError, initials } = require('./lib/leagues');
 const { PredictError, predictCarries, predictShot } = require('./lib/predict');
 const { serveHdAsset, publicHdMetadata, pickDescriptor } = require('./lib/hd-http');
 const { makeNonce, verifyReadinessAck } = require('./lib/hd-readiness');
@@ -76,6 +77,13 @@ game.bag = bag;
 const saved = createSavedShots({ dataDir: DATA_DIR });
 let shotSeq = 0;
 let lastShot = null;
+// Players and leagues (lib/leagues.js). The active player is who the round belongs to.
+const leagues = createLeagues({ dataDir: DATA_DIR });
+function setGamePlayer() {
+  const p = leagues.activePlayer;
+  game.player = p ? { id: p.id, name: p.name, initials: initials(p.name), handicap: p.handicap } : null;
+}
+setGamePlayer();
 const sseClients = new Set();
 // HD bundle runtime state, kept OUTSIDE the serializable course object so absolute
 // paths + Float32 heights never leak through course JSON. An ARRAY — one descriptor
@@ -140,7 +148,40 @@ function playShot(ballData, clubName) {
   broadcast('shot', result);
   broadcast('state', game.state());
   updatePlayerInfo();
+  postLeagueRound();
   return result;
+}
+
+// A round started from a league posts its card the moment the round is finished: the
+// last hole holed out, picked up or skipped.
+function postLeagueRound() {
+  const lr = game.leagueRound;
+  if (!lr || !game.over || game.practice) return;
+  game.leagueRound = null;
+  game._undo = null;   // a posted card is final: no taking its last shot back
+  const st = game.state();
+  try {
+    const r = leagues.postRound(lr.leagueId, lr.week, lr.playerId, {
+      course: st.courseName, pars: st.pars, scores: st.scores, pickedUp: st.pickedUp,
+    });
+    broadcast('league-card', { ...r, leagueId: lr.leagueId, week: lr.week, playerName: lr.playerName });
+    broadcast('leagues', leagues.state());
+  } catch (error) {
+    console.warn(`[leagues] card not posted: ${error.message}`);
+  }
+  broadcast('state', game.state());
+}
+
+// League and roster routes answer a LeagueError (bad input, a rule) with its message.
+function leagueRoute(res, fn) {
+  try {
+    const out = fn();
+    broadcast('leagues', leagues.state());
+    return json(res, { ok: true, ...out });
+  } catch (error) {
+    if (error instanceof LeagueError) return json(res, { ok: false, error: error.message }, error.status);
+    throw error;
+  }
 }
 
 // Where the next ball is hit from, for the bag's history.
@@ -307,6 +348,7 @@ const activationManager = createCourseActivationManager({
     console.error(`[course] activation prepare failed: ${JSON.stringify(cause)}`);
   },
   onCommitted({ resolvedPackage, candidate }) {
+    game.leagueRound = null;   // a new course ends a league round (/api/leagues/play sets it after)
     if (activeHd.length) {
       console.log(`[hd] ${activeHd.length} bundle(s) active: hole(s) ${activeHd.map((d) => d.hole).join(', ')}`);
     }
@@ -384,6 +426,7 @@ const server = http.createServer(async (req, res) => {
       const one = saved.get(decodeURIComponent(p.slice('/api/saved-shots/'.length)));
       return one ? json(res, one) : json(res, { ok: false, error: 'No such saved shot' }, 404);
     }
+    if (p === '/api/leagues' && req.method !== 'POST') return json(res, { ...leagues.state(), leagueRound: game.leagueRound });
     if (p === '/api/courses/cached') return json(res, listCached());
     if (p === '/api/search') {
       // Raw query: appending " golf" made Nominatim match addresses like
@@ -496,6 +539,7 @@ const server = http.createServer(async (req, res) => {
       }
       // Take the hole's latest shot back (lib/game.js mulligan)
       if (p === '/api/mulligan') {
+        if (game.leagueRound) return json(res, { ok: false, error: 'No mulligans in a league round' }, 409);
         if (!game.mulligan()) return json(res, { ok: false, error: 'No shot to take back' }, 409);
         const st = game.state();
         broadcast('mulligan', { hole: st.hole, mulligans: st.mulligans[st.hole - 1] });
@@ -506,6 +550,87 @@ const server = http.createServer(async (req, res) => {
       if (p === '/api/next-hole') {
         game.nextHole();
         updatePlayerInfo();
+        broadcast('state', game.state());
+        postLeagueRound();
+        return json(res, { ok: true });
+      }
+      // ---- players and leagues (lib/leagues.js) ----
+      if (p === '/api/players') return leagueRoute(res, () => ({ player: leagues.addPlayer(body) }));
+      if (p === '/api/players/update') {
+        return leagueRoute(res, () => {
+          const player = leagues.updatePlayer(String(body.id || ''), body);
+          setGamePlayer();
+          broadcast('state', game.state());
+          return { player };
+        });
+      }
+      if (p === '/api/players/remove') {
+        return leagueRoute(res, () => {
+          leagues.removePlayer(String(body.id || ''));
+          setGamePlayer();
+          broadcast('state', game.state());
+          return {};
+        });
+      }
+      if (p === '/api/players/active') {
+        return leagueRoute(res, () => {
+          const id = String(body.id || '');
+          if (game.leagueRound && game.leagueRound.playerId !== id) {
+            throw new LeagueError(`${game.leagueRound.playerName} is playing a league round: finish it or leave it first`, 409);
+          }
+          leagues.setActivePlayer(id);
+          setGamePlayer();
+          broadcast('state', game.state());
+          return {};
+        });
+      }
+      if (p === '/api/leagues') return leagueRoute(res, () => ({ league: leagues.createLeague(body) }));
+      if (p === '/api/leagues/update') return leagueRoute(res, () => ({ league: leagues.updateLeague(String(body.id || ''), body) }));
+      if (p === '/api/leagues/remove') {
+        return leagueRoute(res, () => {
+          leagues.removeLeague(String(body.id || ''));
+          if (game.leagueRound && game.leagueRound.leagueId === body.id) game.leagueRound = null;
+          broadcast('state', game.state());
+          return {};
+        });
+      }
+      // {leagueId, week, playerId}: that player's card for that week, on the week's
+      // course (loaded first when it isn't the one in play), from a fresh round
+      if (p === '/api/leagues/play') {
+        let pick;
+        try {
+          pick = leagues.weekToPlay(String(body.leagueId || ''), body.week, String(body.playerId || ''));
+        } catch (error) {
+          if (error instanceof LeagueError) return json(res, { ok: false, error: error.message }, error.status);
+          throw error;
+        }
+        const { league, week } = pick;
+        const c = week.course;
+        const loaded = game.course && (c.courseId
+          ? game.course.source && normalizeCourseSource(game.course.source).courseId === c.courseId
+          : game.course.name === c.name);
+        if (!loaded) {
+          const result = await activationManager.activate({ cached: c.cached, name: c.name });
+          if (result.status === 'superseded' || result.status === 'failed') {
+            return json(res, { ok: false, error: result.diagnostic.message }, result.status === 'failed' ? 500 : 409);
+          }
+        }
+        if (game.practice) game.endPractice();
+        game.reset();
+        leagues.setActivePlayer(String(body.playerId));
+        setGamePlayer();
+        const pl = leagues.player(String(body.playerId));
+        game.leagueRound = {
+          leagueId: league.id, leagueName: league.name, week: week.n,
+          playerId: pl.id, playerName: pl.name, course: c.name,
+        };
+        updatePlayerInfo();
+        broadcast('state', game.state());
+        broadcast('leagues', leagues.state());
+        return json(res, { ok: true, leagueRound: game.leagueRound });
+      }
+      if (p === '/api/leagues/leave') {
+        game.leagueRound = null;
         broadcast('state', game.state());
         return json(res, { ok: true });
       }

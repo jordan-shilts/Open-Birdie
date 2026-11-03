@@ -19,6 +19,16 @@ All notable changes to Open-Birdie are documented here.
 - **Aiming in yards** — the aim reads as yards left or right of the pin at the club's carry ("7 yd L", "On
   pin") on the bottom bar and on the map, where the aim line runs solid to a target ring at the carry and
   faint beyond; a ghost line shows where a click would aim, and a double-click aims back at the pin.
+### Added
+- **Players and leagues** — a roster of everyone who plays on the simulator (a name and an optional handicap
+  index; the round card is the player switcher), and leagues: some of the roster playing a season of weeks, a
+  course each week, scored net or gross. A league round starts from the week's board (Play, per player; the
+  week's course loads if it isn't the one in play) and its card posts itself when the round is finished; the
+  first card a player finishes for a week is the one that counts. Each week pays 10 · 8 · 6 · 5 · 4 · 3 · 2
+  points for 1st to 7th and 1 for every other card, ties sharing, and the standings add them up with cards
+  played, average to par, best round and weeks won. Kept in `DATA_DIR/leagues.json` (`lib/leagues.js`,
+  `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
+
 ### Fixed
 - **A tree no longer stretches the landing area across the whole hole** — the predicted landing and
   resting areas come from launches one sigma either side of the typical one, and when one of those met a
