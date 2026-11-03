@@ -30,6 +30,7 @@ const { prepareCourseCandidate } = require('./lib/resolved-course-package');
 const { Game, CLUB_FULL } = require('./lib/game');
 const { PRESETS, conditionsState, loadConditionsFile, saveConditionsFile } = require('./lib/conditions');
 const { createBag } = require('./lib/bag');
+const { createSavedShots } = require('./lib/saved-shots');
 const { PredictError, predictCarries, predictShot } = require('./lib/predict');
 const { serveHdAsset, publicHdMetadata, pickDescriptor } = require('./lib/hd-http');
 const { makeNonce, verifyReadinessAck } = require('./lib/hd-readiness');
@@ -70,6 +71,11 @@ const CONDITIONS_FILE = path.join(DATA_DIR, 'conditions.json');
 // which the lineup predicts with (lib/predict.js reads game.bag).
 const bag = createBag({ dataDir: DATA_DIR });
 game.bag = bag;
+// The player's saved shots (lib/saved-shots.js), and the last shot played: the one a
+// save applies to, with where it was hit from.
+const saved = createSavedShots({ dataDir: DATA_DIR });
+let shotSeq = 0;
+let lastShot = null;
 const sseClients = new Set();
 // HD bundle runtime state, kept OUTSIDE the serializable course object so absolute
 // paths + Float32 heights never leak through course JSON. An ARRAY — one descriptor
@@ -118,8 +124,19 @@ oc.on('error', (err) => {
 });
 
 function playShot(ballData, clubName) {
+  const before = game.course ? game.state() : null;   // where the ball is hit from
   const result = game.handleShot(ballData, clubName);
   if (!result) return null;
+  result.shotId = ++shotSeq;
+  const pr = before.practice || null;
+  lastShot = {
+    result,
+    context: {
+      shotId: result.shotId, at: Date.now(), course: before.courseName,
+      hole: pr ? null : before.hole, holeRef: pr ? (pr.holeRef ?? null) : before.holeRef, practice: pr ? pr.mode : null,
+      club: result.clubKey || result.club || null, pin: before.pin, tee: before.tee, aimDeg: before.aimDeg,
+    },
+  };
   broadcast('shot', result);
   broadcast('state', game.state());
   updatePlayerInfo();
@@ -359,6 +376,14 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/carries' && req.method !== 'POST') return predictRoute(res, () => predictCarries(game));
     if (p === '/api/bag' && req.method !== 'POST') return json(res, bag.summary());
+    // Saved shots: the list (newest first), and one with its trajectory to replay
+    if (p === '/api/saved-shots' && req.method !== 'POST') {
+      return json(res, { shots: saved.list(), lastShotId: lastShot ? lastShot.context.shotId : null });
+    }
+    if (p.startsWith('/api/saved-shots/') && req.method === 'GET') {
+      const one = saved.get(decodeURIComponent(p.slice('/api/saved-shots/'.length)));
+      return one ? json(res, one) : json(res, { ok: false, error: 'No such saved shot' }, 404);
+    }
     if (p === '/api/courses/cached') return json(res, listCached());
     if (p === '/api/search') {
       // Raw query: appending " golf" made Nominatim match addresses like
@@ -452,6 +477,31 @@ const server = http.createServer(async (req, res) => {
         await bag.reset();
         broadcast('bag', { reset: true, total: bag.total });
         return json(res, { ok: true, bag: bag.summary() });
+      }
+      // {shotId}: save the shot just played (refused once another has been hit since)
+      if (p === '/api/saved-shots') {
+        if (!lastShot || (body.shotId != null && body.shotId !== lastShot.context.shotId)) {
+          return json(res, { ok: false, error: 'That shot is no longer the last one' }, 409);
+        }
+        const shot = saved.add(lastShot.result, lastShot.context);
+        if (!shot) return json(res, { ok: false, error: 'That shot has no flight to save' }, 422);
+        broadcast('saved-shots', { count: saved.count, saved: shot.id, shotId: lastShot.context.shotId });
+        return json(res, { ok: true, shot });
+      }
+      if (p === '/api/saved-shots/remove') {
+        const id = String(body.id || '');
+        const ok = saved.remove(id);
+        if (ok) broadcast('saved-shots', { count: saved.count, removed: id });
+        return json(res, { ok });
+      }
+      // Take the hole's latest shot back (lib/game.js mulligan)
+      if (p === '/api/mulligan') {
+        if (!game.mulligan()) return json(res, { ok: false, error: 'No shot to take back' }, 409);
+        const st = game.state();
+        broadcast('mulligan', { hole: st.hole, mulligans: st.mulligans[st.hole - 1] });
+        broadcast('state', st);
+        updatePlayerInfo();
+        return json(res, { ok: true });
       }
       if (p === '/api/next-hole') {
         game.nextHole();

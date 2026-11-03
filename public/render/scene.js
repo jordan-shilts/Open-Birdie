@@ -1671,6 +1671,12 @@ export class GolfScene {
     this.scene.add(this.aimLine);
   }
 
+  // Wipe the last shot off the course (tracer, apex and landing callouts): a mulligan
+  // takes it back. The aim line returns with the address framing on its own.
+  clearShot() {
+    if (!this.anim) this._clearTrail();
+  }
+
   _clearTrail() {
     if (this.trail) { this.scene.remove(this.trail); this.trail.geometry.dispose(); this.trail = null; }
     if (this.tracer) { this.scene.remove(this.tracer.mesh); this.tracer.dispose(); this.tracer = null; }

@@ -19,7 +19,6 @@ All notable changes to Open-Birdie are documented here.
 - **Aiming in yards** — the aim reads as yards left or right of the pin at the club's carry ("7 yd L", "On
   pin") on the bottom bar and on the map, where the aim line runs solid to a target ring at the carry and
   faint beyond; a ghost line shows where a click would aim, and a double-click aims back at the pin.
-
 ### Fixed
 - **A tree no longer stretches the landing area across the whole hole** — the predicted landing and
   resting areas come from launches one sigma either side of the typical one, and when one of those met a
@@ -105,6 +104,14 @@ All notable changes to Open-Birdie are documented here.
   (25.1 -> 22.5 ms at a tee with ponds in view, 21.6 -> 19.1 ms at a green; 1600x900, Apple M3 Pro).
 
 ### Added
+- **Mulligans** — after a round shot lands, Mulligan in the bottom bar (or M) takes it back: the ball,
+  strokes, aim and score go back to how they stood before it, and the scorecard counts it on that hole (a
+  Mull. row, and a chip in the round summary). One shot back, only on the hole being played, never on the
+  range (`lib/game.js` `mulligan`, `POST /api/mulligan`).
+- **Saved shots** — ★ Save on the last-shot panel (or in the new Saved panel) keeps a shot with its launch,
+  its result and its flight in `DATA_DIR/saved-shots.json` (the newest 200). Saved lists them, and Replay
+  flies one again from where it was hit on the loaded course, side view and all, without touching the round;
+  a live shot that comes in mid-replay ends the replay first (`lib/saved-shots.js`, `/api/saved-shots`).
 - **Three more mini games** (`lib/practice.js`). **Putting challenge**: 9 putts at a real cup, the green of the
   hole the round is on (else hole 1's): 3, 5, 8, 12, 16, 20, 25, 30 and 40 ft, each from its own side of the
   cup and on the green all the way to it (on a green too small for the long ones they come in to the longest

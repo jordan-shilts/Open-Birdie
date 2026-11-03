@@ -179,6 +179,7 @@ function applyState(s) {
   if (s.over && !prevOver && !pr) { $('scorecard').classList.remove('hidden'); $('practice').classList.add('hidden'); }
   prevOver = s.over;
   $('btn-practice').classList.toggle('hidden', !!s.over && !pr);
+  updateMulligan();
 }
 
 async function loadGeometry() {
@@ -344,11 +345,17 @@ es.addEventListener('lm', (e) => {
   $('lm-text').textContent = lm.connected ? 'Monitor connected' : 'Monitor offline';
 });
 let lineupBack = null;   // after a shot lands: back to lining up the next one
+let lastShot = null;     // { shot, plan, savedId, mulled }: the round's latest shot (Save, mulligan)
+let replay = null;       // a saved shot replaying (the round is not touched), or null
 es.addEventListener('shot', (e) => {
   const shot = JSON.parse(e.data);
+  if (replay) endReplay();    // a live ball mid-replay: back to the round's hole first
   const plan = lineup.pred;   // what this club was predicted to do, for the comparison
+  lastShot = { shot, plan, savedId: null, mulled: false };
   showShotData(shot, plan);
+  setSaveButton();
   animating = true;
+  updateMulligan();
   clearTimeout(lineupBack);
   lineup.setFlying(true);
   flightView.startShot(shot);
@@ -361,6 +368,7 @@ es.addEventListener('shot', (e) => {
     aimMap.setShot(pts);
     lineup.setFlying(false);
     if (pendingState) { applyState(pendingState); pendingState = null; }
+    updateMulligan();
     shotToast(shot);
     lineupBack = setTimeout(() => flightView.lineup(), 4200);
   }, {
@@ -403,11 +411,17 @@ function prettyClub(name) {
   if (/GAP|APPROACH|^GW$|^AW$|WEDGEA|WEDGEG/.test(s)) return 'GW';
   return name;   // unknown — show the monitor's label as-is
 }
-function showShotData(shot, plan = null) {
+// view: 'live' (a shot just hit: the dock follows its club), 'restore' (the round's last
+// shot shown again, e.g. after a replay) or 'replay' (a saved shot replaying)
+function showShotData(shot, plan = null, view = 'live') {
   $('shotpanel').classList.remove('hidden');
+  const mulled = view === 'restore' && !!lastShot?.mulled;
+  $('shotpanel').classList.toggle('replaying', view === 'replay');
+  $('shotpanel').classList.toggle('mulled', mulled);
+  $('sp-label').textContent = view === 'replay' ? 'SAVED SHOT' : mulled ? 'MULLIGAN' : 'LAST SHOT';
   const l = shot.launch, sim = shot.sim;
   const club = shot.club ? prettyClub(shot.club) : clubFromShot(l.speedMph, sim.isPutt);
-  lineup.markClubLabel(club);
+  if (view === 'live') lineup.markClubLabel(club);
   $('sp-club').textContent = clubByLabel(club)?.name || club;
   setVal('sd-speed', l.speedMph.toFixed(1), 'mph');
   setVal('sd-launch', `${l.vla.toFixed(1)}° ${l.hla > 0 ? 'R' : l.hla < 0 ? 'L' : ''}${Math.abs(l.hla).toFixed(1)}°`, '');
@@ -546,8 +560,17 @@ function buildScorecard(s) {
   }
   const totPar = s.pars.reduce((a, b) => a + b, 0);
   const totScore = s.scores.reduce((a, b) => a + (b || 0), 0);
+  // mulligans, per hole, only once any have been taken: the card stays honest
+  const mull = s.mulligans || [];
+  const totMull = mull.reduce((a, b) => a + (b || 0), 0);
+  let m1 = '';
+  if (totMull) {
+    m1 = '<tr class="mull"><th title="Mulligans taken">Mull.</th>';
+    for (let i = 0; i < n; i++) m1 += `<td class="${i === reviewHole ? 'review' : ''}">${mull[i] || ''}</td>`;
+    m1 += `<td>${totMull}</td></tr>`;
+  }
   $('score-table').innerHTML =
-    `<table>${h1}<th>Σ</th></tr>${p1}<td>${totPar}</td></tr>${s1}<td>${totScore || ''}</td></tr></table>`;
+    `<table>${h1}<th>Σ</th></tr>${p1}<td>${totPar}</td></tr>${s1}<td>${totScore || ''}</td></tr>${m1}</table>`;
   buildSummary(s);
 }
 
@@ -571,6 +594,8 @@ function highlights(s) {
   if (birdies) chips.push(`<span class="sum-chip good">${birdies} birdie${birdies > 1 ? 's' : ''}</span>`);
   if (!eagles && !birdies) chips.push('<span class="sum-chip">No birdies this round</span>');
   if (best != null) chips.push(`<span class="sum-chip">Best: hole ${best}</span>`);
+  const mull = (s.mulligans || []).reduce((a, b) => a + (b || 0), 0);
+  if (mull) chips.push(`<span class="sum-chip">${mull} mulligan${mull > 1 ? 's' : ''}</span>`);
   return `<div class="sum-hi">${chips.join('')}</div>`;
 }
 
@@ -765,6 +790,216 @@ $('btn-bag-reset').onclick = async () => {
   showToast('Club averages cleared', 'Predictions use typical numbers until you hit a few');
 };
 
+// ---------- mulligans ----------
+// After a round shot lands, Mulligan (or M) takes it back: the server restores the ball,
+// strokes and score and counts the mulligan on the card (lib/game.js mulligan).
+function updateMulligan() {
+  const can = !!(state && state.loaded && state.canMulligan && !state.practice && !animating && !replay);
+  $('btn-mulligan').classList.toggle('hidden', !can);
+}
+async function takeMulligan() {
+  if (animating || replay || !state?.canMulligan) return;
+  const b = $('btn-mulligan');
+  b.disabled = true;
+  try {
+    const r = await fetch('/api/mulligan', { method: 'POST' }).then((x) => x.json());
+    if (!r.ok) showToast('Mulligan', r.error || 'Nothing to take back');
+  } catch { showToast('Mulligan', 'The game is not answering'); }
+  finally { b.disabled = false; }
+}
+$('btn-mulligan').onclick = takeMulligan;
+es.addEventListener('mulligan', (e) => {
+  const m = JSON.parse(e.data);
+  clearTimeout(lineupBack);
+  scene.clearShot();
+  aimMap.setShot([]);
+  flightView.lineup();
+  if (lastShot) lastShot.mulled = true;
+  $('shotpanel').classList.add('mulled');
+  $('sp-label').textContent = 'MULLIGAN';
+  lastHoleKey = '';   // the state that follows puts the ball back: re-frame it there at once
+  showToast('↺ Mulligan, hit it again', m.mulligans > 1 ? `${m.mulligans} mulligans on this hole` : 'The scorecard counts it');
+});
+
+// ---------- saved shots ----------
+// ★ on the last-shot panel (or in the Saved panel) keeps a shot with its flight; the
+// Saved panel lists them and replays one on the course it was hit on. A replay only
+// moves the camera and the ball on screen: the round is never touched.
+const postJson = (url, body) => fetch(url, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+}).then((r) => r.json());
+let serverLastShotId = null;   // the server's last shot, when this screen missed its event
+
+function setSavedCount(n) {
+  const c = $('saved-count');
+  c.textContent = n > 99 ? '99+' : `${n}`;
+  c.classList.toggle('hidden', !n);
+}
+function setSaveButton() {
+  const b = $('sp-save');
+  const saved = !!lastShot?.savedId;
+  b.setAttribute('aria-pressed', saved ? 'true' : 'false');
+  b.querySelector('span').textContent = saved ? 'Saved' : 'Save';
+  b.title = saved ? 'Saved; press again to remove it from your saved shots' : 'Save this shot to your saved shots';
+  b.disabled = !lastShot || !!replay;
+  const add = $('saved-add');
+  add.disabled = saved || replay || !(lastShot || serverLastShotId != null);
+  add.textContent = saved ? '★ Last shot saved' : '★ Save the last shot';
+}
+async function saveLastShot() {
+  const shotId = lastShot ? lastShot.shot.shotId : serverLastShotId;
+  if (shotId == null) return;
+  try {
+    const r = await postJson('/api/saved-shots', { shotId });
+    if (!r.ok) { showToast('Save shot', r.error || 'Could not save it'); return; }
+    if (lastShot && lastShot.shot.shotId === shotId) lastShot.savedId = r.shot.id;
+    setSaveButton();
+    showToast('★ Shot saved', 'Replay it any time from Saved');
+  } catch { showToast('Save shot', 'The game is not answering'); }
+}
+async function removeSaved(id) {
+  try { await postJson('/api/saved-shots/remove', { id }); } catch { showToast('Saved shots', 'The game is not answering'); }
+}
+$('sp-save').onclick = () => (lastShot?.savedId ? removeSaved(lastShot.savedId) : saveLastShot());
+$('saved-add').onclick = saveLastShot;
+es.addEventListener('saved-shots', (e) => {
+  const ev = JSON.parse(e.data);
+  setSavedCount(ev.count);
+  if (ev.saved && lastShot && ev.shotId === lastShot.shot.shotId) lastShot.savedId = ev.saved;
+  if (ev.removed && lastShot && lastShot.savedId === ev.removed) lastShot.savedId = null;
+  setSaveButton();
+  if (!$('saved-panel').classList.contains('hidden')) renderSaved();
+});
+
+const courseShort = (name) => String(name || '').split(',')[0];
+const PRACTICE_NAMES = { range: 'Driving range', closest: 'Closest to the pin', longdrive: 'Long drive', targets: 'Target challenge' };
+// the club a saved shot was hit with: the monitor's or the player's pick, else the one
+// its ball speed suggests (as the last-shot panel shows it)
+function savedClubName(s) {
+  const label = s.club ? prettyClub(s.club) : clubFromShot(s.launch.speedMph, s.result.isPutt);
+  return clubByLabel(label)?.name || label;
+}
+function savedRowHtml(s, here) {
+  const club = savedClubName(s);
+  const r = s.result, l = s.launch;
+  const main = r.isPutt
+    ? `<b>${Math.round(r.totalYd * 3)}<small>ft</small></b> putt`
+    : `<b>${Math.round(r.carryYd)}<small>yd</small></b> carry · <b>${Math.round(r.totalYd)}<small>yd</small></b>`;
+  const when = new Date(s.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const where = [when, s.practice ? PRACTICE_NAMES[s.practice] || 'Practice' : `Hole ${s.holeRef ?? s.hole ?? '?'}`, courseShort(s.course)].join(' · ');
+  const launch = `${l.speedMph.toFixed(1)} mph · ${l.vla.toFixed(1)}° · ${Math.round(l.totalSpin)} rpm${r.isPutt ? '' : ` · apex ${Math.round(r.apexFt)} ft`}`;
+  const tip = here ? 'Replay the flight' : `Load ${courseShort(s.course)} to replay it`;
+  return `<div class="saved-row" data-id="${esc(s.id)}">`
+    + `<div class="saved-main"><span class="saved-club">${esc(club)}</span>${main}</div>`
+    + `<div class="saved-where">${esc(where)}</div>`
+    + `<div class="saved-launch">${esc(launch)}</div>`
+    + `<div class="saved-acts"><button class="btn" data-act="replay"${here ? '' : ' disabled'} title="${esc(tip)}">▶ Replay</button>`
+    + '<button class="btn x" data-act="remove" title="Remove from saved shots" aria-label="Remove from saved shots">✕</button></div>'
+    + '</div>';
+}
+async function renderSaved() {
+  let data;
+  try { data = await (await fetch('/api/saved-shots')).json(); } catch { data = null; }
+  const list = $('saved-list');
+  if (!data || !Array.isArray(data.shots)) { list.innerHTML = '<div class="saved-empty">Saved shots are not available right now.</div>'; return; }
+  setSavedCount(data.shots.length);
+  serverLastShotId = data.lastShotId ?? null;
+  if (lastShot && lastShot.shot.shotId === serverLastShotId) {
+    lastShot.savedId = data.shots.find((x) => x.shotId === serverLastShotId && x.at >= Date.now() - 6 * 3600e3)?.id ?? lastShot.savedId;
+  }
+  setSaveButton();
+  if (!data.shots.length) {
+    list.innerHTML = '<div class="saved-empty">No saved shots yet. Hit one you love, then press ★ Save on the last-shot panel, or the button above.</div>';
+    return;
+  }
+  const course = state?.loaded ? state.courseName : null;
+  list.innerHTML = data.shots.map((x) => savedRowHtml(x, x.course === course)).join('');
+  list.querySelectorAll('.saved-row').forEach((row) => {
+    row.querySelector('[data-act="replay"]').onclick = () => replaySaved(row.dataset.id);
+    row.querySelector('[data-act="remove"]').onclick = () => removeSaved(row.dataset.id);
+  });
+}
+function openSaved(open) {
+  $('saved-panel').classList.toggle('hidden', !open);
+  $('btn-saved').classList.toggle('active', open);
+  if (open) renderSaved();
+}
+$('btn-saved').onclick = () => openSaved($('saved-panel').classList.contains('hidden'));
+fetch('/api/saved-shots').then((r) => r.json()).then((d) => {
+  if (Array.isArray(d.shots)) setSavedCount(d.shots.length);
+  serverLastShotId = d.lastShotId ?? null;
+  setSaveButton();
+}).catch(() => {});
+
+// Replay a saved shot where it was hit: the scene goes to that spot and aim, flies the
+// stored trajectory with the side view, then comes back to the round as it stands.
+async function replaySaved(id) {
+  if (animating || replay || !scene.geo || !state?.loaded) return;
+  let rec = null;
+  try { rec = await (await fetch(`/api/saved-shots/${encodeURIComponent(id)}`)).json(); } catch { /* offline */ }
+  if (!rec || !Array.isArray(rec.points) || rec.points.length < 2) { showToast('Replay', 'That saved shot could not be loaded'); return; }
+  if (rec.course !== state.courseName) { showToast('Replay', `Load ${courseShort(rec.course)} to replay it`); return; }
+  if (animating || replay) return;   // a live ball came in while it loaded
+  openSaved(false);
+  const pts = rec.points.map(([t, x, y, z]) => ({ t, x, y, z }));
+  const r = rec.result;
+  const shot = {
+    launch: rec.launch, club: rec.club, strokes: null, note: r.note, lie: r.lie,
+    sim: { points: pts, carryYd: r.carryYd, totalYd: r.totalYd, offlineYd: r.offlineYd, apexFt: r.apexFt, flightTime: r.flightTime, isPutt: r.isPutt, events: [] },
+  };
+  const token = { id, doneTimer: null };
+  replay = token;
+  animating = true;
+  clearTimeout(lineupBack);
+  lineup.setFlying(true);
+  showShotData(shot, null, 'replay');
+  setSaveButton();
+  updateMulligan();
+  const label = savedClubName(rec);
+  const where = rec.practice ? PRACTICE_NAMES[rec.practice] || 'Practice' : `Hole ${rec.holeRef ?? rec.hole ?? '?'}`;
+  const toast = $('toast');   // the last shot's toast would sit over the banner
+  clearTimeout(toast._h);
+  toast.style.opacity = 0;
+  const banner = $('replay-banner');
+  banner.innerHTML = `<span class="lbl">REPLAY</span>${esc([where, label, r.isPutt ? `${Math.round(r.totalYd * 3)} ft putt` : `${Math.round(r.carryYd)} yd carry`].filter(Boolean).join(' · '))}`;
+  banner.classList.remove('hidden');
+  const rp = rec.replay || {};
+  const end = pts[pts.length - 1];
+  scene.setHole(
+    { pin: rp.pin || [end.x, end.y], tee: rp.tee || null, ref: rec.practice ? null : (rec.holeRef ?? rec.hole ?? null) },
+    rp.from || { x: pts[0].x, y: pts[0].y },
+    Number.isFinite(rp.aimDeg) ? rp.aimDeg : state.aimDeg,
+  );
+  await new Promise((res) => setTimeout(res, 700));   // the camera settles behind the ball
+  if (replay !== token) return;
+  flightView.startShot(shot);
+  scene.playShot(pts, r.flightTime, () => {
+    if (replay !== token) return;
+    flightView.finish();
+    token.doneTimer = setTimeout(() => { if (replay === token) endReplay(); }, 1600);
+  }, { onProgress: (t) => flightView.setTime(t), isPutt: !!r.isPutt });
+}
+function endReplay() {
+  const r = replay;
+  if (!r) return;
+  clearTimeout(r.doneTimer);
+  replay = null;
+  $('replay-banner').classList.add('hidden');
+  animating = false;
+  lineup.setFlying(false);
+  flightView.lineup();
+  scene.clearShot();
+  // back to the round: its hole and ball (the camera re-frames there) and its last shot
+  lastHoleKey = '';
+  const s = pendingState || state;
+  pendingState = null;
+  if (s) applyState(s);
+  if (lastShot) showShotData(lastShot.shot, lastShot.plan, 'restore');
+  else $('shotpanel').classList.add('hidden');
+  setSaveButton();
+  updateMulligan();
+}
+
 // Free course-creator camera: fly/orbit the hole to inspect surfaces against the aerial.
 scene.setFreeCamCallback((on) => {
   $('btn-free').classList.toggle('active', on);
@@ -797,6 +1032,7 @@ window.addEventListener('keydown', (e) => {
   } else if (k.toLowerCase() === 'a') {
     autoAim();
   } else if (k === '0') lineup.setAim(0);
+  else if (k.toLowerCase() === 'm' && scene.camMode !== 'free') takeMulligan();
 });
 
 $('aim-slider').oninput = (e) => lineup.setAim(+e.target.value);
