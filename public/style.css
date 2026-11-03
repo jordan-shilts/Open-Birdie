@@ -629,8 +629,10 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px 
   background: var(--panel-hi); border: 1px solid rgba(255, 210, 31, 0.45); border-radius: 13px;
   padding: 12px 26px; font-size: 19px; font-weight: 800; text-align: center; white-space: nowrap;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45); transition: opacity 0.4s;
+  /* a long line (a hole's researched note) wraps short of the shot planner: 372px wide, 16px in */
+  max-width: max(360px, calc(100vw - 2 * (372px + 16px + 16px)));
 }
-#toast .sub { font-size: 12.5px; color: var(--dim); font-weight: 600; margin-top: 3px; }
+#toast .sub { font-size: 12.5px; color: var(--dim); font-weight: 600; margin-top: 3px; white-space: normal; }
 
 .loading-spin {
   display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line-hi);
