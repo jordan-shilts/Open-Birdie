@@ -251,6 +251,23 @@ test('practice: the prediction plays from the session\'s spot at its target', ()
   const p = predictShot(g, { club: 'I7' });
   assert.deepEqual([p.path[0].x, p.path[0].y], [r2(g.practice.spot[0]), r2(g.practice.spot[1])]);
   assert.equal(p.distToPinYd, r1(Math.hypot(g.practice.target.x - g.practice.spot[0], g.practice.target.y - g.practice.spot[1]) / YD));
+  // the putting challenge: a putt read from the session's spot drops into the real cup
+  g.startPractice('putting', { random: () => 0 });
+  const putt = predictShot(g, {});
+  assert.equal(putt.isPutt, true);
+  assert.deepEqual([putt.path[0].x, putt.path[0].y], [r2(g.practice.spot[0]), r2(g.practice.spot[1])]);
+  assert.equal(putt.holed, true);
+  // a practice green mapped under the range's spot: it still plays as a tee
+  const mapped = lineupCourse();
+  mapped.surfaces.unshift({ kind: 'green', poly: rect(-6, -6, 6, 6) });
+  const range = new Game();
+  range.setCourse(mapped);
+  range.startPractice('range', { targetYd: 150 });
+  assert.equal(range.surfaceAt(range.practice.spot[0], range.practice.spot[1]), 'green');
+  const full = predictShot(range, { club: 'I7' });
+  assert.equal(full.isPutt, false);
+  assert.equal(full.lie, 'tee');
+  assert.notEqual(predictCarries(range).recommended, 'PT');
 });
 
 test('errors: no course, not ready, an unknown club or aim, a finished hole', () => {

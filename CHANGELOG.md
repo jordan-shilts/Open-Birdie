@@ -5,6 +5,11 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Fixed
+- **The range & games board stays clear of the last shot** — since the lineup HUD, the board and the last-shot
+  panel shared the top-left corner and drew over each other. While a game is on, the last shot now stacks under
+  the board (and steps aside when the board leaves it no room), and both board buttons fit its width. Where a
+  practice green is mapped under the range's tee (Hazeltine), the lineup read every range ball as a putt and
+  picked the putter; the range spot now plays as the tee it is (`lib/predict.js`).
 - **The launch monitor keeps the club you pick on it** — after every shot Open-Birdie sent the monitor a
   player update with the new distance to the pin, and that update repeated Open-Birdie's own club (Driver
   unless picked here); OpenFlight applies the club from every update, so a club chosen on the monitor
@@ -79,6 +84,15 @@ All notable changes to Open-Birdie are documented here.
   (25.1 -> 22.5 ms at a tee with ponds in view, 21.6 -> 19.1 ms at a green; 1600x900, Apple M3 Pro).
 
 ### Added
+- **Three more mini games** (`lib/practice.js`). **Putting challenge**: 9 putts at a real cup, the green of the
+  hole the round is on (else hole 1's): 3, 5, 8, 12, 16, 20, 25, 30 and 40 ft, each from its own side of the
+  cup and on the green all the way to it (on a green too small for the long ones they come in to the longest
+  it has); most holed wins, the fewest feet left breaks a tie. **Up and down**: 6 chips from 1-9 m off the
+  same green, 8-30 yd from the cup and all round it, from the fairway or the rough (never sand, water or out
+  of bounds); 10 points for a chip-in, 5 / 3 / 2 / 1 inside 3 / 6 / 10 / 20 ft. **Distance ladder**: flags at
+  50 to 175 yd on the range, 25 yd apart; a ball that stops within 7 yd of the current one climbs to the next;
+  12 balls, and clearing all six ends it. Each new ball round the green re-frames the camera behind it, facing
+  the cup; the board says what's next ("putt 4 of 9 · 12 ft", "rung 4 of 6 · 125 yd").
 - **Trees grown from real branch structures** — every species (oak, maple, birch, pine, spruce/fir) has
   three generated models, two open-grown and one grown in closed woods (`tree-gen.js`): broadleaves grow by
   space colonization inside a lobed crown, spruce has whorls of drooping branches, pine a bare bole under

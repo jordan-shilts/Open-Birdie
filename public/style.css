@@ -231,6 +231,7 @@ kbd {
   position: fixed; left: 16px; top: 160px; width: 262px; padding: 12px;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow);
 }
+#shotpanel.no-room { display: none; }   /* a practice board fills the left column (app.js stackShotPanel) */
 .sp-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 2px 9px; }
 .sp-club { font-size: 11px; font-weight: 800; letter-spacing: 0.1em; color: var(--accent); text-transform: uppercase; }
 .sp-hero, .sp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
@@ -521,6 +522,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px 
 .pb-table tr.miss td { color: var(--faint); }
 #pb-clubs .lbl { margin: 4px 0; }
 .pb-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.pb-actions .btn { flex: 1; padding: 0 8px; font-size: 10.5px; letter-spacing: 0.08em; }   /* both fit the board's width */
 
 /* chips */
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
