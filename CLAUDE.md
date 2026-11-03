@@ -10,6 +10,8 @@ the cloud course service (`cloud/`) uses them. Shipping (v0.8.0).
   real place" arc (findings, what shipped, how the new pieces work, the QL1 gate decision,
   the verify/render loop, gotchas, and a prioritized backlog). **Start here.**
 - **`docs/TODO.md`** — live backlog / resolved items.
+- **`docs/research/course-data/`** — researched per-hole yardages, par, handicap, elevation, OB, penalty
+  areas and green data for the five featured courses, with a source for every fact.
 - Current feature branch: `claude/hd-discovery-plan4` (base `main`). Most realism work lives here.
 
 ## Dev essentials

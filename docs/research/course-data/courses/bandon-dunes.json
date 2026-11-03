@@ -1,0 +1,231 @@
+{
+  "course": "Bandon Dunes (Bandon Dunes Golf Resort)",
+  "slug": "bandon-dunes",
+  "location": { "city": "Bandon", "region": "Oregon", "country": "USA", "lat": 43.188, "lon": -124.39 },
+  "data_as_of": "Tournament-tee yardages and pars from the resort's official Bandon Dunes course page (read Nov 2026). Black/Green/Gold/Orange/Royal Blue per-hole yardages, handicaps and ratings from undated third-party scorecards (GolfPass, Greenskeeper.org, GolfingRecord, AllGolfHoles, Stymie) read Nov 2026; the official site's full multi-tee scorecard image could not be retrieved.",
+  "sources": [
+    { "id": "S1", "title": "Bandon Dunes course page (scorecard yardages and hole-by-hole playing tips)", "url": "https://bandondunesgolf.com/golf/golf-courses/bandon-dunes/", "publisher": "Bandon Dunes Golf Resort" },
+    { "id": "S2", "title": "Bandon Dunes scorecard and tees (ratings/slopes, men's and women's handicaps)", "url": "https://www.golfpass.com/courses/14615-bandon-dunes/scorecard-and-layout", "publisher": "GolfPass" },
+    { "id": "S3", "title": "Bandon Dunes Resort (Bandon Dunes) scorecard", "url": "https://www.greenskeeper.org/oregon/southwest_coastal/bandon_dunes_resort_bandon_dunes/scorecard.cfm", "publisher": "Greenskeeper.org" },
+    { "id": "S4", "title": "Bandon Dunes Course at Bandon Dunes (tee ratings, per-hole yardages)", "url": "https://stymie.golf/golf-courses/oregon/coos-county/coos-bay/bandon-dunes-golf-resort-3477", "publisher": "Stymie" },
+    { "id": "S5", "title": "Bandon Dunes Golf Resort - Bandon Dunes scorecard", "url": "https://www.golfingrecord.com/golf-scorecard/f2828fa4-93b3-4db1-8eb3-67d8b17c039b", "publisher": "GolfingRecord" },
+    { "id": "S6", "title": "Bandon Dunes Resort (Bandon Dunes Course) scorecard", "url": "https://www.allgolfholes.com/courses/oregon/bandon-dunes-resort-bandon-dunes-course", "publisher": "AllGolfHoles" },
+    { "id": "S7", "title": "2020 U.S. Amateur Fast Facts (Bandon Dunes hole yardages)", "url": "https://www.usga.org/content/usga/home-page/championships/2020/2019-u-s--amateur-fast-facts.html", "publisher": "USGA" },
+    { "id": "S8", "title": "2022 U.S. Junior Amateur Fast Facts (Bandon Dunes hole yardages, 76.0/143)", "url": "https://www.usga.org/content/usga/home-page/championships/2022/2022-us-junior-amateur-fast-facts-bandon-dunes-oregon.html", "publisher": "USGA" },
+    { "id": "S9", "title": "Fast Facts for 2025 U.S. Women's Amateur (Bandon Dunes hole yardages, 77.9/144)", "url": "https://championships.usga.org/uswomensamateur/2025/articles/fast-facts-for-2025-us-womens-amateur.html", "publisher": "USGA" },
+    { "id": "S10", "title": "7 things you must know about Bandon Dunes, according to the course architect (Aug 15, 2020)", "url": "https://golf.com/travel/bandon-dunes-7-things-david-mclay-kidd/", "publisher": "GOLF.com" },
+    { "id": "S11", "title": "Bandon Dunes a breeze? (2020 U.S. Amateur, David McLay Kidd hole notes)", "url": "https://usga.org/content/usga/home-page/championships/2020/u-s--amateur/articles/bandon-dunes-a-breeze-2020-us-amateur-oregon.html", "publisher": "USGA" },
+    { "id": "S12", "title": "Point of Pride (Yardage Book: No. 16 at Bandon Dunes), words by David McLay Kidd", "url": "https://www.golfersjournal.com/?p=412685", "publisher": "The Golfer's Journal" },
+    { "id": "S13", "title": "The risks and rewards of fescue turf in America (Jason Scott Deegan, Aug 27, 2020)", "url": "https://golfpass.com/travel-advisor/articles/fescue-golf-course-turf-bandon-dunes-whistling-straits-chambers-bay", "publisher": "GolfPass / Golf Advisor" },
+    { "id": "S14", "title": "Top par-3 holes at 2025 USGA championship venues", "url": "https://www.usga.org/content/usga/home-page/articles/2025/01/top-par-3-holes-2025-usga-championship-venues.html", "publisher": "USGA" },
+    { "id": "S15", "title": "Bandon Dunes course review (July 2013)", "url": "https://www.amateurgolf.com/golf-tournament-news/bandon-dunes-oregon-course-review-10281", "publisher": "AmateurGolf.com" },
+    { "id": "S16", "title": "Ten years later: Bandon Dunes holds its own as the resort's flagship golf course (Brandon Tucker, 2009)", "url": "https://www.golfpass.com/travel-advisor/articles/ten-years-later-bandon-dunes-holds-its-own-as-the-resorts-flagship-golf-course", "publisher": "GolfPass / Golf Advisor" },
+    { "id": "S17", "title": "2007 U.S. Mid-Amateur championship archive", "url": "https://www.usga.org/content/usga/home-page/articles/championship-archives/mid-amateur/2007.html", "publisher": "USGA" },
+    { "id": "S18", "title": "Bandon Dunes Golf Resort (coordinates)", "url": "https://en.wikipedia.org/wiki/Bandon_Dunes_Golf_Resort", "publisher": "Wikipedia" },
+    { "id": "S19", "title": "Bandon Dunes Golf Resort scorecard (older rating set)", "url": "https://offcourse.co/courses/scorecard/bandon-dunes-golf-resort", "publisher": "Offcourse" },
+    { "id": "S20", "title": "The 2020 U.S. Amateur will be played at Bandon Dunes on the Oregon coast this week (Aug 8, 2020)", "url": "https://bendbulletin.com/2020/08/08/the-2020-u-s-amateur-will-be-played-at-bandon-dunes-on-the-oregon-coast-this-week", "publisher": "The Bulletin (Bend, OR)" },
+    { "id": "S21", "title": "Hole-comparison posts: the 2nd / 16th / 17th holes at Bandon", "url": "https://greebs.substack.com/p/the-16th-holes-at-bandon", "publisher": "Greebs (Substack blog)" }
+  ],
+  "tees": [
+    { "name": "Tournament", "total_yards": 7212, "par": 72, "rating": null, "slope": null, "sex": "M", "source": "S1" },
+    { "name": "Black", "total_yards": 6732, "par": 72, "rating": 74.1, "slope": 143, "sex": "M", "source": "S2" },
+    { "name": "Green", "total_yards": 6221, "par": 72, "rating": 71.4, "slope": 133, "sex": "M", "source": "S2" },
+    { "name": "Green", "total_yards": 6221, "par": 72, "rating": 76.8, "slope": 137, "sex": "F", "source": "S4" },
+    { "name": "Gold", "total_yards": 5716, "par": 72, "rating": 69.5, "slope": 133, "sex": "M", "source": "S2" },
+    { "name": "Gold", "total_yards": 5716, "par": 72, "rating": 74.7, "slope": 133, "sex": "F", "source": "S2" },
+    { "name": "Orange", "total_yards": 5072, "par": 72, "rating": 66.6, "slope": 126, "sex": "M", "source": "S2" },
+    { "name": "Orange", "total_yards": 5072, "par": 72, "rating": 72.4, "slope": 128, "sex": "F", "source": "S2" },
+    { "name": "Royal Blue", "total_yards": 3945, "par": 72, "rating": 61.5, "slope": 101, "sex": "M", "source": "S2" },
+    { "name": "Royal Blue", "total_yards": 3945, "par": 72, "rating": 64.9, "slope": 109, "sex": "F", "source": "S2" }
+  ],
+  "greens": {
+    "grass": "Poa annua (originally fine fescue)",
+    "typical_stimp": null,
+    "average_size_sqft": null,
+    "notes": "The course opened with fine-fescue greens, but GolfPass (2020) reports the greens at Bandon Dunes, Pacific Dunes and Bandon Trails have all gradually transitioned to poa; only Old Macdonald, Bandon Preserve and Sheep Ranch were said to be holding on to fescue greens. Greens are described as expansive. The deepest/largest is No. 17 at about 80 yards front to back (S10). USGA describes championship conditions as firm and fast, but gives no Stimpmeter figure.",
+    "source": "S13"
+  },
+  "boundaries": {
+    "ob_summary": null,
+    "penalty_area_summary": "Not sourced from local rules. Descriptive sources put the Pacific bluffs beside or behind the greens on Nos. 4, 5, 6, 12, 15 and 16, and the 17th tee shot carries part of the coastline. No. 16's green sits a few feet from a near-vertical drop of about 100 ft to the beach. No. 13 has the course's only internal water hazard (left of the drive zone). No. 18 has a hazard plus bunkers on the right of the dogleg, and gorse sits right of the 16th green. Red/yellow marking of these areas could not be confirmed.",
+    "source": "S1"
+  },
+  "holes": [
+    {
+      "number": 1, "name": null, "par": 4, "handicap": 13,
+      "yards": { "Tournament": 398, "Black": 386, "Green": 352, "Gold": 332, "Orange": 293, "Royal Blue": 223 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": null, "source": null },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": "Large hump in the left-middle of the green; approach is best played from the right side.", "features": null, "source": "S1", "confidence": "medium" },
+      "notes": "Women's handicap 9. Favor the left side off the tee (S1). USGA championship yardage 398 (2020 U.S. Amateur, S7) and 400 (2022 U.S. Junior Amateur, S8). Stymie (S4) lists 399 from the Black tee and 341 from Gold, against 386 and 332 on the other scorecards."
+    },
+    {
+      "number": 2, "name": null, "par": 3, "handicap": 15,
+      "yards": { "Tournament": 220, "Black": 189, "Green": 155, "Gold": 136, "Orange": 130, "Royal Blue": 76 },
+      "elevation": { "change_ft": null, "direction": "uphill", "description": "Plays significantly uphill to an elevated green; consider an extra club. USGA calls it an uphill par 3 of up to 220 yards.", "source": "S1", "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": null, "source": null },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": "Severely undulating. A blog source describes a back tier, a slope on the left and a backboard on the right that feeds balls back.", "features": "Collection area right of the green is the common miss (S14). The blog mentions a pot bunker short (S21).", "source": "S14", "confidence": "low" },
+      "notes": "Women's handicap 13. The prevailing wind is into the player and from the left, pushing shots short or right (S1, S14). The Royal Blue yardage conflicts between sources: 76 (S5, S6; sums to the rated 3,945 total), 117 (S2 scorecard) and 130 (S4). The Orange yardage is 130 in S3/S4/S5/S6 but 117 in the S2 scorecard."
+    },
+    {
+      "number": 3, "name": null, "par": 5, "handicap": 3,
+      "yards": { "Tournament": 563, "Black": 543, "Green": 489, "Gold": 467, "Orange": 370, "Royal Blue": 318 },
+      "elevation": { "change_ft": null, "direction": "downhill", "description": "The tee is on a high point of the course, with a view of every green, tee and fairway (Kidd). No tee-to-green figure is published.", "source": "S10", "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": null, "source": null },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": null, "features": null, "source": null, "confidence": "low" },
+      "notes": "Women's handicap 1. Described as the first real birdie chance; the landing area for the second shot can be blind from the fairway (S1). The Orange yardage is 370 in S3/S5/S6 but 351 in the S2 scorecard."
+    },
+    {
+      "number": 4, "name": null, "par": 4, "handicap": 5,
+      "yards": { "Tournament": 443, "Black": 410, "Green": 362, "Gold": 340, "Orange": 308, "Royal Blue": 228 },
+      "elevation": { "change_ft": null, "direction": "downhill", "description": "From the fairway the green sits well below, with the ocean visible behind it.", "source": "S15", "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": "Pacific Ocean and bluff directly beyond the green; long shots are at risk.", "source": "S1" },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": null, "features": "An 'infinity' green set on the bluffs with breakers behind (Kidd, S10). Deep bunkers guard the front-left.", "source": "S1", "confidence": "medium" },
+      "notes": "Women's handicap 17. Dogleg right toward the ocean (S10, S16). Aim the tee shot at the bunker straight ahead; a low shot up the right is often best (S1)."
+    },
+    {
+      "number": 5, "name": null, "par": 4, "handicap": 1,
+      "yards": { "Tournament": 445, "Black": 428, "Green": 400, "Gold": 374, "Orange": 321, "Royal Blue": 260 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": "The ocean runs along the left; the sea is heard but largely hidden by dunes from the fairway. Gorse originally encroached from the right. Native grass islands sit in the fairway (now trampled, per Kidd).", "source": "S15" },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": null, "features": "Framed by mounds on both sides.", "source": "S15", "confidence": "low" },
+      "notes": "Women's handicap 7. Split fairway; drive into the right half (S1). Plays straight into the prevailing summer (north) wind and can be a three-shot hole (S1, S10). USGA championship tee 472 (2020, S7) and 473 (2022, S8) is longer than the official 445. Stymie (S4) shows a 473-yard tee as par 5, which conflicts with every other source (par 4)."
+    },
+    {
+      "number": 6, "name": null, "par": 3, "handicap": 17,
+      "yards": { "Tournament": 217, "Black": 161, "Green": 153, "Gold": 126, "Orange": 111, "Royal Blue": 111 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": "Seaside par 3 (ocean adjacent; which side is not specified).", "source": "S16" },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": null, "features": "Deep bunker left; a miss right leaves a manageable chip.", "source": "S1", "confidence": "medium" },
+      "notes": "Women's handicap 15. Plays much longer than the yardage because of the wind (S1)."
+    },
+    {
+      "number": 7, "name": null, "par": 4, "handicap": 7,
+      "yards": { "Tournament": 411, "Black": 383, "Green": 372, "Gold": 332, "Orange": 317, "Royal Blue": 232 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": null, "source": null },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": "Effectively three-tiered; the pin position matters greatly.", "features": null, "source": "S1", "confidence": "medium" },
+      "notes": "Women's handicap 5. The fairway is wider than it looks; favor the left, over an outcrop of beach grass (S1)."
+    },
+    {
+      "number": 8, "name": null, "par": 4, "handicap": 11,
+      "yards": { "Tournament": 385, "Black": 359, "Green": 342, "Gold": 321, "Orange": 290, "Royal Blue": 220 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": null, "source": null },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": "Hump at the front-left can feed balls toward the center.", "features": "A narrow front opening makes the green look smaller than it is.", "source": "S1", "confidence": "medium" },
+      "notes": "Women's handicap 11. Cross bunkers off the tee; the carry yardage can be deceptive (S1)."
+    },
+    {
+      "number": 9, "name": null, "par": 5, "handicap": 9,
+      "yards": { "Tournament": 585, "Black": 558, "Green": 520, "Gold": 510, "Orange": 464, "Royal Blue": 335 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": null, "source": null },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": null, "features": null, "source": null, "confidence": "low" },
+      "notes": "Women's handicap 3. Pot bunkers sit in the center of the landing zone. The left offers a wider fairway but a longer approach; going right of the bunkers with the usual wind help can make it reachable in two (S1). Stymie (S4) lists a 605-yard tournament tee."
+    },
+    {
+      "number": 10, "name": null, "par": 4, "handicap": 8,
+      "yards": { "Tournament": 380, "Black": 362, "Green": 339, "Gold": 302, "Orange": 251, "Royal Blue": 200 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": null, "source": null },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": null, "features": "Shallow green.", "source": "S1", "confidence": "medium" },
+      "notes": "Women's handicap 10. A drive right gives the shortest approach; the left gives the best angle. The second shot is blind (S1)."
+    },
+    {
+      "number": 11, "name": null, "par": 4, "handicap": 2,
+      "yards": { "Tournament": 452, "Black": 384, "Green": 351, "Gold": 315, "Orange": 284, "Royal Blue": 228 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": null, "source": null },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": "Slopes away from the player.", "features": "Bunker right of the green.", "source": "S1", "confidence": "medium" },
+      "notes": "Women's handicap 12. Plays long, straight into the summer wind (S1, S10). USGA championship tee is 469 (2020, S7; 2022, S8), against the official 452."
+    },
+    {
+      "number": 12, "name": null, "par": 3, "handicap": 18,
+      "yards": { "Tournament": 238, "Black": 199, "Green": 153, "Gold": 129, "Orange": 98, "Royal Blue": 98 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": "Green sits along the sea (side not specified).", "source": "S16" },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": null, "features": "Shallow, firm green. A sod-faced bunker guards short shots, native fescue rises behind, and the open approach is front-right.", "source": "S1", "confidence": "medium" },
+      "notes": "Women's handicap 18. Club selection is critical (S1). USGA used 199 for the 2020 and 2022 championships (S7, S8), against 238 on the official card."
+    },
+    {
+      "number": 13, "name": null, "par": 5, "handicap": 6,
+      "yards": { "Tournament": 553, "Black": 553, "Green": 537, "Gold": 498, "Orange": 447, "Royal Blue": 344 },
+      "elevation": { "change_ft": null, "direction": null, "description": "Steep slopes short of the green funnel balls into a deep collection area.", "source": "S1", "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": "The course's only internal water hazard, in play on drives to the left.", "source": "S1" },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": null, "features": "Deep collection area short of the green.", "source": "S1", "confidence": "medium" },
+      "notes": "Women's handicap 6. Reachable downwind; terrain on the right can leave awkward lies (S1). The Tournament and Black tees are both 553."
+    },
+    {
+      "number": 14, "name": null, "par": 4, "handicap": 16,
+      "yards": { "Tournament": 390, "Black": 359, "Green": 332, "Gold": 320, "Orange": 288, "Royal Blue": 205 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": null, "source": null },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": null, "features": "Shallow, elongated green behind a distant dune. Kidd enlarged a small pot bunker at the green's right corner into a large sand area (S11).", "source": "S1", "confidence": "medium" },
+      "notes": "Women's handicap 14. Dogleg right; use a fairway bunker as the aiming line, and drives left give a better angle (S1). Three bunkers pinch the wide fairway (S10). Nearly drivable in calm air by cutting the corner (S11)."
+    },
+    {
+      "number": 15, "name": null, "par": 3, "handicap": 14,
+      "yards": { "Tournament": 206, "Black": 163, "Green": 131, "Gold": 113, "Orange": 102, "Royal Blue": 80 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": "Green sits along the sea (side not specified).", "source": "S16" },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": "A bank on the left feeds shots toward the center.", "features": "Narrow, exposed green. The deepest bunker on the course is front-right: a 2013 review put it about 20-30 ft below the putting surface (S15), and Kidd reworked it smaller and shallower in 2019 (S10).", "source": "S1", "confidence": "medium" },
+      "notes": "Women's handicap 16. Favor the left (S1, S11). Usually plays into the wind; in a 20-30 mph headwind a bunted driver may be needed (S11)."
+    },
+    {
+      "number": 16, "name": null, "par": 4, "handicap": 10,
+      "yards": { "Tournament": 363, "Black": 363, "Green": 345, "Gold": 301, "Orange": 250, "Royal Blue": 210 },
+      "elevation": { "change_ft": null, "direction": null, "description": "A diagonal natural ridge splits the fairway into upper and lower levels; downwind, the drive can carry to the upper fairway for a shorter approach. Tee and green are on the bluff about 100 ft above the beach, which is not a tee-to-green change.", "source": "S12", "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": "Cliff and Pacific to the right and behind the green; pin flags sit feet from a near-vertical drop of about 100 ft to the beach. Gorse right of the green is closer than it looks. A sandy waste area lies in front of and below the green (S21).", "source": "S12" },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": "Falls away at the front, left and back; the cliff is on the right (blog source, S21).", "features": "Green on the cliff edge (rebuilt/'revised' per Kidd, S12). Avoid attacking right-side pins (S1).", "source": "S21", "confidence": "low" },
+      "notes": "Women's handicap 4. A driveable par 4 downwind. Kidd suggests a 3-wood aimed long-left toward the 17th tee and warns that the slightest miss right loses the hole (S10, S11). Stymie (S4) lists a 412-yard tournament tee; the official card shows 363 for both Tournament and Black."
+    },
+    {
+      "number": 17, "name": null, "par": 4, "handicap": 12,
+      "yards": { "Tournament": 405, "Black": 389, "Green": 375, "Gold": 329, "Orange": 324, "Royal Blue": 244 },
+      "elevation": { "change_ft": null, "direction": "mixed", "description": "The tee shot plays slightly downhill and the approach uphill (S1). Kidd calls it a downhill hole (S10).", "source": "S1", "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": "The drive carries part of the coastline (S20). A blog source describes a chasm/ravine down the right side to the green (S21).", "source": "S20" },
+      "green": { "size_sqft": null, "depth_yards": 80, "width_yards": null, "slope": null, "features": "Largest green on the property at about 80 yards front to back (Kidd); the official guide calls it the deepest green on the course (S1).", "source": "S10", "confidence": "medium" },
+      "notes": "Women's handicap 8. A drive down the left gives the best angle (S1); the landing area narrows the farther you hit it (S10), and a north wind pushes the ball right (S11). Bend Bulletin (S20) called it 420 yards in 2020; official 405; USGA used 405 (2020) and 389 (2022)."
+    },
+    {
+      "number": 18, "name": null, "par": 5, "handicap": 4,
+      "yards": { "Tournament": 558, "Black": 543, "Green": 513, "Gold": 471, "Orange": 424, "Royal Blue": 333 },
+      "elevation": { "change_ft": null, "direction": null, "description": null, "source": null, "confidence": "low" },
+      "out_of_bounds": { "present": null, "sides": [], "description": null, "source": null, "confidence": "low" },
+      "penalty_areas": { "description": "A hazard plus bunkers on the right side of the dogleg (type and marking not specified).", "source": "S1" },
+      "green": { "size_sqft": null, "depth_yards": null, "width_yards": null, "slope": null, "features": "From the right side the green is hidden, and two bunkers block run-up approaches (S11).", "source": "S11", "confidence": "low" },
+      "notes": "Women's handicap 2. Dogleg right. Drive left, aiming at the top of the golf shop (S11); the second shot is blind, so use the right edge of the clubhouse as a reference (S1). The lodge sits behind the green (S15)."
+    }
+  ],
+  "gaps": [
+    "Elevation: no published tee-to-green height change in feet found for any hole (checked the official site, USGA fast facts and articles, GOLF.com, Golf Digest, GolfPass, Links, The Golfer's Journal, AmateurGolf). change_ft is null on all 18; only qualitative direction is given for holes 2, 3, 4, 13, 16 and 17. The only figure is the ~100 ft cliff below the 16th green (S12), which is a cliff height, not a tee-to-green change.",
+    "Out of bounds: no local rules or OB stake locations found. BlueGolf local-rules pages for Bandon Dunes exist but could not be fetched (robots blocked), and no USGA Notice to Players could be retrieved. ob_summary and every hole's out_of_bounds.present are null.",
+    "Penalty areas: red/yellow marking of the ocean bluffs, gorse, the 13th water and the 18th hazard is unconfirmed; descriptions come from hole guides, not local rules.",
+    "Greens: no Stimpmeter speed, no average or per-hole green size in sq ft, and no per-hole depth except No. 17 (~80 yd). Grass is a conflict: the brief expected fescue, and older sources (2015 forum and press) call the resort's greens fescue, but GolfPass 2020 (S13) says Bandon Dunes' greens have transitioned to Poa annua.",
+    "Scorecard: the official multi-tee scorecard image on bandondunesgolf.com could not be retrieved. Only the Tournament (back) tee yardages (7,212) are from the official site; other tees come from consistent third-party scorecards. All per-tee hole yardages sum to the published totals (Tournament 7,212; Black 6,732; Green 6,221; Gold 5,716; Orange 5,072; Royal Blue 3,945).",
+    "Yardage conflicts: on the GolfPass scorecard (S2), Orange hole 2 = 117 and hole 3 = 351, totaling 5,040, against its own rated 5,072. Royal Blue hole 2 = 117 there, totaling 3,986 against 3,945. Stymie (S4) lists Royal Blue hole 2 = 130 (total 3,999), Black 1 = 399 (6,745) and Gold 1 = 341 (5,725). Values used: Orange 130/370 (S3, S5, S6, S19) and Royal Blue 76 (S5, S6), which match the rated totals.",
+    "Tournament-tee rating/slope: not on the official page or GolfPass. Stymie lists 76.3/141 for a 7,327-yd tournament combination, USGA's 2022 Junior Amateur listed 76.0/143 at 7,202, Wikipedia gives 76.8/150 at 7,212, and the 2025 Women's Amateur setup was 77.9/144 (women's) at 6,310. Left null.",
+    "Rating conflicts: Green (men) is 71.4/133 in S2/S4 but 71.7/139 in S3/S19 (older set). Gold (men) is 69.5/133 in S2/S3 but 69.4/134 in S4. Gold (women) is 74.7/133 in S2/S4 but 75.9/136 in S3/S19. Green (women) is 76.8/137 in S4 only and 78.7/142 in S19. The newer S2/S4 values are used.",
+    "Championship yardages differ from the official card: hole 5 at 472-473, hole 11 at 469 and hole 12 at 199 (USGA 2020/2022). These suggest newer tournament tees not shown on the official page.",
+    "Hole-level ocean side for holes 6, 12 and 15 is not specified in the sources.",
+    "Event history: the brief mentions a 2006 U.S. Mid-Amateur, but USGA records the Mid-Amateur at Bandon Dunes in 2007 (S17). The 2006 event at the resort was the Curtis Cup (Pacific Dunes). The original course hosted the 2020 U.S. Amateur, 2022 U.S. Junior Amateur and 2025 U.S. Women's Amateur.",
+    "Hole names: none found; the course does not appear to name its holes."
+  ]
+}

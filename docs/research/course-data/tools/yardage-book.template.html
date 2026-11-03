@@ -1,0 +1,362 @@
+<title>Open-Birdie Yardage Book</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Layout: a printed yardage book — course tabs, a course header, then a scorecard grid whose rows open into per-hole detail. */
+  :root {
+    --paper: #f3f6f2;
+    --card: #ffffff;
+    --ink: #13261a;
+    --muted: #5a6b60;
+    --rule: #d3dcd2;
+    --pine: #1f4a2f;
+    --flag: #b8860b;
+    --stake-bg: #ffffff;
+    --stake-fg: #13261a;
+    --hazard: #b42318;
+    --hazard-bg: #fdecea;
+    --note-bg: #eef3ed;
+    --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+    --body: "Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0d1510; --card: #142019; --ink: #e3ebe4; --muted: #95a69a; --rule: #263429;
+      --pine: #8fcfa2; --flag: #e5b93a; --stake-bg: #e3ebe4; --stake-fg: #0d1510;
+      --hazard: #ff8a7a; --hazard-bg: #3a1a17; --note-bg: #18261d; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0d1510; --card: #142019; --ink: #e3ebe4; --muted: #95a69a; --rule: #263429;
+    --pine: #8fcfa2; --flag: #e5b93a; --stake-bg: #e3ebe4; --stake-fg: #0d1510;
+    --hazard: #ff8a7a; --hazard-bg: #3a1a17; --note-bg: #18261d; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 28px 56px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 28px; }
+  .wrap > *, .course > * { min-width: 0; }
+  a { color: var(--pine); text-underline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--flag); outline-offset: 2px; }
+  h1, h2, h3, .label, .tab, th { font-family: var(--display); }
+  h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1; margin: 0; font-weight: 700; letter-spacing: 0.01em; text-wrap: balance; }
+  h2 { font-size: 30px; line-height: 1.1; margin: 0; font-weight: 700; text-wrap: balance; }
+  h3 { font-size: 15px; margin: 0 0 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .eyebrow { font-family: var(--display); font-size: 14px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .lede { max-width: 68ch; margin: 10px 0 0; color: var(--muted); }
+  header { display: grid; gap: 6px; }
+
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 2px solid var(--ink); padding-bottom: 0; }
+  .tab {
+    appearance: none; border: 1px solid var(--rule); border-bottom: none; background: transparent; color: var(--muted);
+    font-size: 18px; font-weight: 600; padding: 8px 14px 6px; border-radius: 6px 6px 0 0; cursor: pointer; letter-spacing: 0.02em;
+  }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .tab:hover:not([aria-selected="true"]) { color: var(--ink); }
+
+  .course { display: grid; gap: 22px; }
+  .course-head { display: grid; gap: 4px; }
+  .meta { color: var(--muted); font-size: 13.5px; max-width: 90ch; }
+  .coverage { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .cov { display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid var(--rule); background: var(--card); border-radius: 999px; padding: 3px 11px; font-size: 13px; }
+  .cov b { font-family: var(--display); font-size: 16px; font-variant-numeric: tabular-nums; }
+  .cov.low b { color: var(--hazard); }
+
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .panel { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; min-width: 0; font-size: 14px; }
+  .panel p { margin: 0 0 6px; }
+  .panel .src { font-size: 12.5px; }
+
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th { text-align: left; font-weight: 600; font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 9px 10px; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  td.num, th.num { text-align: right; }
+  .holes { min-width: 760px; }
+  .holes tbody tr.hole { cursor: pointer; }
+  .holes tbody tr.hole:hover td { background: var(--note-bg); }
+  .holes tr.hole td:first-child { font-family: var(--display); font-weight: 700; font-size: 20px; width: 48px; }
+  .holes tr.sub td { font-family: var(--display); font-weight: 700; font-size: 16px; background: var(--note-bg); }
+  .holename { font-weight: 600; }
+  .toggle { appearance: none; border: none; background: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0; }
+  .dash { color: var(--muted); }
+  .dir { color: var(--muted); font-style: italic; }
+  .ft { font-weight: 600; white-space: nowrap; }
+
+  .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; border-radius: 4px; padding: 1px 7px; white-space: nowrap; }
+  .chip.ob { background: var(--stake-bg); color: var(--stake-fg); border: 1.5px solid var(--stake-fg); }
+  .chip.none { color: var(--muted); border: 1px dashed var(--rule); }
+  .conf { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border: 1px solid var(--rule); border-radius: 3px; padding: 0 4px; margin-left: 4px; }
+  .conf.low { color: var(--hazard); border-color: var(--hazard); }
+
+  .tee { display: inline-flex; align-items: center; gap: 8px; }
+  .swatch { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--ink); display: inline-block; flex: none; }
+
+  .detail td { background: var(--note-bg); padding: 14px 16px 18px; }
+  .dgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 22px; }
+  .dgrid > div { min-width: 0; font-size: 14px; }
+  .dgrid p { margin: 0 0 4px; }
+  .teeyds { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; }
+  .teeyds span { display: inline-flex; align-items: center; gap: 5px; }
+  .teeyds .swatch { width: 12px; height: 12px; }
+  .hazard { color: var(--hazard); }
+  .src { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  .src a { color: var(--muted); }
+  .full { grid-column: 1 / -1; }
+
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+  .controls label { font-size: 14px; color: var(--muted); }
+  select, .btn {
+    font: inherit; font-size: 14px; color: var(--ink); background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: 5px 10px;
+  }
+  .btn { cursor: pointer; }
+  .gaps { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 90ch; font-size: 14px; }
+  .sources { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13.5px; }
+  .sources b { font-family: var(--display); display: inline-block; min-width: 34px; }
+  footer { color: var(--muted); font-size: 13px; max-width: 80ch; border-top: 1px solid var(--rule); padding-top: 14px; }
+  @media (prefers-reduced-motion: no-preference) { .detail td { animation: open 0.15s ease-out; } @keyframes open { from { opacity: 0.4; } to { opacity: 1; } } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Open-Birdie · course research · November 2026</div>
+    <h1>Yardage Book</h1>
+    <p class="lede">Hole-by-hole yardages, elevation, out of bounds, penalty areas and green data for the five courses the sim features. Every figure links to where it came from. A dash means no published figure was found; nothing here is estimated.</p>
+  </header>
+  <nav class="tabs" role="tablist" id="tabs" aria-label="Courses"></nav>
+  <main id="course" class="course"></main>
+  <footer>
+    Gathered from official scorecards, course and resort sites, USGA, R&amp;A and PGA TOUR material, and golf publications, then checked: every tee's hole yardages add up to its published total. Elevation is tee-to-green change in feet, negative meaning downhill. Out of bounds (white stakes, walls, fences, property lines) is kept separate from penalty areas such as water, cliffs and gorse.
+  </footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/;
+const ORDER = ["chambers-bay", "st-andrews-old", "pebble-beach", "bandon-dunes", "tpc-sawgrass"];
+const SHORT = { "chambers-bay": "Chambers Bay", "st-andrews-old": "Old Course", "pebble-beach": "Pebble Beach", "bandon-dunes": "Bandon Dunes", "tpc-sawgrass": "TPC Sawgrass" };
+const TEE_COLORS = { black: "#1b1b1b", blue: "#2a5db0", "royal blue": "#2340b5", sand: "#cdb98e", white: "#f7f7f5", teal: "#2a9d8f", gold: "#d4a52a", green: "#2e7d32", red: "#c0392b", orange: "#e67e22", tournament: "#4a4a4a", "the players": "#1b1b1b" };
+const LETTER = { b: "blue", w: "white", g: "green" };
+
+const courses = Object.fromEntries(DATA.map(c => [c.slug, c]));
+const esc = s => String(s ?? "").replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+const fmt = n => typeof n === "number" ? n.toLocaleString("en-US") : n;
+
+function teeColors(name) {
+  const key = name.toLowerCase();
+  if (TEE_COLORS[key]) return [TEE_COLORS[key]];
+  const parts = key.replace(/blended/g, "").split(/[\/&]/).map(p => p.trim()).filter(Boolean)
+    .map(p => TEE_COLORS[p] || TEE_COLORS[LETTER[p]] || null);
+  return parts.filter(Boolean).length ? parts.filter(Boolean) : null;
+}
+function swatch(name) {
+  const cols = teeColors(name);
+  if (!cols) return `<span class="swatch" style="background:transparent;border-style:dashed" aria-hidden="true"></span>`;
+  const bg = cols.length === 1 ? cols[0] : `linear-gradient(90deg, ${cols[0]} 50%, ${cols[1]} 50%)`;
+  return `<span class="swatch" style="background:${bg}" aria-hidden="true"></span>`;
+}
+function isEvent(name) { return /open|pro-am|players championship|championship 20/i.test(name); }
+
+function sourceLinks(course, ref) {
+  if (!ref) return "";
+  const ids = String(ref).split(/[,;]/).map(s => s.trim()).filter(Boolean);
+  const links = ids.map(id => {
+    const s = course.sources.find(x => x.id === id);
+    return s ? `<a href="${esc(s.url)}" target="_blank" rel="noopener" title="${esc(s.title)}">${esc(id)}</a>` : esc(id);
+  });
+  return `<div class="src">Source ${links.join(", ")}</div>`;
+}
+function conf(c) { return c ? `<span class="conf ${c === "low" ? "low" : ""}">${esc(c)}</span>` : ""; }
+
+function elevationCell(e) {
+  if (!e) return `<span class="dash">—</span>`;
+  if (typeof e.change_ft === "number") {
+    const down = e.change_ft < 0;
+    return `<span class="ft">${down ? "↓" : e.change_ft > 0 ? "↑" : "→"} ${Math.abs(e.change_ft)} ft</span>`;
+  }
+  if (e.direction) return `<span class="dir">${esc(e.direction)}</span>`;
+  return `<span class="dash">—</span>`;
+}
+function obCell(o) {
+  if (!o || o.present === null || o.present === undefined) return `<span class="dash" title="Not documented">—</span>`;
+  if (o.present === false) return `<span class="chip none">None</span>`;
+  const map = { left: "L", right: "R", long: "Long", short: "Short", behind: "Long", front: "Short" };
+  const sides = (o.sides || []).map(s => map[String(s).toLowerCase()] || s).join(" · ");
+  return `<span class="chip ob">OB${sides ? " " + esc(sides) : ""}</span>`;
+}
+function greenCell(g) {
+  if (!g) return `<span class="dash">—</span>`;
+  const bits = [];
+  if (typeof g.size_sqft === "number") bits.push(`${fmt(g.size_sqft)} ft²`);
+  if (typeof g.depth_yards === "number") bits.push(`${g.depth_yards} yd deep`);
+  return bits.length ? bits.join(" · ") : `<span class="dash">—</span>`;
+}
+
+function coverage(c) {
+  const H = c.holes;
+  const n = f => H.filter(f).length;
+  const items = [
+    ["Yardages", n(h => Object.values(h.yards || {}).some(v => typeof v === "number"))],
+    ["Elevation in feet", n(h => typeof h.elevation?.change_ft === "number")],
+    ["Elevation described", n(h => h.elevation?.direction || h.elevation?.description)],
+    ["OB documented", n(h => h.out_of_bounds?.present === true || h.out_of_bounds?.present === false)],
+    ["Green size", n(h => typeof h.green?.size_sqft === "number")],
+    ["Green depth", n(h => typeof h.green?.depth_yards === "number")],
+    ["Green shape/slope", n(h => h.green?.slope || h.green?.features)],
+  ];
+  return items.map(([k, v]) => `<span class="cov ${v < 6 ? "low" : ""}"><b>${v}/18</b> ${k}</span>`).join("");
+}
+
+function teeList(c) {
+  const seen = new Map();
+  for (const t of c.tees) if (!seen.has(t.name)) seen.set(t.name, t);
+  return [...seen.values()];
+}
+
+function render(slug) {
+  const c = courses[slug] || courses[ORDER[0]];
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.slug === c.slug ? "true" : "false"));
+  const tees = teeList(c);
+  let saved = null;
+  try { saved = localStorage.getItem("tee:" + c.slug); } catch (e) {}
+  const defaultTee = tees.find(t => t.name === saved) ? saved : (tees.find(t => !isEvent(t.name)) || tees[0]).name;
+  const loc = c.location || {};
+  const g = c.greens || {}, b = c.boundaries || {};
+
+  const teeRows = c.tees.map(t => `<tr>
+      <td><span class="tee">${swatch(t.name)}${esc(t.name)}</span></td>
+      <td>${t.sex === "F" ? "Women" : t.sex === "M" ? "Men" : "—"}</td>
+      <td class="num">${t.total_yards ? fmt(t.total_yards) : "—"}</td>
+      <td class="num">${t.par ?? "—"}</td>
+      <td class="num">${t.rating ?? "—"}</td>
+      <td class="num">${t.slope ?? "—"}</td></tr>`).join("");
+
+  document.getElementById("course").innerHTML = `
+    <section class="course-head">
+      <h2>${esc(c.course)}</h2>
+      <div class="meta">${esc([loc.city, loc.region, loc.country].filter(Boolean).join(", "))}</div>
+      <div class="meta"><b>Data as of:</b> ${esc(c.data_as_of)}</div>
+      <div class="coverage">${coverage(c)}</div>
+    </section>
+
+    <section class="summary">
+      <div class="panel"><h3>Greens</h3>
+        ${g.grass ? `<p><b>Grass:</b> ${esc(g.grass)}</p>` : ""}
+        <p><b>Speed:</b> ${g.typical_stimp ? esc(g.typical_stimp) : `<span class="dash">not published</span>`}</p>
+        <p><b>Average size:</b> ${typeof g.average_size_sqft === "number" ? fmt(g.average_size_sqft) + " ft²" : `<span class="dash">not published</span>`}</p>
+        ${g.notes ? `<p>${esc(g.notes)}</p>` : ""}${sourceLinks(c, g.source)}
+      </div>
+      <div class="panel"><h3>Out of bounds</h3><p>${esc(b.ob_summary || "No course-wide information found.")}</p>${sourceLinks(c, b.source)}</div>
+      <div class="panel"><h3>Penalty areas</h3><p>${esc(b.penalty_area_summary || "No course-wide information found.")}</p></div>
+    </section>
+
+    <section>
+      <h3>Tees</h3>
+      <div class="scroll"><table style="min-width:520px">
+        <thead><tr><th>Tee</th><th>For</th><th class="num">Yards</th><th class="num">Par</th><th class="num">Rating</th><th class="num">Slope</th></tr></thead>
+        <tbody>${teeRows}</tbody></table></div>
+    </section>
+
+    <section>
+      <div class="controls" style="margin-bottom:10px">
+        <h3 style="margin:0">Holes</h3>
+        <label for="teeSel">Yardages from</label>
+        <select id="teeSel">${tees.map(t => `<option value="${esc(t.name)}" ${t.name === defaultTee ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select>
+        <button class="btn" id="expandAll" type="button">Open all holes</button>
+      </div>
+      <div class="scroll"><table class="holes">
+        <thead><tr><th>Hole</th><th>Name</th><th class="num">Par</th><th class="num">HCP</th><th class="num">Yards</th><th>Elevation</th><th>Out of bounds</th><th>Green</th><th></th></tr></thead>
+        <tbody id="holeRows"></tbody></table></div>
+      <p class="meta" style="margin-top:8px">Select a hole for every tee's yardage, penalty areas, green slope and features, notes and sources.</p>
+    </section>
+
+    <section class="panel"><h3>Not found or conflicting</h3><ul class="gaps">${(c.gaps || []).map(x => `<li>${esc(x)}</li>`).join("")}</ul></section>
+
+    <section class="panel"><h3>Sources</h3><ul class="sources">${c.sources.map(s => `<li><b>${esc(s.id)}</b> <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>${s.publisher ? ` · <span class="dash">${esc(s.publisher)}</span>` : ""}</li>`).join("")}</ul></section>
+  `;
+
+  const sel = document.getElementById("teeSel");
+  const draw = () => drawHoles(c, sel.value);
+  sel.addEventListener("change", () => { try { localStorage.setItem("tee:" + c.slug, sel.value); } catch (e) {} draw(); });
+  document.getElementById("expandAll").addEventListener("click", e => {
+    const rows = [...document.querySelectorAll("#holeRows tr.detail")];
+    const open = rows.some(r => r.hidden);
+    rows.forEach(r => r.hidden = !open);
+    document.querySelectorAll("#holeRows .toggle").forEach(t => t.setAttribute("aria-expanded", open ? "true" : "false"));
+    e.target.textContent = open ? "Close all holes" : "Open all holes";
+  });
+  draw();
+}
+
+function detailHtml(c, h) {
+  const e = h.elevation || {}, o = h.out_of_bounds || {}, p = h.penalty_areas || {}, g = h.green || {};
+  const teeYds = Object.entries(h.yards || {}).filter(([, v]) => typeof v === "number")
+    .map(([k, v]) => `<span>${swatch(k)}${esc(k)} <b>${v}</b></span>`).join("");
+  const gBits = [
+    typeof g.size_sqft === "number" ? `${fmt(g.size_sqft)} ft²` : null,
+    typeof g.depth_yards === "number" ? `${g.depth_yards} yd deep` : null,
+    typeof g.width_yards === "number" ? `${g.width_yards} yd wide` : null,
+  ].filter(Boolean).join(" · ");
+  return `<div class="dgrid">
+    <div class="full"><h3>Every tee</h3><div class="teeyds">${teeYds}</div></div>
+    <div><h3>Elevation ${conf(e.confidence)}</h3>
+      <p>${typeof e.change_ft === "number" ? `<b>${e.change_ft > 0 ? "+" : ""}${e.change_ft} ft</b> tee to green. ` : ""}${esc(e.description || (e.direction ? e.direction : "No published figure."))}</p>${sourceLinks(c, e.source)}</div>
+    <div><h3>Out of bounds ${conf(o.confidence)}</h3>
+      <p>${o.present === true ? "<b>Yes.</b> " : o.present === false ? "<b>None.</b> " : ""}${esc(o.description || (o.present == null ? "Not documented." : ""))}</p>${sourceLinks(c, o.source)}</div>
+    <div><h3>Penalty areas</h3><p class="${p.description ? "hazard" : ""}">${esc(p.description || "None documented.")}</p>${sourceLinks(c, p.source)}</div>
+    <div><h3>Green ${conf(g.confidence)}</h3>
+      ${gBits ? `<p><b>${gBits}</b></p>` : ""}
+      ${g.slope ? `<p><b>Slope:</b> ${esc(g.slope)}</p>` : ""}
+      ${g.features ? `<p>${esc(g.features)}</p>` : ""}
+      ${!gBits && !g.slope && !g.features ? `<p class="dash">No published detail.</p>` : ""}${sourceLinks(c, g.source)}</div>
+    ${h.notes ? `<div class="full"><h3>Notes</h3><p>${esc(h.notes)}</p></div>` : ""}
+  </div>`;
+}
+
+function drawHoles(c, tee) {
+  const body = document.getElementById("holeRows");
+  const yd = h => (h.yards || {})[tee];
+  const sum = hs => hs.reduce((a, h) => a + (typeof yd(h) === "number" ? yd(h) : 0), 0);
+  const parSum = hs => hs.reduce((a, h) => a + (h.par || 0), 0);
+  const holes = [...c.holes].sort((a, b) => a.number - b.number);
+  const row = h => `
+    <tr class="hole" data-n="${h.number}">
+      <td>${h.number}</td>
+      <td class="holename">${esc(h.name || "")}</td>
+      <td class="num">${h.par ?? "—"}</td>
+      <td class="num">${h.handicap ?? "—"}</td>
+      <td class="num"><b>${typeof yd(h) === "number" ? yd(h) : "—"}</b></td>
+      <td>${elevationCell(h.elevation)}</td>
+      <td>${obCell(h.out_of_bounds)}</td>
+      <td>${greenCell(h.green)}</td>
+      <td><button class="toggle" type="button" aria-expanded="false" aria-controls="d-${h.number}" aria-label="Details for hole ${h.number}">▸</button></td>
+    </tr>
+    <tr class="detail" id="d-${h.number}" hidden><td colspan="9">${detailHtml(c, h)}</td></tr>`;
+  const sub = (label, hs) => `<tr class="sub"><td colspan="2">${label}</td><td class="num">${parSum(hs)}</td><td></td><td class="num">${fmt(sum(hs))}</td><td colspan="4"></td></tr>`;
+  const out = holes.filter(h => h.number <= 9), inn = holes.filter(h => h.number > 9);
+  body.innerHTML = out.map(row).join("") + sub("Out", out) + inn.map(row).join("") + sub("In", inn) + sub("Total", holes);
+  body.querySelectorAll("tr.hole").forEach(tr => tr.addEventListener("click", ev => {
+    if (ev.target.closest("a")) return;
+    const d = document.getElementById("d-" + tr.dataset.n);
+    d.hidden = !d.hidden;
+    const btn = tr.querySelector(".toggle");
+    btn.setAttribute("aria-expanded", d.hidden ? "false" : "true");
+    btn.textContent = d.hidden ? "▸" : "▾";
+  }));
+}
+
+const tabs = document.getElementById("tabs");
+tabs.innerHTML = ORDER.filter(s => courses[s]).map(s => `<button class="tab" role="tab" type="button" data-slug="${s}">${SHORT[s]}</button>`).join("");
+tabs.addEventListener("click", e => {
+  const b = e.target.closest(".tab");
+  if (!b) return;
+  if (location.hash !== "#" + b.dataset.slug) location.hash = b.dataset.slug; else render(b.dataset.slug);
+});
+const fromHash = () => render((location.hash || "").slice(1) || ORDER[0]);
+window.addEventListener("hashchange", fromHash);
+fromHash();
+</script>
