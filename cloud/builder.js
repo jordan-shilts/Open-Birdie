@@ -115,11 +115,19 @@ function createCourseBuilder({
     update({ packageId: final.packageId, complete: true });
 
     if (todo.length) {
+      const pending = new Set(todo.map((e) => e.hole));
       const hdOutcome = await hd.build({
         course,
         entries: todo,
         log,
         onHole: (hole, i, total) => progress('hd', `adding 1 m terrain: hole ${hole} (${i + 1} of ${total})`, 85 + Math.round((i / total) * 9)),
+        // each hole is published as it lands (the rest still pending), so a build that
+        // dies later keeps every hole it finished
+        onBuilt: async ({ hole }) => {
+          pending.delete(hole);
+          final = await pack([...pending].map((h) => ({ hole: h, code: 'HD_PENDING' })));
+          update({ packageId: final.packageId, complete: true });
+        },
       });
       log.log(`[cloud] ${key}: HD holes ${hdOutcome.built.map((b) => b.hole).join(', ') || 'none'}` +
         `${hdOutcome.failed.length ? `, skipped ${hdOutcome.failed.map((f) => `${f.hole} (${f.code})`).join(', ')}` : ''}`);

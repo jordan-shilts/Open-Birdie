@@ -55,7 +55,10 @@ async function main() {
     lastSave = Date.now();
     return write();
   };
-  const heartbeat = setInterval(() => save({}, true), HEARTBEAT_MS);
+  // The heartbeat carries the machine's memory too (the build's own and what is left for
+  // the HD hole processes), so a build that goes quiet shows whether it ran out.
+  const memory = () => ({ rssMb: Math.round(process.memoryUsage().rss / 1048576), freeMb: Math.round(os.freemem() / 1048576) });
+  const heartbeat = setInterval(() => save({ memory: memory() }, true), HEARTBEAT_MS);
 
   const { loadCourse } = require('../lib/course');
   const { localSceneryProviders } = require('../lib/course-enrichment');
