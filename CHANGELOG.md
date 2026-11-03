@@ -4,6 +4,13 @@ All notable changes to Open-Birdie are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **The launch monitor keeps the club you pick on it** — after every shot Open-Birdie sent the monitor a
+  player update with the new distance to the pin, and that update repeated Open-Birdie's own club (Driver
+  unless picked here); OpenFlight applies the club from every update, so a club chosen on the monitor
+  snapped back to Driver after each shot. Updates now carry only what changed; a club is sent when it is
+  picked in Open-Birdie (`lib/openconnect.js`).
+
 ### Changed
 - **4K at 60 fps by dynamic resolution** — High now renders up to native 4K, and the render resolution
   follows the frame rate: a window of slow frames steps it down (to half per axis at most), a run of calm

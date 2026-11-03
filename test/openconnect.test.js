@@ -44,3 +44,22 @@ test('replies keep the GSPro shape and name the simulator', async (t) => {
   assert.equal(greeting.Simulator, 'Open-Birdie');
   assert.deepEqual(heartbeat, { Code: 200, Message: 'Heartbeat OK', Simulator: 'Open-Birdie' });
 });
+
+test('distance updates leave the club alone; a club pick is sent once', async (t) => {
+  const oc = new OpenConnectServer(0);
+  oc.start();
+  await new Promise((resolve) => oc.server.once('listening', resolve));
+  t.after(() => oc.server.close());
+  const sock = net.connect(oc.server.address().port, '127.0.0.1');
+  t.after(() => sock.destroy());
+  const replies = collect(sock, 3);
+  await new Promise((resolve) => sock.once('connect', resolve));
+  await new Promise((resolve) => setTimeout(resolve, 50));   // the greeting first
+  oc.setPlayer({ DistanceToTarget: 172 });                     // after a shot
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  oc.setPlayer({ Club: 'I7' });                                // picked in Open-Birdie
+  const [greeting, distance, club] = await replies;
+  assert.equal(greeting.Player.Club, 'DR');
+  assert.deepEqual(distance.Player, { Handed: 'RH', DistanceToTarget: 172 }, 'no Club: the monitor keeps its own');
+  assert.equal(club.Player.Club, 'I7');
+});
