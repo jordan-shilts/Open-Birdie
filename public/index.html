@@ -280,13 +280,16 @@
   </div>
 </div>
 
-<div id="league-panel" class="panel hidden" role="dialog" aria-label="Leagues">
-  <div class="panel-head">
-    <div><span class="lbl">LEAGUES</span><h3 id="lg-title">Leagues</h3></div>
+<div id="league-panel" class="hidden" role="dialog" aria-labelledby="lg-title" tabindex="-1">
+  <header class="lgx-head">
+    <div class="lgx-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4.5h8v5a4 4 0 0 1-8 0z"/><path d="M8 6.5H4.5a3 3 0 0 0 3.6 3.4M16 6.5h3.5a3 3 0 0 1-3.6 3.4"/><path d="M12 13.5V17M8.5 19.5h7M10 17h4"/></svg></div>
+    <div class="lgx-titles"><span class="lbl" id="lg-eyebrow">LEAGUES</span><h3 id="lg-title">Leagues</h3></div>
+    <div class="lgx-headmeta" id="lg-headmeta"></div>
     <button class="panel-x" data-close="league-panel" aria-label="Close">×</button>
-  </div>
+  </header>
   <div id="lg-body"></div>
 </div>
+<div id="lg-result" class="hidden"></div>
 
 <div id="toast" class="hidden" role="status" aria-live="polite"></div>
 </div>

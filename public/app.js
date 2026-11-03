@@ -761,12 +761,14 @@ window.addEventListener('keydown', (e) => {
   if (k === 'Escape') {
     closeMenu();
     for (const id of ['conditions', 'practice', 'games-menu', 'scorecard', 'league-panel', 'player-menu']) $(id).classList.add('hidden');
+    leaguesUI.closeResult();
     $('btn-score').classList.remove('active');
     $('btn-league').classList.remove('active');
     return;
   }
   if (k.toLowerCase() === 'f') { if (!animating && scene.flyover.start()) e.preventDefault(); return; }
   if (k.toLowerCase() === 'w') { conditions.toggle(); return; }
+  if (k.toLowerCase() === 'l') { leaguesUI.toggle(); return; }
   if (animating) return;
   if (k === 'ArrowLeft' || k === 'ArrowRight') {
     e.preventDefault();
