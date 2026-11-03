@@ -33,9 +33,30 @@ export function makeWaterDepth(renderer) {
       // its old GPU storage, so the next pre-pass hit an incomplete framebuffer
       // (attachments of different sizes). Free it so it is rebuilt at the new size.
       depthTexture.dispose();
-      verified = false;
+      // allocate and check now, not on the first pre-pass: that comes mid-flight as a
+      // pond nears, and allocating a 4K depth target there stalled the frame
+      renderer.initRenderTarget?.(target);
+      verify();
     }
     resolution.set(W, H); // device pixels, to match gl_FragCoord.xy
+  }
+
+  // Once per size, where the size changes (dynamic resolution only resizes between shots):
+  // a depth texture can keep GPU storage from an earlier size (or from a pass that bound
+  // it first), which leaves this framebuffer incomplete; rebuild both attachments if so.
+  // The status query waits for the GPU to drain — ~50 ms on a Mac — so it must never
+  // run mid-flight, where a pond coming into range used to stall the replay.
+  function verify() {
+    const prevTarget = renderer.getRenderTarget();
+    renderer.setRenderTarget(target);
+    const gl = renderer.getContext();
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      target.dispose();
+      depthTexture.dispose();
+      renderer.setRenderTarget(target);
+    }
+    renderer.setRenderTarget(prevTarget);
+    verified = true;
   }
   setSize(size.x, size.y);
 
@@ -47,21 +68,10 @@ export function makeWaterDepth(renderer) {
   const swapped = [];
   function prepass(terrain, camera) {
     if (!terrain) return;
+    if (!verified) verify();
     terrain.traverse((o) => { if (o.isMesh) { swapped.push(o, o.material); o.material = depthOnly; } });
     const prevTarget = renderer.getRenderTarget();
     renderer.setRenderTarget(target);
-    if (!verified) {
-      // Once per size: a depth texture can keep GPU storage from an earlier size (or
-      // from a pass that bound it first), which leaves this framebuffer incomplete.
-      // Rebuild both attachments if so.
-      const gl = renderer.getContext();
-      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-        target.dispose();
-        depthTexture.dispose();
-        renderer.setRenderTarget(target);
-      }
-      verified = true;
-    }
     renderer.clear(true, true, false);
     try { renderer.render(terrain, camera); } finally {
       renderer.setRenderTarget(prevTarget);
