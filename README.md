@@ -169,11 +169,14 @@ the same code as the desktop — OSM holes and buildings, USGS 3DEP lidar terrai
 classmap — plus what the desktop app cannot ship: real trees from the canopy height map
 (`geotiff`) and the max-quality tiled aerial (`sharp`). Each course becomes a package (manifest +
 files with sha256) in object storage. It publishes a playable package as soon as the base data is
-ready, then a complete one with the scenery. A course with HD hole manifests in
-[`tools/hd-course/manifests`](tools/hd-course/manifests) (Hazeltine 16–18, all of Chambers Bay,
-Bandon Dunes 1, TPC Sawgrass 17) also gets those holes' 1 m lidar terrain and 0.3 m NAIP imagery
-compiled into its package, when the deployment includes `tools/` (the Vercel builds do; the
-container image doesn't). A hole that fails is skipped. Its dependencies are in
+ready, then a complete one with the scenery. After that it adds HD holes (1 m lidar terrain and
+0.3 m NAIP imagery) and publishes the package again, so a pick never waits on them. Holes with a
+reviewed manifest in [`tools/hd-course/manifests`](tools/hd-course/manifests) use it; every other
+hole 1–18 of a course in the contiguous US is pinned automatically to the newest NAIP photo that
+covers it (`npm run auto-pin:hd-hole` does the same for a reviewed manifest), on 3 m terrain where
+there is no 1 m lidar. `BIRDIE_CLOUD_AUTO_HD=0` limits HD to the reviewed manifests. This needs
+`tools/` in the deployment (the Vercel builds have it; the container image doesn't). A hole that
+fails is skipped, and the package lists it with the reason (`hdMissing`). Its dependencies are in
 [`cloud/package.json`](cloud/package.json); the image is [`cloud/Dockerfile`](cloud/Dockerfile)
 (`node:22-slim`).
 
@@ -276,8 +279,10 @@ logs (`vercel logs --query failed`); the sandbox itself is gone by then.
 first pick downloads in seconds instead of waiting on a build. With no arguments it builds the
 featured courses in [`courses/featured.json`](courses/featured.json) (the course picker's
 suggestions plus the courses with HD hole manifests). It skips courses the cloud already has
-and runs one build at a time. A course built before its HD holes existed is upgraded: the
-build resumes from the cloud's package and only adds the holes.
+and runs one build at a time. HD holes the cloud still lacks for a passing reason (a timeout, a
+USGS 502, out of time) are asked for again, as is a course built before HD planning existed: the
+build resumes from the cloud's package and only adds the holes. Holes with no imagery or lidar
+are left alone.
 
 ```bash
 npm run cloud:build-courses                                    # the featured courses

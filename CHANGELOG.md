@@ -105,6 +105,12 @@ All notable changes to Open-Birdie are documented here.
   were skipped, with the reason. A failing hole is skipped; HD stops starting holes after 20 minutes. The HD
   compiler gives 3DEP's 1 m export 60 s and three tries (a course load allows 12 s, which cost cloud builds
   holes). The Chambers Bay, Bandon Dunes and TPC Sawgrass manifests now name their course by OSM id.
+- **HD for every hole of a US course** (`tools/hd-course/auto-pin.mjs`) — holes without a reviewed manifest are
+  pinned automatically to the newest single-date NAIP acquisition covering their padded bounds and built like any
+  other (3 m terrain where there is no 1 m lidar); `BIRDIE_CLOUD_AUTO_HD=0` turns it off. The cloud publishes the
+  complete package before the HD stage and again after, and packages record `hdPlanned` and `hdMissing` (hole +
+  reason). `npm run auto-pin:hd-hole` writes or re-pins manifests; Bandon Dunes hole 1 is re-pinned (its 2022 pin
+  had left the catalog).
 - **Range & games** (`lib/practice.js`) — a driving range and three mini games on the loaded course, its real
   ground and physics; the round pauses and resumes untouched. The range is the course's own mapped
   `golf=driving_range` (played along its long axis from the end by the first tee), else hole 1's tee, with yellow
