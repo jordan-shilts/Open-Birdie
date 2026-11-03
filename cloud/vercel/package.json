@@ -1,0 +1,16 @@
+{
+  "name": "open-birdie-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-Birdie cloud course service on Vercel: the v1 API over Vercel Blob, builds in Vercel Sandbox (deployment manifest; see README.md, Cloud courses)",
+  "type": "commonjs",
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@vercel/blob": "2.8.2",
+    "@vercel/oidc": "4.0.5",
+    "@vercel/sandbox": "3.9.1"
+  },
+  "license": "MIT"
+}

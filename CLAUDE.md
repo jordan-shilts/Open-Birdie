@@ -1,13 +1,17 @@
 # Open-Birdie — agent orientation
 
 Open-data golf simulator: Node/Electron/Three.js, SSE server, real launch-monitor
-integration (Open Connect). Zero runtime deps beyond `pngjs` + `three`. Shipping (v0.8.0).
+integration (Open Connect). Runtime deps: `pngjs` + `three`, plus `3d-tiles-renderer` (loaded only
+with a Google Map Tiles key). Heavy data tools (`geotiff`, `sharp`) stay out of the desktop runtime:
+the cloud course service (`cloud/`) uses them. Shipping (v0.8.0).
 
 ## Resuming work — read these first
 - **`docs/HANDOFF.md`** — the single source of truth for the current "make it look like a
   real place" arc (findings, what shipped, how the new pieces work, the QL1 gate decision,
   the verify/render loop, gotchas, and a prioritized backlog). **Start here.**
 - **`docs/TODO.md`** — live backlog / resolved items.
+- **`docs/research/course-data/`** — researched per-hole yardages, par, handicap, elevation, OB, penalty
+  areas and green data for the five featured courses, with a source for every fact.
 - Current feature branch: `claude/hd-discovery-plan4` (base `main`). Most realism work lives here.
 
 ## Dev essentials

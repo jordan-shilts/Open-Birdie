@@ -16,8 +16,11 @@ const sunVec = (azimuth, altitude) => {
 
 // Loads HDRI, returns { envTexture (PMREM, for scene.environment),
 // equirect (for scene.background + skybox), sunDir, horizonColor }.
-export async function loadHDRIEnvironment(renderer) {
-  const equirect = await new HDRLoader().setDataType(THREE.FloatType).loadAsync(ASSETS.hdri());
+// url defaults to the bundled sky; a sun axis given as null comes from the photo.
+export async function loadHDRIEnvironment(renderer, {
+  url = ASSETS.hdri(), sunAzimuthDeg = RENDER_CONFIG.sunAzimuthDeg, sunAltitudeDeg = RENDER_CONFIG.sunAltitudeDeg,
+} = {}) {
+  const equirect = await new HDRLoader().setDataType(THREE.FloatType).loadAsync(url);
   equirect.mapping = THREE.EquirectangularReflectionMapping;
 
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -25,11 +28,15 @@ export async function loadHDRIEnvironment(renderer) {
   pmrem.dispose();
 
   const { data, width, height } = equirect.image;
-  // sun direction: explicit config override (D2) wins, else estimate from the HDRI
-  const ovAz = RENDER_CONFIG.sunAzimuthDeg, ovAlt = RENDER_CONFIG.sunAltitudeDeg;
-  const sph = (ovAz != null && ovAlt != null)
-    ? { azimuth: THREE.MathUtils.degToRad(ovAz), altitude: THREE.MathUtils.degToRad(ovAlt) }
-    : sunSphericalFromEquirect(data, width, height);
+  // sun direction: each config override (D2) wins on its own axis, else the HDRI's
+  // estimate — so the altitude can be set (long, crisp shadows) while the azimuth
+  // still follows the sky's bright side
+  const ovAz = sunAzimuthDeg, ovAlt = sunAltitudeDeg;
+  const est = (ovAz != null && ovAlt != null) ? null : sunSphericalFromEquirect(data, width, height);
+  const sph = {
+    azimuth: ovAz != null ? THREE.MathUtils.degToRad(ovAz) : est.azimuth,
+    altitude: ovAlt != null ? THREE.MathUtils.degToRad(ovAlt) : est.altitude,
+  };
   const sunDir = sunVec(sph.azimuth, Math.max(sph.altitude, THREE.MathUtils.degToRad(8))); // floor so shadows read
   const horizonColor = horizonColorFromEquirect(data, width, height);
   const hl = horizonLinearFromEquirect(data, width, height);

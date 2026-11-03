@@ -1,164 +1,274 @@
-// Animated water for course hazards. Each OSM water polygon becomes a flat
-// horizontal plane (normal = world +Y), so we can ripple the surface with an
-// analytic wave field in world XZ and feed that straight into the standard
-// material's normal — no normal-map asset, no tangent-space bookkeeping.
+// Pond water. Each OSM water polygon becomes a flat plane at the pond's real water
+// line, over a bed carved into the render terrain (water-shore.js), grown past the
+// hand-traced outline so the bank — where it rises out of the water — draws the
+// shore.
 //
-// The ripples shimmer the HDRI sky reflection (envMap) the material already
-// does, a Fresnel term lifts reflectivity at grazing angles (deep-blue looking
-// down, sky-bright at the shore line), and a Blinn-Phong sun term adds the
-// moving specular glitter toward the sun. Integrates with fog + post-FX because
-// it stays a MeshStandardMaterial in the normal render pass.
+// High quality: the plane IS a planar mirror (three's Reflector re-renders the scene
+// about the pond's level) with its own shader. A mirror re-renders the whole course,
+// so only the ponds that matter most on screen (MAX_LIVE_MIRRORS, by size over
+// distance) are live, refreshed in turns; the rest mirror the sky photo alone. An analytic ripple field in world XZ
+// distorts the mirror and drives the sun glitter; Fresnel mixes the mirror with the
+// dark water body (across a pond the trees and sky mirror; looking down you see into
+// it); where the terrain depth pre-pass says the water is shallow it clears over the
+// silty bed. Fog applies like any other surface.
+// Low quality (no mirror): the same shader reflecting the sky photo alone.
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { RENDER_CONFIG } from './config.js';
 
-// GLSL: sum of directional gerstner-ish ripples -> height gradient -> normal.
-// Kept gentle (small amplitudes) so the plane reads as calm pond water, not surf.
-const WATER_COMMON = `
-  uniform float uTime;
-  uniform vec3  uSunDir;        // world-space direction TO the sun
-  uniform vec3  uDeep;          // deep-water body color
-  uniform vec3  uShallow;       // sky-tinted grazing/shore color
-  uniform float uChop;          // ripple steepness
-  varying vec3  vWorldPos;
-  vec3 gWaterWN;                // rippled world normal, reused for specular
-
-  // analytic normal of h(p,t) = sum A_i sin(dir_i . p * f_i + t * s_i).
-  // Directions fan out by the golden angle so no two waves align (a few aligned
-  // waves read as a mechanical crosshatch); frequencies grow by a non-integer
-  // ratio (no harmonic moire), from ~15m swells down to ~1m chop.
-  vec3 rippleNormal(vec2 p, float t) {
+// GLSL: sum of directional ripples -> height gradient -> normal. Kept gentle (small
+// amplitudes) so the plane reads as calm pond water, not surf. Directions fan out by
+// the golden angle so no two waves align (aligned waves read as a mechanical
+// crosshatch); frequencies grow by a non-integer ratio (no harmonic moire), from
+// ~15 m swells down to ~1 m chop.
+const RIPPLE = `
+  vec3 rippleNormal(vec2 p, float t, float chop) {
     vec2 g = vec2(0.0);
     float freq = 0.42, amp = 0.085, ang = 0.0;
-    const int N = 8;
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < 8; i++) {
       vec2 d = vec2(cos(ang), sin(ang));
       float ph = dot(d, p) * freq + t * (0.6 + freq * 0.45);
       g += amp * freq * d * cos(ph);   // dh/dp = A * f * d * cos(phase)
-      ang  += 2.39996;                  // golden angle (radians)
-      freq *= 1.48;
-      amp  *= 0.76;
+      ang  += 2.39996;
+      freq *= 1.53;
+      amp  *= 0.62;   // fast falloff: calm water is long swells, not a lattice of chop
     }
-    g *= uChop;
+    g *= chop;
     return normalize(vec3(-g.x, 1.0, -g.y));
   }
 `;
 
-// Foam uniform declarations (only injected when the depth pre-pass is enabled).
-const FOAM_COMMON = `
-  uniform sampler2D uDepthTex; uniform vec2 uResolution;
-  uniform float uCamNear, uCamFar, uFoamDepth; uniform vec3 uFoamColor;
-  // perspectiveDepthToViewZ lives in three's <packing> chunk, which the standard
-  // fragment shader does NOT include — so define it here. Returns negative view Z.
-  float foamViewZ(float d, float n, float f) { return (n * f) / (d * (f - n) - f); }`;
+// ---------------------------------------------------------------- mirror ponds
+const POND_VERT = /* glsl */`
+  uniform mat4 textureMatrix;
+  varying vec4 vUv;
+  varying vec3 vWorldPos;
+  varying float vEye;
+  #include <common>
+  #include <fog_pars_vertex>
+  #include <logdepthbuf_pars_vertex>
+  void main() {
+    vUv = textureMatrix * vec4(position, 1.0);
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWorldPos = wp.xyz;
+    vec4 mvPosition = viewMatrix * wp;
+    vEye = -mvPosition.z;
+    gl_Position = projectionMatrix * mvPosition;
+    #include <logdepthbuf_vertex>
+    #include <fog_vertex>
+  }`;
 
-function addWaterShader(material, windRef, sunDir, foam) {
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = { value: 0 };
-    shader.uniforms.uSunDir = { value: sunDir.clone().normalize() };
-    shader.uniforms.uDeep = { value: new THREE.Color(0x123a4d) };
-    shader.uniforms.uShallow = { value: new THREE.Color(0x7fb0cc) };
-    shader.uniforms.uChop = { value: 0.8 };
-    windRef.push(shader.uniforms.uTime);
-    if (foam) {
-      shader.uniforms.uDepthTex = { value: foam.depthTex };
-      shader.uniforms.uResolution = { value: foam.resolution || new THREE.Vector2(1, 1) };
-      shader.uniforms.uCamNear = { value: foam.near };
-      shader.uniforms.uCamFar = { value: foam.far };
-      shader.uniforms.uFoamColor = { value: new THREE.Color(0xeaf4f7) };
-      shader.uniforms.uFoamDepth = { value: 10.0 }; // nearshore shallow band (m) — wide so it reads
-      foam.u.push(shader.uniforms);
+const POND_FRAG = /* glsl */`
+  uniform vec3 color;            // mirror tint (set by Reflector)
+  uniform sampler2D tDiffuse;    // the mirrored scene
+  uniform float uTime, uChop, uDistort;
+  uniform vec3 uSunDir, uSunColor, uDeep, uSilt;
+  uniform float uDepthOn, uCamNear, uCamFar, uMirror;
+  uniform sampler2D uDepthTex, uSky;
+  uniform vec2 uResolution;
+  varying vec4 vUv;
+  varying vec3 vWorldPos;
+  varying float vEye;
+  #include <common>
+  #include <fog_pars_fragment>
+  #include <logdepthbuf_pars_fragment>
+  ${RIPPLE}
+  void main() {
+    #include <logdepthbuf_fragment>
+    vec3 N = rippleNormal(vWorldPos.xz, uTime, uChop);
+    vec3 V = normalize(cameraPosition - vWorldPos);
+    // Schlick Fresnel, floored: a calm pond mirrors well above water's 2% at normal
+    // incidence once the sky and banks are bright behind the viewer
+    float F = mix(0.22, 1.0, 0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0));
+    vec4 uv = vUv;
+    uv.xy += N.xz * uDistort * uv.w;
+    // a live mirror shows the course; the others reflect the sky photo alone
+    vec3 mirror = uMirror > 0.5 ? texture2DProj(tDiffuse, uv).rgb * color
+                                : texture2D(uSky, equirectUv(reflect(-V, N))).rgb * color;
+    // the body: dark, a little green-brown (algae, tannin), lit by the daylight
+    vec3 body = uDeep * (0.45 + 0.55 * clamp(uSunDir.y * 1.5, 0.0, 1.0));
+    vec3 col = mix(body, mirror, F);
+    vec3 H = normalize(uSunDir + V);
+    col += uSunColor * pow(max(dot(N, H), 0.0), 380.0) * 3.0 * step(0.0, uSunDir.y);
+    float alpha = 1.0;
+    if (uDepthOn > 0.5) {
+      // water column under this pixel along the view ray (terrain-only depth pre-pass)
+      float d = texture2D(uDepthTex, gl_FragCoord.xy / uResolution).x;
+      float sceneEye = (uCamNear * uCamFar) / (uCamFar - d * (uCamFar - uCamNear));
+      float thick = max(sceneEye - vEye, 0.0);
+      float clear = exp(-thick * 1.6);          // the waterline clears; ~1.5 m of water doesn't
+      col = mix(col, mix(col, uSilt, 0.35), clear * (1.0 - F));
+      alpha = 1.0 - clear * (1.0 - F) * 0.9;
     }
+    gl_FragColor = vec4(col, alpha);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+    #include <fog_fragment>
+  }`;
 
-    // --- vertex: carry world position for the wave field ---
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\n varying vec3 vWorldPos;')
-      .replace('#include <begin_vertex>',
-        '#include <begin_vertex>\n vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-
-    // body color (deep looking down -> sky-tinted at grazing) + moving sun glitter
-    const specBlock = `
-        {
-          vec3 V = normalize(cameraPosition - vWorldPos);
-          float fres = pow(clamp(1.0 - max(dot(V, gWaterWN), 0.0), 0.0, 1.0), 3.0);
-          outgoingLight = mix(outgoingLight * 0.7 + uDeep * 0.4, outgoingLight + uShallow * 0.5, fres);
-          vec3 H = normalize(uSunDir + V);
-          float spc = pow(max(dot(gWaterWN, H), 0.0), 220.0);
-          outgoingLight += vec3(1.0, 0.96, 0.86) * spc * 1.6;
-        }`;
-    // shoreline foam: whiten where terrain sits just under the surface. vViewPosition.z
-    // is this fragment's positive eye depth (meshphysical sets vViewPosition=-mvPosition);
-    // perspectiveDepthToViewZ (via <common>) linearizes the sampled scene depth.
-    const foamBlock = foam ? `
-        {
-          vec2 sUv = gl_FragCoord.xy / uResolution;
-          float sceneEye = -foamViewZ(texture2D(uDepthTex, sUv).x, uCamNear, uCamFar);
-          float diff = sceneEye - vViewPosition.z;               // terrain depth below surface
-          float foam = (1.0 - smoothstep(0.0, uFoamDepth, diff)) * step(0.0, diff);
-          foam *= mix(0.65, 1.0, 0.5 + 0.5 * sin(vWorldPos.x * 1.7 + vWorldPos.z * 1.3 - uTime * 1.5));
-          foam = clamp(foam, 0.0, 1.0);
-          outgoingLight = mix(outgoingLight, uFoamColor, foam);
-          diffuseColor.a = mix(diffuseColor.a, 1.0, foam * 0.6);
-        }` : '';
-
-    // --- fragment: ripple the normal (view space), then body + glitter + foam ---
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\n' + WATER_COMMON + (foam ? FOAM_COMMON : ''))
-      .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
-        gWaterWN = rippleNormal(vWorldPos.xz, uTime);
-        normal = normalize((viewMatrix * vec4(gWaterWN, 0.0)).xyz);`)
-      .replace('#include <opaque_fragment>', specBlock + foamBlock + '\n        #include <opaque_fragment>');
+function mirrorPond(geom, shared, skip, only) {
+  // 512 px: the ripple field distorts the reflection by more than a texel anyway, and a
+  // 1024 mirror filled 4x the pixels re-rendering the course every other frame
+  const refl = new Reflector(geom, {
+    textureWidth: 512, textureHeight: 512, clipBias: 0.003, color: 0xc4d0cc,
+    shader: {
+      name: 'PondMirror',
+      uniforms: {
+        color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null },
+        ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      },
+      vertexShader: POND_VERT,
+      fragmentShader: POND_FRAG,
+    },
+  });
+  const m = refl.material;
+  // shared live uniforms (time, sun, sky, depth pre-pass) across every pond; uMirror is
+  // this pond's own
+  Object.assign(m.uniforms, shared, { uMirror: { value: 0 } });
+  m.fog = true;
+  m.transparent = true;
+  refl.receiveShadow = false;
+  refl.userData.isWaterReflector = true; // for disposal on course reload
+  // Reflector re-renders the scene in onBeforeRender, which fires for EVERY pass that
+  // draws the pond (the main pass, the AO normal pass, other ponds' mirrors). Render
+  // only when the budget asked for it this frame, once, and never nested in another
+  // pond's mirror. Ground cover (grass blades, flowers, litter) and the full terrain
+  // (`skip`) stay out of the mirror, and a cheap terrain stand-in (`only`) takes the
+  // terrain's place: a pond can't show blades or 1 m relief, and redrawing them was
+  // most of a mirror's cost.
+  const render = refl.onBeforeRender.bind(refl);
+  refl.onBeforeRender = (...args) => {
+    if (!refl.userData.refresh || inMirror) return;
+    refl.userData.refresh = false;
+    inMirror = true;
+    const hidden = [], shown = [];
+    for (const o of skip) if (o.visible) { o.visible = false; hidden.push(o); }
+    for (const o of only) if (!o.visible) { o.visible = true; shown.push(o); }
+    try { render(...args); } finally {
+      inMirror = false;
+      for (const o of hidden) o.visible = true;
+      for (const o of shown) o.visible = false;
+    }
   };
-  material.customProgramCacheKey = () => (foam ? 'water-anim-foam' : 'water-anim');
+  return refl;
+}
+let inMirror = false;
+const MAX_LIVE_MIRRORS = 2;
+
+// ---------------------------------------------------------------- sky-only ponds
+// Low graphics: the same pond shader on a plain mesh, never live (uMirror stays 0), so
+// it reflects the sky photo with the ripples and glitter at no extra render cost.
+function skyPond(geom, shared) {
+  const m = new THREE.ShaderMaterial({
+    name: 'PondSky',
+    uniforms: {
+      color: { value: new THREE.Color(0xc4d0cc) }, tDiffuse: { value: null }, textureMatrix: { value: new THREE.Matrix4() },
+      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      ...shared, uMirror: { value: 0 },
+    },
+    vertexShader: POND_VERT,
+    fragmentShader: POND_FRAG,
+    fog: true,
+    transparent: true,
+  });
+  return new THREE.Mesh(geom, m);
 }
 
-// surfaces: geo.surfaces; hAt(x,y)->z; sunDir: world Vector3; foamEnabled: bool.
-// Returns { meshes, waterMeshes, waterUpdate, setFoamDepth }.
-export function buildWater(surfaces, hAt, sunDir, foamEnabled) {
+// ponds: water-shore.js coursePonds (grown outline + water level per pond);
+// sunDir: world Vector3 toward the sun; depth: the terrain depth pre-pass or null.
+// Returns { meshes, waterMeshes, waterUpdate, setFoamDepth, setMirrorSkip }.
+export function buildWater(ponds, sunDir, depth) {
   const meshes = [];
-  const windRef = [];
-  const foam = foamEnabled ? { depthTex: null, resolution: null, near: 0.3, far: 12000, u: [] } : null;
+  const mirrorSkip = [];   // objects left out of the live mirrors (setMirrorSkip)
+  const mirrorOnly = [];   // objects drawn only inside them
   const reflect = RENDER_CONFIG.waterReflect;
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0x21566e, roughness: 0.12, metalness: 0.0,
-    envMapIntensity: 1.25, transparent: true,
-    opacity: reflect ? 0.58 : 0.9, // translucent so the planar reflection shows through
-  });
-  addWaterShader(mat, windRef, sunDir, foam);
+  const shared = {
+    uTime: { value: 0 },
+    uChop: { value: 0.45 },
+    uDistort: { value: 0.09 },
+    uSunDir: { value: sunDir.clone().normalize() },
+    uSunColor: { value: new THREE.Color(1.0, 0.95, 0.84) },
+    uDeep: { value: new THREE.Color(0x14261f).convertSRGBToLinear() },
+    uSilt: { value: new THREE.Color(0x4a4532).convertSRGBToLinear() },
+    uDepthOn: { value: 0 },
+    uSky: { value: null },
+    uDepthTex: { value: null },
+    uResolution: { value: new THREE.Vector2(1, 1) },
+    uCamNear: { value: 0.3 },
+    uCamFar: { value: 12000 },
+  };
 
-  for (const s of surfaces) {
-    if (s.kind !== 'water' || !s.poly || s.poly.length < 3) continue;
-    const shape = new THREE.Shape(s.poly.map(([x, y]) => new THREE.Vector2(x, -y)));
-    const g2 = new THREE.ShapeGeometry(shape);
-    g2.rotateX(-Math.PI / 2); // lay flat, y up
-    let level = Infinity;
-    for (const [x, y] of s.poly) level = Math.min(level, hAt(x, y));
-    // Per-pond planar reflection at the pond's own level, so trees/banks mirror in
-    // the water. Frustum-culled, so only the in-view hole's pond(s) cost a scene
-    // re-render (cheaper in practice than a single mis-levelled whole-course plane).
-    // The animated water sits just above as a translucent ripple/tint/foam overlay.
-    if (reflect) {
-      const refl = new Reflector(g2.clone(), {
-        textureWidth: 1024, textureHeight: 1024, color: 0x6f868f, clipBias: 0.01,
-      });
-      refl.position.y = level - 0.05;
-      refl.renderOrder = -1;
-      refl.userData.isWaterReflector = true; // for disposal on course reload
-      meshes.push(refl);
-    }
-    const m = new THREE.Mesh(g2, mat);
-    m.position.y = level - (reflect ? 0.035 : 0.06); // just above the reflector
-    m.receiveShadow = true;
+  for (const p of ponds) {
+    // shape in sim (x, y); a -90deg turn about x maps it to three (x, 0, -y) —
+    // flipping y first (as this used to) mirrored every pond across the x axis. The
+    // turn goes on the MESH, not the geometry: Reflector takes the mirror's normal
+    // from the object's +Z (a baked-in turn left it mirroring sideways — black water)
+    const shape = new THREE.Shape(p.grown.map(([x, y]) => new THREE.Vector2(x, y)));
+    const g = new THREE.ShapeGeometry(shape);
+    // a hair over the flattened water line: the bank where it rises out draws the shore
+    const level = p.level + 0.03;
+    const m = reflect ? mirrorPond(g, shared, mirrorSkip, mirrorOnly) : skyPond(g, shared);
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = level;
+    m.updateMatrixWorld(true);
+    g.computeBoundingSphere();
+    m.userData.sphere = g.boundingSphere.clone().applyMatrix4(m.matrixWorld);
     meshes.push(m);
   }
 
-  // Wire the depth texture/resolution after the helper exists. Called before the
-  // first render, so onBeforeCompile reads these; the texture/Vector2 are shared
-  // refs whose size/content the helper updates on resize, so this is set once.
+  // Wire the terrain depth pre-pass (its texture/Vector2 are shared refs the helper
+  // updates on resize, so this is set once).
   const setFoamDepth = (depthTex, resolution, near, far) => {
-    if (!foam) return;
-    foam.depthTex = depthTex; foam.resolution = resolution; foam.near = near; foam.far = far;
-    for (const u of foam.u) { u.uDepthTex.value = depthTex; u.uResolution.value = resolution; u.uCamNear.value = near; u.uCamFar.value = far; }
+    shared.uDepthTex.value = depthTex; shared.uResolution.value = resolution;
+    shared.uCamNear.value = near; shared.uCamFar.value = far;
+    shared.uDepthOn.value = depthTex && reflect ? 1 : 0;
   };
-  return { meshes, waterMeshes: meshes, waterUpdate: (t) => { for (const u of windRef) u.value = t; }, setFoamDepth };
+  if (depth) setFoamDepth(depth.depthTexture, depth.resolution, depth.near, depth.far);
+  // Each frame: the ponds most worth a live mirror (in view, within 900 m, biggest
+  // for their distance) show it; they take turns re-rendering, a newly promoted one
+  // at once (so a single captured frame is complete).
+  const frustum = new THREE.Frustum(), pv = new THREE.Matrix4();
+  let frame = 0;
+  // Returns how many ponds in view are near enough (< 300 m) for their shallows to show:
+  // the terrain depth pre-pass behind them redraws the whole terrain, so it runs only
+  // then, and the shallows switch off (uDepthOn) on frames it doesn't.
+  const SHALLOWS_M = 300;
+  const updateMirrors = (camera) => {
+    if (!reflect) return meshes.length;
+    camera.updateMatrixWorld();
+    frustum.setFromProjectionMatrix(pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const cand = [];
+    let near = 0;
+    for (const r of meshes) {
+      const sph = r.userData.sphere;
+      const d = Math.max(1, sph.center.distanceTo(camera.position) - sph.radius * 0.5);
+      if (d < 900 && frustum.intersectsSphere(sph)) {
+        cand.push({ r, score: sph.radius / d });
+        if (d < SHALLOWS_M) near++;
+      } else { r.material.uniforms.uMirror.value = 0; r.userData.live = false; r.userData.refresh = false; }
+    }
+    cand.sort((a, b) => b.score - a.score);
+    const n = Math.min(MAX_LIVE_MIRRORS, cand.length);
+    frame++;
+    cand.forEach(({ r }, i) => {
+      const on = i < n;
+      r.userData.refresh = on && (!r.userData.live || frame % n === i);
+      r.userData.live = on;
+      r.material.uniforms.uMirror.value = on ? 1 : 0;
+    });
+    shared.uDepthOn.value = near && shared.uDepthTex.value ? 1 : 0;
+    return near;
+  };
+  return {
+    meshes, waterMeshes: meshes,
+    waterUpdate: (t) => { shared.uTime.value = t; },
+    setSun: (dir) => shared.uSunDir.value.copy(dir).normalize(),
+    setSky: (tex) => { shared.uSky.value = tex; },
+    updateMirrors,
+    setFoamDepth,
+    setMirrorSkip: (objects, only = []) => {
+      mirrorSkip.length = 0; mirrorSkip.push(...objects.filter(Boolean));
+      mirrorOnly.length = 0; mirrorOnly.push(...only.filter(Boolean));
+    },
+  };
 }

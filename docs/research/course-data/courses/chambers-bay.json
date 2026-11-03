@@ -1,0 +1,1210 @@
+{
+  "course": "Chambers Bay",
+  "slug": "chambers-bay",
+  "location": {
+    "city": "University Place",
+    "region": "Washington",
+    "country": "USA",
+    "lat": 47.2001,
+    "lon": -122.5697,
+    "source": "S28"
+  },
+  "data_as_of": "Official scorecard printed 10/2025 (Golf ScoreCards, Inc.), linked from chambersbaygolf.com; retrieved 2026-11-02",
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Chambers Bay official scorecard (printed 10/2025 by Golf ScoreCards, Inc.)",
+      "url": "https://chambersbaygolf.com/wp-content/uploads/2025/10/Chambers-Bay-Scorecard-10-2.pdf",
+      "publisher": "Chambers Bay (Pierce County / KemperSports)"
+    },
+    {
+      "id": "S2",
+      "title": "Golf at Chambers Bay (official course page and FAQ)",
+      "url": "https://chambersbaygolf.com/golf/",
+      "publisher": "Chambers Bay"
+    },
+    {
+      "id": "S3",
+      "title": "Chambers Bay scorecard and layout (per-hole combo-tee yardages, handicaps)",
+      "url": "https://www.golfpass.com/courses/16343-chambers-bay/scorecard-and-layout",
+      "publisher": "GolfPass"
+    },
+    {
+      "id": "S4",
+      "title": "Chambers Bay (hole names, green regrassing timeline, older tee tables)",
+      "url": "https://en.wikipedia.org/wiki/Chambers_Bay",
+      "publisher": "Wikipedia"
+    },
+    {
+      "id": "S5",
+      "title": "US OPEN '15: A hole-by-hole look at Chambers Bay for the US Open (June 12, 2015)",
+      "url": "https://www.foxnews.com/sports/us-open-15-a-hole-by-hole-look-at-chambers-bay-for-the-us-open",
+      "publisher": "Associated Press (via Fox News)"
+    },
+    {
+      "id": "S6",
+      "title": "US Open 2015: How to play Chambers Bay",
+      "url": "https://www.skysports.com/golf/news/14635/9884082/us-open-2015-how-to-play-chambers-bay",
+      "publisher": "Sky Sports"
+    },
+    {
+      "id": "S7",
+      "title": "Chambers Bay Guide",
+      "url": "https://www.golf365.com/home/chambers-bay-guide",
+      "publisher": "Golf365"
+    },
+    {
+      "id": "S8",
+      "title": "Liguori: Chambers Bay Is A Links Course On Steroids, Elevation-Wise (June 17, 2015)",
+      "url": "https://www.cbsnews.com/amp/newyork/news/us-open-chambers-bay",
+      "publisher": "CBS New York (Ann Liguori)"
+    },
+    {
+      "id": "S9",
+      "title": "The key holes at Chambers Bay (2015)",
+      "url": "https://www.europeantour.com/dpworld-tour/news/articles/detail/the-key-holes-at-chambers-bay/",
+      "publisher": "European Tour / DP World Tour"
+    },
+    {
+      "id": "S10",
+      "title": "Uphill Vs. Downhill: The 9th At Chambers Bay (June 16, 2015)",
+      "url": "https://geoffshackelford.com/homepage/2015/6/16/uphill-vs-downhill-the-9th-at-chambers-bay.html",
+      "publisher": "Geoff Shackelford"
+    },
+    {
+      "id": "S11",
+      "title": "Chambers Bay is much better than you remember (Sean Zak, Jan 16, 2020)",
+      "url": "https://golf.com/travel/chambers-bay-better-than-you-remember/",
+      "publisher": "GOLF.com"
+    },
+    {
+      "id": "S12",
+      "title": "Chambers Bay one year later: lessons learned from its 2015 debut on the big stage (2016)",
+      "url": "https://golf.com/news/chambers-bay-one-year-later-lessons-learned-from-its-2015-debut-on-the-big-stage/",
+      "publisher": "GOLF.com"
+    },
+    {
+      "id": "S13",
+      "title": "8 great courses with gigantic greens",
+      "url": "https://linksmagazine.com/8-great-courses-with-gigantic-greens/",
+      "publisher": "LINKS Magazine"
+    },
+    {
+      "id": "S14",
+      "title": "Sometimes Poa annua is the answer (USGA Green Section, West Region update, 2019)",
+      "url": "https://www.usga.org/content/usga/home-page/course-care/regional-updates/west-region/2019/sometimes-poa-annua-is-the-answer.html",
+      "publisher": "USGA"
+    },
+    {
+      "id": "S15",
+      "title": "Tacoma treasure: Chambers Bay back in national spotlight (2021 U.S. Amateur Four-Ball)",
+      "url": "https://www.usga.org/content/usga/home-page/championships/2021/u-s--amateur-four-ball/articles/tacoma-treasure-chambers-bay-back-national-spotlight-washington.html",
+      "publisher": "USGA"
+    },
+    {
+      "id": "S16",
+      "title": "KemperSports' 'Scariest' Holes (Oct 2022)",
+      "url": "https://www.kempersports.com/2022/10/most-challenging-holes-at-kempersports-propertiesmost-challenging-holes-at-kempersports-properties/",
+      "publisher": "KemperSports (course operator)"
+    },
+    {
+      "id": "S17",
+      "title": "Ranking Every Hole at Chambers Bay, Worst to Best (Aug 27, 2026)",
+      "url": "https://www.northwestlinks.com/post/ranking-every-hole-at-chambers-bay-worst-to-best",
+      "publisher": "Northwest Links (independent blog)"
+    },
+    {
+      "id": "S18",
+      "title": "2015 U.S. Open (golf) - round-by-round hole yardages/pars (cites archived usopen.com stats)",
+      "url": "https://en.wikipedia.org/wiki/2015_U.S._Open_(golf)",
+      "publisher": "Wikipedia"
+    },
+    {
+      "id": "S19",
+      "title": "2015 U.S. Open course stats (championship card)",
+      "url": "https://www.pgatour.com/tournaments/2015/u.s-open/R2015026/course-stats",
+      "publisher": "PGA TOUR"
+    },
+    {
+      "id": "S20",
+      "title": "2010 U.S. Amateur fact sheet",
+      "url": "https://www.usga.org/articles/2010/08/us-amateur-fact-sheet-2147489742.html",
+      "publisher": "USGA"
+    },
+    {
+      "id": "S21",
+      "title": "Chambers Bay hole-by-hole guide: hole 1",
+      "url": "https://www.golfmonthly.com/us-open/us-open-hole-by-hole-guide-shinnecock-hills/chambers-bay-hole-by-hole-guide-hole-1-72193",
+      "publisher": "Golf Monthly"
+    },
+    {
+      "id": "S22",
+      "title": "Chambers Bay hole-by-hole guide: hole 2",
+      "url": "https://www.golfmonthly.com/us-open/us-open-hole-by-hole-guide-shinnecock-hills/chambers-bay-hole-by-hole-guide-hole-2-72188",
+      "publisher": "Golf Monthly"
+    },
+    {
+      "id": "S23",
+      "title": "Chambers Bay hole-by-hole guide: hole 4",
+      "url": "https://www.golfmonthly.com/us-open/us-open-hole-by-hole-guide-shinnecock-hills/chambers-bay-hole-by-hole-guide-hole-4-72167",
+      "publisher": "Golf Monthly"
+    },
+    {
+      "id": "S24",
+      "title": "Chambers Bay hole-by-hole guide: hole 7",
+      "url": "https://www.golfmonthly.com/us-open/us-open-hole-by-hole-guide-shinnecock-hills/chambers-bay-hole-by-hole-guide-hole-7-72148",
+      "publisher": "Golf Monthly"
+    },
+    {
+      "id": "S25",
+      "title": "Chambers Bay hole-by-hole guide: hole 16",
+      "url": "https://www.golfmonthly.com/us-open/us-open-hole-by-hole-guide-shinnecock-hills/chambers-bay-hole-by-hole-guide-hole-16-72011",
+      "publisher": "Golf Monthly"
+    },
+    {
+      "id": "S26",
+      "title": "Chambers Bay hole-by-hole guide: hole 17",
+      "url": "https://www.golfmonthly.com/us-open/us-open-hole-by-hole-guide-shinnecock-hills/chambers-bay-hole-by-hole-guide-17-72006",
+      "publisher": "Golf Monthly"
+    },
+    {
+      "id": "S27",
+      "title": "Why this heralded PNW muni was my favorite course I played in 2025 (Jack Hirsh, Jan 2, 2026)",
+      "url": "https://golf.com/travel/chambers-bay-favorite-course-2025/",
+      "publisher": "GOLF.com"
+    },
+    {
+      "id": "S28",
+      "title": "chambers bay (coordinates from OpenStreetMap data)",
+      "url": "https://courses.opengolfapi.org/courses/WA/chambers-bay",
+      "publisher": "OpenGolfAPI / OpenStreetMap contributors"
+    },
+    {
+      "id": "S29",
+      "title": "USGA National Course Rating Database - Chambers Bay (CourseID 1456)",
+      "url": "https://ncrdb.usga.org/courseTeeInfo?CourseID=1456",
+      "publisher": "USGA"
+    },
+    {
+      "id": "S30",
+      "title": "US Open 2015: The poa problem with Chambers Bay's greens - fact or fiction?",
+      "url": "https://golf.com/news/us-open-2015-the-poa-problem-with-chambers-bays-greens-fact-or-fiction/",
+      "publisher": "GOLF.com"
+    },
+    {
+      "id": "S31",
+      "title": "Jim Meehan: 2015 U.S. Open course Chambers Bay (June 21, 2014)",
+      "url": "https://www.spokesman.com/stories/2014/jun/21/jim-meehan-2015-us-open-course-chambers-bay/",
+      "publisher": "The Spokesman-Review"
+    },
+    {
+      "id": "S32",
+      "title": "Why are holes changing par at the U.S. Open? (June 16, 2015)",
+      "url": "https://thegolfnewsnet.com/golfnewsnetteam/2015/06/16/nos-1-18-changing-par-us-open-chambers-bay-par-5-par-4-11550",
+      "publisher": "Golf News Net"
+    },
+    {
+      "id": "S33",
+      "title": "US Open 2015: A guide to the back nine at Chambers Bay",
+      "url": "https://www.todays-golfer.com/news-and-events/tour-news/2015/june/us-open-2015-a-guide-to-the-back-nine-at-chambers-bay/",
+      "publisher": "Today's Golfer"
+    },
+    {
+      "id": "S34",
+      "title": "Ask the Pros: Chambers Bay project architect Jay Blasi on what to expect at the U.S. Open",
+      "url": "https://www.golfpass.com/travel-advisor/articles/ask-the-pros-chambers-bay-project-architect-jay-blasi-on-what-to-expect-at-the-u-s-open",
+      "publisher": "GolfPass"
+    },
+    {
+      "id": "S35",
+      "title": "The Seven Best Golf Courses That Tangle with Train Tracks",
+      "url": "https://www.rtj2.com/news/seven-best-golf-courses-tangle-train-tracks",
+      "publisher": "Robert Trent Jones II (course architect)"
+    },
+    {
+      "id": "S36",
+      "title": "Golf Channel: Tee to green - U.S. Open at Chambers Bay (2015 championship yardages)",
+      "url": "https://www.golfchannel.com/news/article-golf-central-blog-tee-green-us-open-chambers-bay",
+      "publisher": "Golf Channel"
+    }
+  ],
+  "tees": [
+    {
+      "name": "Black",
+      "total_yards": 7158,
+      "par": 72,
+      "rating": 74.4,
+      "slope": 138,
+      "sex": "M",
+      "source": "S1",
+      "notes": null
+    },
+    {
+      "name": "Black/Blue",
+      "total_yards": 6961,
+      "par": 72,
+      "rating": 73.4,
+      "slope": 136,
+      "sex": "M",
+      "source": "S1, S3",
+      "notes": "Combo tee: total and rating/slope printed on S1; per-hole mix taken from S3 and its out/in/total match the combo totals printed on S1."
+    },
+    {
+      "name": "Blue",
+      "total_yards": 6748,
+      "par": 72,
+      "rating": 72.4,
+      "slope": 134,
+      "sex": "M",
+      "source": "S1",
+      "notes": null
+    },
+    {
+      "name": "Blue/Sand",
+      "total_yards": 6542,
+      "par": 72,
+      "rating": 71.5,
+      "slope": 132,
+      "sex": "M",
+      "source": "S1, S3",
+      "notes": "Combo tee: total and rating/slope printed on S1; per-hole mix taken from S3 and its out/in/total match the combo totals printed on S1."
+    },
+    {
+      "name": "Sand",
+      "total_yards": 6345,
+      "par": 72,
+      "rating": 70.6,
+      "slope": 130,
+      "sex": "M",
+      "source": "S1",
+      "notes": null
+    },
+    {
+      "name": "Sand/White",
+      "total_yards": 6093,
+      "par": 72,
+      "rating": 69.3,
+      "slope": 126,
+      "sex": "M",
+      "source": "S1, S3",
+      "notes": "Combo tee: total and rating/slope printed on S1; per-hole mix taken from S3 and its out/in/total match the combo totals printed on S1."
+    },
+    {
+      "name": "White",
+      "total_yards": 5822,
+      "par": 72,
+      "rating": 68.0,
+      "slope": 122,
+      "sex": "M",
+      "source": "S1",
+      "notes": null
+    },
+    {
+      "name": "White",
+      "total_yards": 5822,
+      "par": 72,
+      "rating": 73.6,
+      "slope": 129,
+      "sex": "F",
+      "source": "S1",
+      "notes": null
+    },
+    {
+      "name": "White/Teal",
+      "total_yards": 5299,
+      "par": 72,
+      "rating": 65.8,
+      "slope": 117,
+      "sex": "M",
+      "source": "S1, S3",
+      "notes": "Combo tee: total and rating/slope printed on S1; per-hole mix taken from S3 and its out/in/total match the combo totals printed on S1."
+    },
+    {
+      "name": "White/Teal",
+      "total_yards": 5299,
+      "par": 72,
+      "rating": 71.0,
+      "slope": 122,
+      "sex": "F",
+      "source": "S1, S3",
+      "notes": "Combo tee: total and rating/slope printed on S1; per-hole mix taken from S3 and its out/in/total match the combo totals printed on S1."
+    },
+    {
+      "name": "Teal",
+      "total_yards": 4708,
+      "par": 72,
+      "rating": 63.0,
+      "slope": 109,
+      "sex": "M",
+      "source": "S1",
+      "notes": null
+    },
+    {
+      "name": "Teal",
+      "total_yards": 4708,
+      "par": 72,
+      "rating": 67.8,
+      "slope": 113,
+      "sex": "F",
+      "source": "S1",
+      "notes": null
+    }
+  ],
+  "greens": {
+    "grass": "Poa annua (sodded): four greens in 2017, the rest in fall 2018, reopened April 2019. Originally fine fescue with a little colonial bentgrass; the 2015 U.S. Open was played on fescue greens with 5-20% Poa contamination.",
+    "typical_stimp": null,
+    "average_size_sqft": 8700,
+    "notes": "Average 8,700 sq ft and the 12th's ~12,700 sq ft come from LINKS (S13) and likely predate the 2017-19 regrassing; no source says the contours were reshaped, and a 2026 hole review still describes them (S17). Speeds are published only for the fescue era: ~8 daily in 2014 (S31), ~11 at the 2010 U.S. Amateur (S20), and ~12 at the 2015 U.S. Open, while the designer thought 10-11 ideal (S12). No current Poa green speed was found. Smallest green is the 16th (S5, S7).",
+    "source": "S2, S14, S4, S30, S13"
+  },
+  "boundaries": {
+    "ob_summary": "Out of bounds rarely comes into play. GOLF.com (2020) calls the par-4 16th 'one of the only places on the property where out of bounds is in range'; no other hole-specific OB is documented. The official 10/2025 scorecard prints no OB local rule. The BNSF railroad runs between the course and Puget Sound along the right of 16 and 17.",
+    "penalty_area_summary": "No water hazards on the course (designer Robert Trent Jones II, S12). Puget Sound lies beyond the railway behind 15 and right of 16-17, and no source documents it as a marked penalty area. The course is defined by large sandy waste areas, blowout bunkers and fescue, which are not penalty areas. The scorecard's local rules cover bunker foot-traffic relief, stones in bunkers as movable obstructions, and relief from immovable obstructions near greens (S1).",
+    "source": "S11, S12, S1, S5, S35"
+  },
+  "holes": [
+    {
+      "number": 1,
+      "name": "Puget Sound",
+      "par": 4,
+      "handicap": 3,
+      "handicap_women": 5,
+      "yards": {
+        "Black": 494,
+        "Black/Blue": 487,
+        "Blue": 487,
+        "Blue/Sand": 487,
+        "Sand": 460,
+        "Sand/White": 432,
+        "White": 432,
+        "White/Teal": 340,
+        "Teal": 340
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "downhill",
+        "description": "Downhill tee shot to an elevated green (S27); short grass left of the green sits about 15 ft below the putting surface (S17). No tee-to-green figure published.",
+        "source": "S27, S17",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Elevated green tight to a bank; drop-off left to short grass ~15 ft below; small bunker off the back; approach favours the right side.",
+        "source": "S27, S17, S21, S7",
+        "confidence": "medium"
+      },
+      "notes": "Large landform and bunker up the right; partially blind second over a crest (S7, S17). Current card: par 4. 2015 U.S. Open: par 4 (496 yd) in R1, R3, R4 and par 5 (598 yd) in R2, swapping with No. 18 to keep par 70 (S18, S32). Older daily card listed it as a 559-yd par 5 from Navy (S4); 2010 U.S. Amateur 501/542 yd, par 4/5 (S20)."
+    },
+    {
+      "number": 2,
+      "name": "Foxy",
+      "par": 4,
+      "handicap": 9,
+      "handicap_women": 7,
+      "yards": {
+        "Black": 415,
+        "Black/Blue": 415,
+        "Blue": 403,
+        "Blue/Sand": 372,
+        "Sand": 372,
+        "Sand/White": 372,
+        "White": 346,
+        "White/Teal": 346,
+        "Teal": 281
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Falls right-to-left off the right side toward the big left bunker",
+        "features": "Split by a large ridge; large bunker left, small bunker right; open entrance from the right.",
+        "source": "S5, S7, S17, S22",
+        "confidence": "medium"
+      },
+      "notes": "Knob in the landing area (S5). Name references the 14th at Royal Dornoch (S22; that page's body text spells it 'Roxy'). 2015 U.S. Open: 399 yd (S19)."
+    },
+    {
+      "number": 3,
+      "name": "Blown Out",
+      "par": 3,
+      "handicap": 15,
+      "handicap_women": 15,
+      "yards": {
+        "Black": 167,
+        "Black/Blue": 167,
+        "Blue": 160,
+        "Blue/Sand": 160,
+        "Sand": 141,
+        "Sand/White": 128,
+        "White": 128,
+        "White/Teal": 128,
+        "Teal": 89
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Redan-style, slopes front-right to back-left",
+        "features": "Kidney-shaped with a small ridge; deep bunker and deep fescue left; swale behind collects long shots; large kick slope on the right.",
+        "source": "S5, S6, S7, S17",
+        "confidence": "medium"
+      },
+      "notes": "2015 U.S. Open: 163-198 yd depending on the day (S5, S18)."
+    },
+    {
+      "number": 4,
+      "name": "Hazard's Ascent",
+      "par": 5,
+      "handicap": 13,
+      "handicap_women": 13,
+      "yards": {
+        "Black": 522,
+        "Black/Blue": 484,
+        "Blue": 484,
+        "Blue/Sand": 484,
+        "Sand": 471,
+        "Sand/White": 471,
+        "White": 416,
+        "White/Teal": 337,
+        "Teal": 337
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Named 'Hazard's Ascent'; fairway climbs and tilts hard left-to-right (S17). No figure published.",
+        "source": "S17",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Large and heavily contoured; sand on three sides (front bunker running down the right, three blowout bunkers in the banks behind); natural backstop for long shots.",
+        "source": "S7, S5, S23, S17",
+        "confidence": "medium"
+      },
+      "notes": "Immense bunker complex along the right off the tee (S5, S7). Current card: par 5. Played as a par 4 (495 yd) at the 2015 U.S. Open (S5, S19); par 5 (568 yd) at the 2010 U.S. Amateur (S20)."
+    },
+    {
+      "number": 5,
+      "name": "Free Fall",
+      "par": 4,
+      "handicap": 5,
+      "handicap_women": 3,
+      "yards": {
+        "Black": 457,
+        "Black/Blue": 429,
+        "Blue": 429,
+        "Blue/Sand": 429,
+        "Sand": 415,
+        "Sand/White": 383,
+        "White": 383,
+        "White/Teal": 313,
+        "Teal": 313
+      },
+      "elevation": {
+        "change_ft": -99,
+        "direction": "downhill",
+        "description": "CBS reports the hole plays 99 ft downhill; elevated tee with Puget Sound behind (S5). Figure is from 2015 (488-yd tee); current card tees are shorter.",
+        "source": "S8, S5",
+        "confidence": "medium"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Severely back-to-front",
+        "features": "Deep pot bunker fronting the green; low chipping area behind.",
+        "source": "S5, S6, S7, S17",
+        "confidence": "medium"
+      },
+      "notes": "Fairway slopes left and narrows just past 300 yd; massive bunker complexes on both sides; semi-blind approach from the left (S5, S6, S7). A former alternate second green was removed before 2015 (S5). 2015 U.S. Open: 488 yd (S19)."
+    },
+    {
+      "number": 6,
+      "name": "Deception Point",
+      "par": 4,
+      "handicap": 7,
+      "handicap_women": 11,
+      "yards": {
+        "Black": 452,
+        "Black/Blue": 422,
+        "Blue": 422,
+        "Blue/Sand": 380,
+        "Sand": 380,
+        "Sand/White": 318,
+        "White": 318,
+        "White/Teal": 267,
+        "Teal": 267
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "Elevated tee and elevated green (S17); no net figure published.",
+        "source": "S17",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Back-to-front",
+        "features": "Long, narrow green perched between two bunkers and framed by dunes and long bunkers.",
+        "source": "S5, S6, S7",
+        "confidence": "medium"
+      },
+      "notes": "Partially blind tee shot; plays as a dogleg right or short and straight depending on tee (S6, S7). Lengthened ~100 yd for 2015, playing 495 yd (S5, S19)."
+    },
+    {
+      "number": 7,
+      "name": "Humpback",
+      "par": 4,
+      "handicap": 1,
+      "handicap_women": 1,
+      "yards": {
+        "Black": 467,
+        "Black/Blue": 467,
+        "Blue": 437,
+        "Blue/Sand": 423,
+        "Sand": 423,
+        "Sand/White": 406,
+        "White": 406,
+        "White/Teal": 345,
+        "Teal": 345
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Climbs the whole way (S17); 'severely uphill' approach to a green elevated ~20 ft above the fairway (S16, S7). No tee-to-green figure.",
+        "source": "S16, S17, S7",
+        "confidence": "medium"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Elevated, multi-tiered: significant false front and a perpendicular ridge creating three shelves; two hummocks short-left block the view from the left.",
+        "source": "S16, S5, S7, S24",
+        "confidence": "medium"
+      },
+      "notes": "Bends right around a large bunker/waste complex on the right; aim left off the tee (S5, S24). Stroke index 1; operator calls it the hardest hole for all levels (S16). 2015 U.S. Open: 508 yd (S19)."
+    },
+    {
+      "number": 8,
+      "name": "High Road Low Road",
+      "par": 5,
+      "handicap": 17,
+      "handicap_women": 9,
+      "yards": {
+        "Black": 558,
+        "Black/Blue": 558,
+        "Blue": 521,
+        "Blue/Sand": 487,
+        "Sand": 487,
+        "Sand/White": 487,
+        "White": 440,
+        "White/Teal": 440,
+        "Teal": 405
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Rises gradually to the green, climbing along the eastern boundary on two fairway shelves (S6, S17). No figure published.",
+        "source": "S6, S17",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Long and narrow with several ridges; contours left and back; area right of the green is blind.",
+        "source": "S5, S7, S17",
+        "confidence": "medium"
+      },
+      "notes": "In 2015 the only hole without a bunker (S5). Hillside left, steep drop right; fairway slopes left-to-right (S5, S7). 2015 U.S. Open: 614 yd, the longest hole (S5, S19)."
+    },
+    {
+      "number": 9,
+      "name": "Olympus",
+      "par": 3,
+      "handicap": 11,
+      "handicap_women": 17,
+      "yards": {
+        "Black": 197,
+        "Black/Blue": 197,
+        "Blue": 194,
+        "Blue/Sand": 194,
+        "Sand": 164,
+        "Sand/White": 164,
+        "White": 138,
+        "White/Teal": 138,
+        "Teal": 72
+      },
+      "elevation": {
+        "change_ft": -100,
+        "direction": "downhill",
+        "description": "Main (upper) tee sits about 100 ft above the green (S5, S6, S9, S10, S34); CBS gives 106 ft (S8). An alternate lower tee used in 2015 plays uphill and semi-blind, but sources disagree on its height: ~6 ft (S8), 20 ft (S10) or 60 ft (S9) below the green. The scorecard does not say which tee each colour uses.",
+        "source": "S5, S9, S10, S8",
+        "confidence": "medium"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Left-to-right",
+        "features": "Oversized, one of the largest on the course; contours funnel balls toward the hole; large bunker short-right.",
+        "source": "S5, S7, S9, S10",
+        "confidence": "medium"
+      },
+      "notes": "Tee is the course's high point. 2015 U.S. Open used both tees (224 upper / 217 lower, about a 90-degree change in angle); round yardages 203, 237, 225, 203 (S36, S34, S18)."
+    },
+    {
+      "number": 10,
+      "name": "High Dunes",
+      "par": 4,
+      "handicap": 4,
+      "handicap_women": 8,
+      "yards": {
+        "Black": 394,
+        "Black/Blue": 394,
+        "Blue": 380,
+        "Blue/Sand": 380,
+        "Sand": 364,
+        "Sand/White": 364,
+        "White": 331,
+        "White/Teal": 331,
+        "Teal": 265
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Fairway rises toward the green (S6). No figure published.",
+        "source": "S6",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Slopes away from the dunes",
+        "features": "Relatively flat, tucked between dunes; deep bunkers front-right and back-left.",
+        "source": "S6, S7, S17",
+        "confidence": "medium"
+      },
+      "notes": "Landing area narrows between dunes and sand; diagonal approach (S5, S6). 2015 U.S. Open: 436/468 yd (S18)."
+    },
+    {
+      "number": 11,
+      "name": "Shadows",
+      "par": 4,
+      "handicap": 8,
+      "handicap_women": 4,
+      "yards": {
+        "Black": 460,
+        "Black/Blue": 424,
+        "Blue": 424,
+        "Blue/Sand": 402,
+        "Sand": 402,
+        "Sand/White": 383,
+        "White": 383,
+        "White/Teal": 326,
+        "Teal": 326
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "Elevated tee; green slightly elevated (S6). No net figure published.",
+        "source": "S6",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Right-to-left, falls down to the left",
+        "features": "Slightly elevated; ridge bisects it lengthwise; misplayed shots can roll ~40 yd away. Approach from the right.",
+        "source": "S6, S7, S5, S33",
+        "confidence": "medium"
+      },
+      "notes": "Dogleg left with a hillock/mound in the middle of the fairway (carry ~300 yd); hillside right, drop-off left (S5, S33, S17). 2015 U.S. Open: 500/537 yd (S18)."
+    },
+    {
+      "number": 12,
+      "name": "The Narrows",
+      "par": 4,
+      "handicap": 18,
+      "handicap_women": 14,
+      "yards": {
+        "Black": 295,
+        "Black/Blue": 295,
+        "Blue": 270,
+        "Blue/Sand": 270,
+        "Sand": 252,
+        "Sand/White": 252,
+        "White": 233,
+        "White/Teal": 208,
+        "Teal": 208
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Uphill, the steepest climb of the round, with a blind approach (S5, S17, S27). No figure published.",
+        "source": "S5, S17, S27",
+        "confidence": "medium"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": 12700,
+        "depth_yards": 60,
+        "width_yards": null,
+        "slope": "Severely back-to-front",
+        "features": "Largest green on the course (~12,700 sq ft, S13), set in a punchbowl; long and skinny between two large mounds with distinct quadrants. Depth published only as 'over 60 yards' (S17), so 60 is a lower bound.",
+        "source": "S13, S5, S17, S27",
+        "confidence": "medium"
+      },
+      "notes": "Drivable par 4 and the narrowest hole; large blowout bunker short-left of the green (S5, S7). 2015 U.S. Open round yardages: 317, 284, 311, 270 (S18)."
+    },
+    {
+      "number": 13,
+      "name": "Eagle Eye",
+      "par": 5,
+      "handicap": 14,
+      "handicap_women": 18,
+      "yards": {
+        "Black": 519,
+        "Black/Blue": 500,
+        "Blue": 500,
+        "Blue/Sand": 482,
+        "Sand": 482,
+        "Sand/White": 482,
+        "White": 451,
+        "White/Teal": 451,
+        "Teal": 348
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "Elevated green; shots landing short kick right (S33). No figure published.",
+        "source": "S33",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Falls away on the right",
+        "features": "Deep bunker in front; knob left of the green.",
+        "source": "S5, S7, S33",
+        "confidence": "medium"
+      },
+      "notes": "Dogleg right; widest fairway on the course (~115 yd) with a centreline bunker (S5, S7, S17). Current card: par 5 (519 yd from Black, confirmed by S17). Played as a 534-yd par 4 at the 2015 U.S. Open (S19); older Navy card listed it as a 485-yd par 4 (S4)."
+    },
+    {
+      "number": 14,
+      "name": "Cape Fear",
+      "par": 4,
+      "handicap": 2,
+      "handicap_women": 2,
+      "yards": {
+        "Black": 455,
+        "Black/Blue": 455,
+        "Blue": 423,
+        "Blue/Sand": 406,
+        "Sand": 406,
+        "Sand/White": 387,
+        "White": 387,
+        "White/Teal": 313,
+        "Teal": 313
+      },
+      "elevation": {
+        "change_ft": -95,
+        "direction": "downhill",
+        "description": "CBS reports 95 ft downhill (S8). AP puts the tee about 200 ft above sea level with a drop of 'at least 50 ft' (S5); figures are consistent but not identical.",
+        "source": "S8, S5",
+        "confidence": "medium"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Tilts toward the front, then the back slopes away",
+        "features": "Large, with a pronounced central ridge; back funnels balls away; collection area right; mound short-right.",
+        "source": "S5, S7, S9, S33, S17",
+        "confidence": "medium"
+      },
+      "notes": "Downhill tee shot over the course's largest waste area/bunker complex on the left, plus a centreline fairway bunker (S5, S9, S17). 546 yd in 2015 was the longest par 4 in U.S. Open history (S9); 2015 tees 521/546 (S18)."
+    },
+    {
+      "number": 15,
+      "name": "Lone Fir",
+      "par": 3,
+      "handicap": 16,
+      "handicap_women": 12,
+      "yards": {
+        "Black": 171,
+        "Black/Blue": 171,
+        "Blue": 159,
+        "Blue/Sand": 159,
+        "Sand": 143,
+        "Sand/White": 116,
+        "White": 116,
+        "White/Teal": 102,
+        "Teal": 102
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "downhill",
+        "description": "Elevated tee; plays as a short downhill drop shot (S7, S17, S27). No figure published.",
+        "source": "S7, S17, S27",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water hazard on the course per the designer (S12). Puget Sound lies behind the green beyond the BNSF railway (S27); no source documents it as a marked penalty area.",
+        "source": "S12, S27"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Left-to-right",
+        "features": "Two-section green; the front repels poorly struck shots; well defended by waste bunkers.",
+        "source": "S5, S7, S6",
+        "confidence": "medium"
+      },
+      "notes": "The course's only tree (a Douglas fir) stands behind the green; fully exposed to wind off Puget Sound (S5, S7). 2015 U.S. Open: 123-246 yd range, round yardages 169, 144, 252, 158 (S18)."
+    },
+    {
+      "number": 16,
+      "name": "Beached",
+      "par": 4,
+      "handicap": 10,
+      "handicap_women": 16,
+      "yards": {
+        "Black": 396,
+        "Black/Blue": 396,
+        "Blue": 355,
+        "Blue/Sand": 355,
+        "Sand": 329,
+        "Sand/White": 329,
+        "White": 319,
+        "White/Teal": 319,
+        "Teal": 202
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "Sidehill lies on the left of the fairway (S17); no tee-to-green figure published.",
+        "source": "S17",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": true,
+        "sides": [
+          "right"
+        ],
+        "description": "GOLF.com calls this 'one of the only places on the property where out of bounds is in range' but does not name the side. 'Right' is inferred because the BNSF railroad and shoreline run along the right (S5).",
+        "source": "S11, S5",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 50,
+        "width_yards": null,
+        "slope": "Slopes sharply left-to-right",
+        "features": "Smallest green on the course: tabletop, pear-shaped, about twice as wide at the front as the back; back tongue narrows to ~9 yd wide. ~50 yd deep (S17).",
+        "source": "S5, S7, S25, S9, S17",
+        "confidence": "medium"
+      },
+      "notes": "Short par 4, drivable from forward tees. Railroad and Puget Sound to the right; a long bunker/waste area runs the entire right side; fairway narrows just short of 300 yd (S5, S7, S25). 2015 U.S. Open: 423 yd (S19). Name conflict: S27 (2026) calls No. 16 'Derailed'; most sources give 'Beached' (S6, S7, S4)."
+    },
+    {
+      "number": 17,
+      "name": "Derailed",
+      "par": 3,
+      "handicap": 6,
+      "handicap_women": 10,
+      "yards": {
+        "Black": 200,
+        "Black/Blue": 186,
+        "Blue": 186,
+        "Blue/Sand": 186,
+        "Sand": 168,
+        "Sand/White": 133,
+        "White": 133,
+        "White/Teal": 133,
+        "Teal": 89
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "level",
+        "description": "AP calls it the only par 3 that is neither uphill nor downhill (lower tee); the upper tee is a drop shot (S7).",
+        "source": "S5, S7",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Middle tier slopes right-to-left",
+        "features": "Split into two halves; right pins very hard to reach; bunker short-left; a long miss leaves a hard up-and-down.",
+        "source": "S5, S6, S7, S26",
+        "confidence": "medium"
+      },
+      "notes": "Long carry over a waste bunker and native area from the lower tee; the BNSF rail line runs the length of the right side, with Puget Sound beyond (S26, S35, S17, S6). 2015 U.S. Open: 172-218 yd (S18)."
+    },
+    {
+      "number": 18,
+      "name": "Tahoma",
+      "par": 5,
+      "handicap": 12,
+      "handicap_women": 6,
+      "yards": {
+        "Black": 539,
+        "Black/Blue": 514,
+        "Blue": 514,
+        "Blue/Sand": 486,
+        "Sand": 486,
+        "Sand/White": 486,
+        "White": 462,
+        "White/Teal": 462,
+        "Teal": 406
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Slightly uphill, finishing below the clubhouse; uphill tee shot (S7, S17). No figure published.",
+        "source": "S7, S17",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water on the hole; the course has no water hazards (designer, S12). No marked penalty area documented.",
+        "source": "S12"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Multiple levels, strongly contoured",
+        "features": "One of the largest and most severe greens. USGA describes four sections with the back-right hardest (S15); GOLF.com describes three tiers (S11). Bowl-shaped (S17).",
+        "source": "S15, S11, S7, S17",
+        "confidence": "medium"
+      },
+      "notes": "Deep (~10 ft) cross bunker mid-fairway about 120 yd from the green; large bunker complex right (S5, S17, S6). Current card: par 5. 2015 U.S. Open: par 5 (604 yd) in R1, R3, R4 and par 4 (525 yd) in R2 (S18, S32)."
+    }
+  ],
+  "gaps": [
+    "Green size: per-hole square footage found only for No. 12 (~12,700 sq ft); the course average (8,700) is likely fescue-era. Other 17 holes are null.",
+    "Green depth: published only for No. 12 ('over 60 yards', a lower bound) and No. 16 (~50 yd), both from an independent blog. The official scorecard prints 18 'D=' values (30-60) next to its green diagrams, probably depths in yards, but text extraction could not reliably tie them to holes, so they were not used.",
+    "Green width: no per-hole figure (only that the back of 16 narrows to ~9 yd).",
+    "Green speed: no published Stimpmeter figure for the current Poa annua greens; only fescue-era figures (2010, 2014, 2015).",
+    "Elevation: numeric tee-to-green figures only for Nos. 5 (-99), 9 (-100 from the upper tee) and 14 (-95; AP says 'at least 50'). Other holes have direction only, and Nos. 2 and 3 have nothing. Figures date from 2015 tees, and the card does not say which tee pad each colour uses (matters most on No. 9).",
+    "Out of bounds: no hole-by-hole OB / local rules sheet found. Only No. 16 has OB documented, and its side is inferred. All other holes have present = null.",
+    "Penalty areas: no local-rules sheet marking red/yellow areas was found; per-hole entries rely on the designer's 'no water hazards' statement.",
+    "Hole names are not printed on the official scorecard; they come from 2015 media guides (S6, S7) and Wikipedia. GOLF.com (2026) calls No. 16 'Derailed', conflicting with the others.",
+    "Women's par is not printed separately on the scorecard; par 72 is shown once for all tees.",
+    "Ratings conflict: the USGA NCRDB (CourseID 1456, S29) lists a different, apparently older tee set (Navy 74.3/139 at 7,124; Sand, Grey, Light Blue, Teal, 5555). GolfPass and Wikipedia also list older Navy/Sand/White/Blue ratings. The 10/2025 official scorecard values are used.",
+    "Per-hole yardages for the 4 combo tees are not legible as separate rows in the scorecard PDF text; they come from GolfPass (S3), but every out/in/total matches the combo totals printed on the official card."
+  ]
+}

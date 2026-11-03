@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "course": {
+    "name": "Hazeltine National Golf Club",
+    "cacheVersion": 4,
+    "fingerprintVersion": 2,
+    "courseId": "osm:relation:9892305",
+    "fingerprint": "c71c795ad5531ae10ff05564a9b488dda3ec04a9ad7fd3c09c977dac025e4593"
+  },
+  "hole": 16,
+  "padding": 45,
+  "terrain": {
+    "targetSpacingM": 1,
+    "nativeSpacingM": 1,
+    "maxPx": 1200,
+    "crs": "EPSG:3857"
+  },
+  "imagery": {
+    "collection": "naip",
+    "date": "2023-07-31",
+    "gsdM": 0.3,
+    "itemIds": [
+      "mn_m_4409312_nw_15_030_20230731_20240119"
+    ]
+  },
+  "providers": {
+    "elevation": "https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer",
+    "imagery": "https://planetarycomputer.microsoft.com/api/stac/v1"
+  },
+  "limits": {
+    "maxPixels": 80000000,
+    "maxDownloadBytes": 3221225472,
+    "maxBundleBytes": 157286400
+  },
+  "normalization": {
+    "format": "webp",
+    "quality": 90
+  },
+  "discovered": {
+    "state": "resolved",
+    "bounds": {
+      "minX": -31.160000000000082,
+      "minY": 396.52,
+      "maxX": 404.8399999999999,
+      "maxY": 532.52
+    },
+    "assets": [
+      {
+        "url": "https://naipeuwest.blob.core.windows.net/naip/v002/mn/2023/mn_030cm_2023/44093/m_4409312_nw_15_030_20230731_20240119.tif",
+        "contentLength": 1694482009,
+        "etag": "0x8DD31907432E128"
+      }
+    ]
+  }
+}

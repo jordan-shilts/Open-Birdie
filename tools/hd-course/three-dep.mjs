@@ -11,12 +11,30 @@ import { constants } from './coordinates.mjs';
 
 const isNoData = (v) => !Number.isFinite(v) || v < -1e30;
 
-export async function acquireElevation(bbox, { fetchImpl, targetM = 1, maxPx, nativeSpacingM }) {
+// Compiling a hole is offline work: 3DEP's 1 m export gets far longer than a course
+// load allows (lib/lidar.js: 12 s) and is retried, since the service is often slow
+// rather than down (a cloud build lost holes to 12 s timeouts). Only a timeout or an
+// HTTP failure is retried; "no lidar here" and a short payload are final.
+const HD_3DEP_TIMEOUT_MS = 60_000;
+const HD_3DEP_ATTEMPTS = 3;
+const transient = (e) => e && (e.name === 'TimeoutError' || e.code === 23 ||
+  e.code === 'HD_3DEP_META' || e.code === 'HD_3DEP_HTTP');
+
+export async function acquireElevation(bbox, {
+  fetchImpl, targetM = 1, maxPx, nativeSpacingM,
+  timeoutMs = HD_3DEP_TIMEOUT_MS, attempts = HD_3DEP_ATTEMPTS, backoffMs = 3000,
+}) {
   let patch;
-  try {
-    patch = await lidar.fetchPatchStrict(bbox, { fetchImpl, targetM, maxPx });
-  } catch (e) {
-    throw new HdCompileError('download-elevation', e.code || 'HD_3DEP_FETCH', { bbox }, e);
+  for (let attempt = 1; ; attempt++) {
+    try {
+      patch = await lidar.fetchPatchStrict(bbox, { fetchImpl, targetM, maxPx, timeoutMs });
+      break;
+    } catch (e) {
+      if (attempt >= attempts || !transient(e)) {
+        throw new HdCompileError('download-elevation', e.code || 'HD_3DEP_FETCH', { bbox, attempts: attempt }, e);
+      }
+      await new Promise((resolve) => setTimeout(resolve, backoffMs * 2 ** (attempt - 1)));
+    }
   }
 
   // Web Mercator metres are inflated by 1/cos(lat); multiply back to ground metres.

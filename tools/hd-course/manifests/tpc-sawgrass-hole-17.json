@@ -3,6 +3,7 @@
   "course": {
     "name": "TPC Sawgrass",
     "cacheVersion": 3,
+    "courseId": "osm:relation:1783123",
     "fingerprint": "7437eb3e900da72624e3ef4875b99ab431cb075cabadc86bb725ada71abe3ee5"
   },
   "hole": 17,
