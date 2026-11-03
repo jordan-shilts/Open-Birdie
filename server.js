@@ -28,6 +28,9 @@ const { normalizeCourseSource } = require('./lib/course-identity');
 const { packageKeyFor, parsePackageKey } = require('./lib/course-package');
 const { prepareCourseCandidate } = require('./lib/resolved-course-package');
 const { Game, CLUB_FULL } = require('./lib/game');
+const { PRESETS, conditionsState, loadConditionsFile, saveConditionsFile } = require('./lib/conditions');
+const { createBag } = require('./lib/bag');
+const { PredictError, predictCarries, predictShot } = require('./lib/predict');
 const { serveHdAsset, publicHdMetadata, pickDescriptor } = require('./lib/hd-http');
 const { makeNonce, verifyReadinessAck } = require('./lib/hd-readiness');
 const { googleTilesConfig } = require('./lib/google-tiles-config');
@@ -57,6 +60,16 @@ const CLOUD = cloudConfigFromEnv(process.env, console, { file: path.join(DATA_DI
 const cloudClient = CLOUD ? createCloudClient(CLOUD) : null;
 
 const game = new Game();
+// Playing conditions persist across restarts (a bad or missing file: standard conditions).
+const CONDITIONS_FILE = path.join(DATA_DIR, 'conditions.json');
+{
+  const saved = loadConditionsFile(CONDITIONS_FILE);
+  if (saved) game.setConditions(saved);
+}
+// The player's bag: per-club launch history from the launch monitor (lib/bag.js),
+// which the lineup predicts with (lib/predict.js reads game.bag).
+const bag = createBag({ dataDir: DATA_DIR });
+game.bag = bag;
 const sseClients = new Set();
 // HD bundle runtime state, kept OUTSIDE the serializable course object so absolute
 // paths + Float32 heights never leak through course JSON. An ARRAY — one descriptor
@@ -94,7 +107,9 @@ oc.on('status', (s) => { lmStatus.ready = s.ready; broadcast('lm', lmStatus); })
 oc.on('shot', (shot) => {
   if (SPEED_SCALE !== 1 && typeof shot.ball.Speed === 'number') shot.ball.Speed *= SPEED_SCALE;
   console.log(`[OC] shot: ${shot.ball.Speed} mph, VLA ${shot.ball.VLA}, HLA ${shot.ball.HLA}, spin ${shot.ball.TotalSpin}${shot.clubName ? ' (' + shot.clubName + ')' : ''}`);
-  playShot(shot.ball, shot.clubName);
+  const from = shotOrigin();
+  const result = playShot(shot.ball, shot.clubName);
+  recordBagShot(shot, result, from);
 });
 oc.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
@@ -104,10 +119,46 @@ oc.on('error', (err) => {
 
 function playShot(ballData, clubName) {
   const result = game.handleShot(ballData, clubName);
-  if (!result) return;
+  if (!result) return null;
   broadcast('shot', result);
   broadcast('state', game.state());
   updatePlayerInfo();
+  return result;
+}
+
+// Where the next ball is hit from, for the bag's history.
+function shotOrigin() {
+  if (!game.course) return {};
+  const p = game.practice;
+  if (p) {
+    return { course: game.course.name, practice: p.mode, lie: 'tee', ...(p.mode === 'closest' && p.target.ref ? { hole: p.target.ref } : {}) };
+  }
+  return { course: game.course.name, hole: game.hole ? (game.hole.ref ?? game.holeIndex + 1) : null, lie: game.lie };
+}
+
+// Every full launch-monitor shot goes into the player's bag (not putts, not mishits;
+// /api/test-shot never comes through here).
+function recordBagShot(shot, result, from) {
+  const r = bag.recordShot({
+    ball: shot.ball,
+    clubName: shot.clubName,
+    selectedClub: game.selectedClub,
+    isPutt: Boolean(result && result.sim && result.sim.isPutt),
+    meta: { ...from, at: Date.now() },
+  });
+  if (r.recorded) broadcast('bag', { club: r.club, n: r.n, total: bag.total });
+  else if (r.reason !== 'putt') console.log(`[bag] shot not recorded: ${r.reason}${r.club ? ` (${r.club})` : ''}`);
+}
+
+// Prediction routes: a PredictError is the caller's (bad club / aim) or the game's
+// (no course, not ready, hole finished) state, not a server failure.
+function predictRoute(res, fn) {
+  try {
+    return json(res, fn());
+  } catch (error) {
+    if (error instanceof PredictError) return json(res, { ok: false, error: error.message, code: error.code }, error.status);
+    throw error;
+  }
 }
 
 function updatePlayerInfo() {
@@ -295,6 +346,19 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/state') return json(res, game.state());
     if (p === '/api/clubs') return json(res, CLUB_FULL);
+    // Shot lineup: conditions, predictions, the player's bag (lib/conditions.js,
+    // lib/predict.js, lib/bag.js).
+    if (p === '/api/conditions' && req.method !== 'POST') {
+      return json(res, { conditions: conditionsState(game.conditions), presets: PRESETS });
+    }
+    if (p === '/api/predict' && req.method !== 'POST') {
+      return predictRoute(res, () => predictShot(game, {
+        club: url.searchParams.get('club'),
+        aimOffset: url.searchParams.get('aim'),
+      }));
+    }
+    if (p === '/api/carries' && req.method !== 'POST') return predictRoute(res, () => predictCarries(game));
+    if (p === '/api/bag' && req.method !== 'POST') return json(res, bag.summary());
     if (p === '/api/courses/cached') return json(res, listCached());
     if (p === '/api/search') {
       // Raw query: appending " golf" made Nominatim match addresses like
@@ -364,7 +428,28 @@ const server = http.createServer(async (req, res) => {
       }
       if (p === '/api/club') {
         oc.setPlayer({ Club: toOpenConnectClub(body.club) });
-        return json(res, { ok: true });
+        const selectedClub = game.setSelectedClub(body.club);
+        broadcast('state', game.state());
+        return json(res, { ok: true, selectedClub });
+      }
+      // {preset: 'windy'} (optionally with fields on top) or a partial conditions object
+      if (p === '/api/conditions') {
+        let conditions;
+        try {
+          conditions = game.setConditions(body);
+        } catch (error) {
+          if (error.code !== 'UNKNOWN_PRESET') throw error;
+          return json(res, { ok: false, error: error.message, code: error.code }, 400);
+        }
+        try { saveConditionsFile(CONDITIONS_FILE, game.conditions); }
+        catch (error) { console.warn(`[conditions] could not save: ${error.message}`); }
+        broadcast('state', game.state());
+        return json(res, { ok: true, conditions });
+      }
+      if (p === '/api/bag/reset') {
+        await bag.reset();
+        broadcast('bag', { reset: true, total: bag.total });
+        return json(res, { ok: true, bag: bag.summary() });
       }
       if (p === '/api/next-hole') {
         game.nextHole();
