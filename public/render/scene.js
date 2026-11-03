@@ -1641,10 +1641,11 @@ export class GolfScene {
 
   _fitShadows(hole) {
     this._shadowsDirty = true;
-    const cx = (hole.tee[0] + hole.pin[0]) / 2, cy = (hole.tee[1] + hole.pin[1]) / 2;
+    const tee = hole.tee || hole.pin;   // the putting and chipping games have no tee
+    const cx = (tee[0] + hole.pin[0]) / 2, cy = (tee[1] + hole.pin[1]) / 2;
     const cz = this.hAt(cx, cy);
     const center = V(cx, cy, cz);
-    const span = Math.hypot(hole.pin[0] - hole.tee[0], hole.pin[1] - hole.tee[1]) * 0.62 + 70;
+    const span = Math.hypot(hole.pin[0] - tee[0], hole.pin[1] - tee[1]) * 0.62 + 70;
     this.sun.position.copy(center).addScaledVector(this.sunDir, 700);
     this.sun.target.position.copy(center);
     const c = this.sun.shadow.camera;

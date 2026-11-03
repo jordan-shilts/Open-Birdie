@@ -131,7 +131,7 @@ function shotOrigin() {
   if (!game.course) return {};
   const p = game.practice;
   if (p) {
-    return { course: game.course.name, practice: p.mode, lie: 'tee', ...(p.mode === 'closest' && p.target.ref ? { hole: p.target.ref } : {}) };
+    return { course: game.course.name, practice: p.mode, lie: p.lie, ...(p.target.ref != null ? { hole: p.target.ref } : {}) };
   }
   return { course: game.course.name, hole: game.hole ? (game.hole.ref ?? game.holeIndex + 1) : null, lie: game.lie };
 }
@@ -407,9 +407,11 @@ const server = http.createServer(async (req, res) => {
         return json(res, { ok: true });
       }
       // Driving range and mini games on the loaded course (lib/practice.js):
-      //   {mode: range|closest|longdrive|targets, targetYd?, hole?}  start (or restart)
-      //   {action: 'target', targetYd}                              move the range flag
-      //   {action: 'end'}                                           back to the round
+      //   {mode: range|closest|longdrive|targets|putting|chipping|ladder, targetYd?, hole?}
+      //                                start (or restart); hole: the par 3 for closest, the
+      //                                green for putting / chipping (default: the round's)
+      //   {action: 'target', targetYd} move the range flag
+      //   {action: 'end'}              back to the round
       if (p === '/api/practice') {
         if (!game.course) return json(res, { ok: false, error: 'Load a course first' }, 409);
         try {

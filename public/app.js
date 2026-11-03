@@ -119,7 +119,9 @@ function setStat(id, label, value) {
   $(id).previousElementSibling.textContent = label;
   $(id).textContent = value;
 }
-const PRACTICE_SHORT = { range: 'RANGE', closest: 'CTP', longdrive: 'LONG', targets: 'TARGET' };
+const PRACTICE_SHORT = { range: 'RANGE', closest: 'CTP', longdrive: 'LONG', targets: 'TARGET', putting: 'PUTTS', chipping: 'CHIPS', ladder: 'LADDER' };
+// putting and chipping: games at a real hole's cup, from a new spot round it every ball
+const greenGame = (pr) => pr.mode === 'putting' || pr.mode === 'chipping';
 
 function applyState(s) {
   state = s;
@@ -128,9 +130,11 @@ function applyState(s) {
   $('course-name').textContent = s.courseName.split(',')[0];
   if (pr) {
     const closest = pr.mode === 'closest' && pr.holeRef != null;
+    const green = greenGame(pr);
     setStat('hud-hole', closest ? 'HOLE' : 'MODE', closest ? `${pr.holeRef}` : PRACTICE_SHORT[pr.mode]);
-    setStat('hud-par', 'PAR', closest ? '3' : '–');
-    setStat('hud-len', 'FLAG', `${pr.target.yd}y`);
+    setStat('hud-par', green ? 'HOLE' : 'PAR', green ? `${pr.holeRef}` : closest ? '3' : '–');
+    setStat('hud-len', green ? 'TO CUP' : 'FLAG', !green ? `${pr.target.yd}y`
+      : pr.mode === 'putting' ? `${Math.round(s.distToPinYd * 3)} ft` : `${Math.round(s.distToPinYd)}y`);
     setStat('hud-strokes', 'BALLS', pr.ballsTotal ? `${pr.ballsHit}/${pr.ballsTotal}` : `${pr.ballsHit}`);
   } else {
     setStat('hud-hole', 'HOLE', `${s.holeRef ?? s.hole}`); // real course hole number (1,9,10,18…), not play index
@@ -145,15 +149,17 @@ function applyState(s) {
   updateScoreChip(s);
   updateHolePills(s);
 
-  // a practice target is its own "hole": a new flag re-frames the shot
+  // a practice target is its own "hole": a new flag, or a new ball round the green,
+  // re-frames the shot from behind the ball
   const key = pr
-    ? `${s.courseName}#${pr.mode}@${s.pin[0].toFixed(1)},${s.pin[1].toFixed(1)}`
+    ? `${s.courseName}#${pr.mode}@${s.pin[0].toFixed(1)},${s.pin[1].toFixed(1)}<${s.ball.x.toFixed(1)},${s.ball.y.toFixed(1)}`
     : `${s.courseName}#${s.hole}`;
   if (scene.geo) {
     if (key !== lastHoleKey) {
       lastHoleKey = key;
       flightView.newHole(key);
-      scene.setHole({ pin: s.pin, tee: s.tee, ref: pr ? pr.target.yd : (s.holeRef ?? s.hole) }, { x: s.ball.x, y: s.ball.y }, s.aimDeg);
+      // the flag reads its yardage on the range, its hole number at a real cup
+      scene.setHole({ pin: s.pin, tee: s.tee, ref: pr ? (pr.target.yd ?? pr.holeRef) : (s.holeRef ?? s.hole) }, { x: s.ball.x, y: s.ball.y }, s.aimDeg);
     } else if (!animating) {
       scene.setBall(s.ball);
       scene.setAim(s.aimDeg);
@@ -166,6 +172,7 @@ function applyState(s) {
   if (scene.geo) lineup.setState(s);
   buildScorecard(s);
   renderPracticeBoard(s);
+  stackShotPanel();
 
   // round-over: auto-open the card exactly once (latched on the false->true edge), and
   // lock out further play. Lives here so the pendingState/animation path triggers it too.
@@ -418,6 +425,17 @@ function showShotData(shot, plan = null) {
     vs.innerHTML = `vs plan: <b class="${dc >= 0 ? 'up' : 'down'}">${dc >= 0 ? '+' : '−'}${Math.abs(dc)} yd</b> carry`
       + (Math.abs(off) >= 1 ? `, <b>${Math.abs(off)} yd ${off > 0 ? 'right' : 'left'}</b> of the line` : ', on line');
   } else vs.innerHTML = '';
+  stackShotPanel();
+}
+
+// While a game is on, the last shot's numbers stack under its board in the left column,
+// and step aside when the board leaves them no room above the shot card.
+function stackShotPanel() {
+  const panel = $('shotpanel'), board = $('practice-board');
+  const on = !board.classList.contains('hidden');
+  panel.classList.remove('no-room');
+  panel.style.top = on ? `${board.offsetTop + board.offsetHeight + 8}px` : '';
+  if (on && panel.offsetTop + panel.offsetHeight > $('shot-card').offsetTop - 8) panel.classList.add('no-room');
 }
 
 function shotToast(shot) {
@@ -591,8 +609,10 @@ const postPractice = (body) => fetch('/api/practice', {
 
 function practiceToast(shot) {
   const p = shot.practice;
-  let main = p.shot.holed ? '⛳ HOLE IN ONE!' : p.shot.note;
-  let sub = `Carry ${shot.sim.carryYd.toFixed(0)} · Total ${shot.sim.totalYd.toFixed(0)} yd`;
+  let main = !p.shot.holed ? p.shot.note : p.mode === 'closest' ? '⛳ HOLE IN ONE!' : `⛳ ${p.shot.note}!`;
+  // a putt's carry says nothing: the putts made so far instead
+  let sub = p.mode === 'putting' ? `${p.score.label} ${p.score.value}`
+    : `Carry ${shot.sim.carryYd.toFixed(0)} · Total ${shot.sim.totalYd.toFixed(0)} yd`;
   if (p.over && p.score) { sub = main; main = `${p.score.label}: ${p.score.value}`; }
   showToast(main, sub);
 }
@@ -600,6 +620,10 @@ function practiceToast(shot) {
 const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const yd0 = (v) => (Number.isFinite(v) ? Math.round(v) : '–');
 const lr = (v) => (Number.isFinite(v) ? `${v > 0 ? 'R' : v < 0 ? 'L' : ''}${Math.abs(Math.round(v))}` : '–');
+// feet as lib/practice.js words them: '5 in', '2.3 ft', '12 ft'; a chip's to the tenth
+// it is scored on, under 20 ft ('10.4 ft')
+const ft1 = (v) => (!Number.isFinite(v) ? '–' : v < 1 ? `${Math.max(1, Math.round(v * 12))} in` : `${v < 10 ? Math.round(v * 10) / 10 : Math.round(v)} ft`);
+const chipFt = (v) => (v >= 1 && v < 20 ? `${v} ft` : ft1(v));
 
 // Shot columns per game: [heading, cell(shot)].
 const PB_COLUMNS = {
@@ -608,6 +632,21 @@ const PB_COLUMNS = {
     ['TO PIN', (s) => (s.holed ? 'ACE' : s.counted === false ? (s.lie === 'water' ? 'water' : 'OB') : `${Math.round(s.toTargetYd * 3)} ft`)]],
   longdrive: [['#', (s) => s.n], ['DIST', (s) => yd0(s.distanceYd)], ['CARRY', (s) => yd0(s.carryYd)], ['OFF', (s) => lr(s.offlineYd)], ['', (s) => (s.counted ? '✓' : '✗')]],
   targets: [['#', (s) => s.n], ['FLAG', (s) => `${s.targetYd}y`], ['TO FLAG', (s) => `${yd0(s.toTargetYd)}y`], ['PTS', (s) => s.points ?? 0]],
+  putting: [['#', (s) => s.n], ['PUTT', (s) => ft1(s.puttFt)], ['LEFT', (s) => (s.holed ? 'holed' : ft1(s.leftFt))]],
+  chipping: [['#', (s) => s.n], ['CLUB', (s) => esc(s.club ? prettyClub(s.club) : '–')], ['FROM', (s) => `${yd0(s.chipYd)}y`],
+    ['TO CUP', (s) => (s.holed ? 'holed' : s.counted === false ? (s.lie === 'water' ? 'water' : 'OB') : chipFt(s.leftFt))], ['PTS', (s) => s.points ?? 0]],
+  ladder: [['#', (s) => s.n], ['FLAG', (s) => `${s.targetYd}y`], ['TO FLAG', (s) => `${s.toTargetYd < 10 ? s.toTargetYd : yd0(s.toTargetYd)}y`],
+    ['', (s) => (s.climbed ? '✓' : '✗')]],
+};
+
+// Where a game stands when its next ball changes (the green games' spot, the ladder's
+// rung): the second half of the board's subtitle.
+const PB_PROGRESS = {
+  putting: (pr, s) => (pr.over ? `game over, ${ft1(pr.score.feetLeft)} left in all`
+    : `putt ${pr.ballsHit + 1} of ${pr.ballsTotal} · ${Math.round(s.distToPinYd * 3)} ft`),
+  chipping: (pr, s) => (pr.over ? 'game over' : `chip ${pr.ballsHit + 1} of ${pr.ballsTotal} · ${Math.round(s.distToPinYd)} yd`),
+  ladder: (pr) => (pr.score.cleared === pr.flags.length ? `all ${pr.flags.length} rungs in ${pr.ballsHit} balls`
+    : pr.over ? 'game over' : `rung ${pr.score.cleared + 1} of ${pr.flags.length} · ${pr.target.yd} yd`),
 };
 
 function renderPracticeBoard(s) {
@@ -617,8 +656,10 @@ function renderPracticeBoard(s) {
   if (!pr) return;
   $('pb-mode').textContent = pr.label.toUpperCase();
   const where = pr.mode === 'closest' && pr.holeRef != null ? `Hole ${pr.holeRef}, ${pr.target.yd} yd`
-    : pr.ground === 'range' ? "On the course's driving range" : "From hole 1's tee (no range mapped)";
-  const left = pr.ballsTotal ? (pr.over ? 'game over' : `ball ${pr.ballsHit + 1} of ${pr.ballsTotal}`) : `${pr.ballsHit} balls`;
+    : greenGame(pr) ? `Hole ${pr.holeRef} green`
+      : pr.ground === 'range' ? "On the course's driving range" : "From hole 1's tee (no range mapped)";
+  const left = PB_PROGRESS[pr.mode] ? PB_PROGRESS[pr.mode](pr, s)
+    : pr.ballsTotal ? (pr.over ? 'game over' : `ball ${pr.ballsHit + 1} of ${pr.ballsTotal}`) : `${pr.ballsHit} balls`;
   $('pb-sub').textContent = `${where} · ${left}`;
   $('pb-score-label').textContent = pr.score ? pr.score.label.toUpperCase() : 'BALLS';
   $('pb-score').textContent = pr.score ? pr.score.value : `${pr.ballsHit}`;
@@ -642,7 +683,7 @@ function renderPracticeBoard(s) {
   const cols = PB_COLUMNS[pr.mode];
   const best = pr.score && pr.score.shot;
   const rows = pr.shots.slice(-8).reverse().map((sh) => {
-    const cls = sh.n === best ? 'best' : sh.counted === false ? 'miss' : '';
+    const cls = sh.n === best || sh.holed || sh.climbed ? 'best' : sh.counted === false ? 'miss' : '';
     return `<tr class="${cls}">${cols.map(([, cell]) => `<td>${cell(sh)}</td>`).join('')}</tr>`;
   });
   $('pb-shots').innerHTML = rows.length
@@ -669,7 +710,8 @@ document.querySelectorAll('#games-menu .game-card').forEach((card) => {
 $('pb-again').onclick = () => {
   const pr = state?.practice;
   if (!pr) return;
-  const hole = pr.mode === 'closest' ? (pr.par3s || []).find((h) => h.ref === pr.holeRef)?.index : undefined;
+  // the same par 3, or the same green
+  const hole = pr.mode === 'closest' ? (pr.par3s || []).find((h) => h.ref === pr.holeRef)?.index : pr.holeIndex;
   postPractice({ mode: pr.mode, ...(hole != null ? { hole } : {}), ...(pr.mode !== 'targets' ? { targetYd: pr.target.yd } : {}) });
 };
 $('pb-end').onclick = () => postPractice({ action: 'end' });
