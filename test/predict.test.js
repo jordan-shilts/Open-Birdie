@@ -102,7 +102,7 @@ test('in standard conditions the prediction is the direct simulateShot of the sa
     assert.deepEqual(p.path[p.path.length - 1], { x: r2(last.x), y: r2(last.y), z: r2(last.z), t: Math.round(last.t * 1000) / 1000 });
     for (let i = 1; i < p.path.length; i++) assert.ok(p.path[i].t > p.path[i - 1].t);
     // standard day: the standard shot is the shot, no condition has an effect
-    assert.deepEqual(p.standard, { carryYd: p.carryYd, totalYd: p.totalYd, offlineYd: p.offlineYd, path: p.path });
+    assert.deepEqual(p.standard, { carryYd: p.carryYd, totalYd: p.totalYd, offlineYd: p.offlineYd, flightTime: p.flightTime, path: p.path });
     assert.deepEqual({ ...p.effects, elevationYd: 0 }, { windCarryYd: 0, windOfflineYd: 0, airCarryYd: 0, firmnessRollYd: 0, elevationYd: 0 });
     assert.ok(p.effects.elevationYd > 0, `downhill carries farther: ${p.effects.elevationYd}`);
   }
@@ -235,7 +235,8 @@ test('putts: on the green the prediction is a putt at a pace to finish just past
   assert.ok(p.holed || miss < 1.5, `stops ${miss.toFixed(2)} m from the hole`);
   assert.ok(p.path.length > 10 && p.path.length <= 120);
   assert.ok(Math.abs(p.aimAssist.restOfflineYd) <= 0.1);
-  assert.equal(p.standard.carryYd, 0);
+  assert.deepEqual([p.standard.carryYd, p.standard.flightTime], [0, 0]);
+  assert.ok(p.standard.path.length > 10 && p.standard.path.length <= 120);
   assert.equal(predictShot(g, {}).club, 'PT');
   // a faster green: a softer stroke for the same putt
   g.setConditions({ greenStimp: 13 });
