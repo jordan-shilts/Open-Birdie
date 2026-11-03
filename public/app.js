@@ -6,7 +6,7 @@ import { toPar, forwardLabel, verdict } from './scoring.mjs';
 import { FlightView } from './flight-view.js';
 import { AimMap } from './aim-map.js';
 import { ConditionsUI } from './conditions-ui.js';
-import { Lineup, clubByLabel } from './lineup.js';
+import { Lineup, clubByLabel, writeAutoClub } from './lineup.js';
 import { parseQualitySetting, qualityLabel } from './render/quality.js';
 import { parseSkySetting, SKY_ORDER, SKY_PRESETS } from './render/sky-presets.js';
 
@@ -81,6 +81,11 @@ const lineup = new Lineup({
   onClubChange: (key) => { const p = clubPresets[key]; if (p) setPractice(p.speedMph, p.vla, p.spin); },
 });
 window.__birdie = { scene, lineup, get state() { return state; } };
+segmented($('seg-autoclub'), [['on', 'On'], ['off', 'Off']], lineup.autoClub ? 'on' : 'off', (v) => {
+  lineup.autoClub = v === 'on';
+  writeAutoClub(lineup.autoClub);
+  markSeg($('seg-autoclub'), v);
+});
 
 let state = null;
 let pendingState = null;

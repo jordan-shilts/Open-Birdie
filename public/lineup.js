@@ -31,6 +31,11 @@ const num = (v, unit) => (Number.isFinite(v) ? `${Math.round(v)}<small>${unit}</
 // How wide the landing band is drawn: the prediction's areas are ~2 sigma (about 19 in
 // 20 swings, "generous"); "tight" halves them (about 2 in 3).
 const SPREAD_KEY = 'open-birdie.spread';
+// Pick the club that fits at every new lie (like a sim's auto club); off: the club
+// stays what the player or the launch monitor last chose.
+const AUTO_CLUB_KEY = 'open-birdie.autoClub';
+export const readAutoClub = () => { try { return localStorage.getItem(AUTO_CLUB_KEY) !== '0'; } catch { return true; } };
+export const writeAutoClub = (on) => { try { localStorage.setItem(AUTO_CLUB_KEY, on ? '1' : '0'); } catch { /* private mode */ } };
 const SPREAD = { tight: 0.5, generous: 1 };
 const readSpread = () => { try { return SPREAD[localStorage.getItem(SPREAD_KEY)] ? localStorage.getItem(SPREAD_KEY) : 'generous'; } catch { return 'generous'; } };
 
@@ -77,6 +82,8 @@ export class Lineup {
     this._predAbort = null;
     this._predT = null;
     this.spread = readSpread();
+    this.autoClub = readAutoClub();
+    this._pickPending = false;   // a new lie still waiting for its auto club pick
     this._buildDock();
     this._bindSpread();
   }
@@ -153,7 +160,8 @@ export class Lineup {
     const base = s.aimDeg - (s.aimOffset || 0);
     this.conditions?.setAimDeg(base);
     const lie = `${s.courseName}|${s.hole}|${s.practice ? s.practice.mode + s.pin.join(',') : ''}|${s.ball.x.toFixed(2)},${s.ball.y.toFixed(2)}`;
-    const cond = JSON.stringify(s.conditions || null);
+    // conditions and terrain readiness both change every club's numbers
+    const cond = JSON.stringify(s.conditions || null) + (s.runtimeReady ? '|ready' : '|wait');
     const newLie = lie !== this.lieKey;
     const newCond = cond !== this.condKey;
     this.lieKey = lie;
@@ -170,25 +178,27 @@ export class Lineup {
     this._renderShotCard();
     if (newLie) {
       this.manualClub = false;
+      this._pickPending = true;
       if (s.selectedClub && byKey[s.selectedClub]) { this.club = s.selectedClub; this._renderDock(); }
     }
-    if (newLie || newCond) this.refreshCarries(newLie);
+    if (newLie || newCond) this.refreshCarries();
     else this.predict();
   }
 
-  async refreshCarries(autoPick = false) {
+  async refreshCarries() {
     try {
       const r = await fetch('/api/carries');
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       this.carries = await r.json();
     } catch {
-      this.carries = null;
+      this.carries = null;   // not ready yet (409 until the terrain is), or an older server
     }
     const s = this.state;
-    if (autoPick && !this.manualClub && s) {
-      const onGreen = s.lie === 'green';
-      const pick = onGreen ? 'PT' : this.carries?.recommended;
-      if (pick && pick !== this.club) { this.selectClub(pick); return; }
+    // the auto pick waits for real carries; a club the player chose here stands
+    if (this._pickPending && this.carries?.recommended && s) {
+      this._pickPending = false;
+      const pick = s.lie === 'green' ? 'PT' : this.carries.recommended;
+      if (this.autoClub && !this.manualClub && pick !== this.club) { this.selectClub(pick); return; }
     }
     this._renderDock();
     this.predict();
@@ -255,7 +265,7 @@ export class Lineup {
     $('pl-eyebrow').textContent = pred ? `PREDICTED · ${c.name.toUpperCase()}` : `${c.name.toUpperCase()}`;
     const src = pred?.source;
     $('pl-source').textContent = !pred ? 'Prediction unavailable'
-      : isPutt ? 'Straight read at today\'s green speed'
+      : isPutt ? this._puttRead(pred)
       : src === 'player' ? `Your ${c.name.toLowerCase()}: last ${pred.n} shot${pred.n === 1 ? '' : 's'}`
       : src === 'scaled' ? `Typical ${c.name.toLowerCase()}, scaled to your speed`
       : `Typical ${c.name.toLowerCase()}: hit a few to learn yours`;
@@ -275,6 +285,14 @@ export class Lineup {
     this.flightView.showPrediction(pred);
     this.scene.setLineup?.(this.flying ? null : drawn);
     this.conditions?.setEffects(pred);
+  }
+
+  // the putt's read: where to start it, at today's green speed
+  _puttRead(pred) {
+    const a = pred.aimAssist?.offsetDeg;
+    const stimp = this.state?.conditions?.greenStimp ?? 10.5;
+    const read = Number.isFinite(a) && Math.abs(a) >= 0.25 ? `start it ${Math.abs(a).toFixed(1)}° ${a > 0 ? 'right' : 'left'} (AUTO aims it)` : 'straight';
+    return `Read: ${read} · stimp ${stimp}`;
   }
 
   _renderShotCard() {

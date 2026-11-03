@@ -105,6 +105,7 @@ export class AimMap {
     ctx.drawImage(this._static, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this._drawArcs(ctx, view, w, h, ui);
+    this._drawHazards(ctx, view, w, h, ui, key);
     this._drawAim(ctx, view, w, h, ui);
     this._drawPrediction(ctx, view, ui);
     this._drawShot(ctx, view, ui);
@@ -236,6 +237,60 @@ export class AimMap {
       ctx.fillStyle = '#ffd21f'; ctx.fillText(txt, x, y);
     };
     if (r1 - r0 > 46 * ui) { at(r0, `${Math.round(band.minYd)}`); at(r1, `${Math.round(band.maxYd)}`); }
+  }
+
+  // Yardage-book numbers for the hazards near the line: front and back of each bunker
+  // and the carry over water, from the ball, for the few that matter most to this club.
+  _hazardList(view, key) {
+    if (this._hazKey === key) return this._haz;
+    const out = [];
+    const pinV = view.toUV(this.hole.pin[0], this.hole.pin[1])[1];
+    for (const su of this.geo.surfaces || []) {
+      if ((su.kind !== 'bunker' && su.kind !== 'water') || !su.poly || su.poly.length < 3) continue;
+      let front = Infinity, back = -Infinity, uMin = Infinity, uMax = -Infinity, ax = 0, ay = 0, n = 0;
+      for (const [x, y] of su.poly) {
+        const [u, v] = view.toUV(x, y);
+        if (v < 35 || v > pinV + 25) continue;
+        if (Math.abs(u) > 24 + 0.09 * v) continue;   // a corridor that widens with distance
+        front = Math.min(front, v); back = Math.max(back, v);
+        uMin = Math.min(uMin, u); uMax = Math.max(uMax, u);
+        ax += x; ay += y; n++;
+      }
+      if (!n || back - front < 2) continue;
+      out.push({ kind: su.kind, front: front / YD, back: back / YD, u: (uMin + uMax) / 2, uMax, x: ax / n, y: ay / n });
+    }
+    this._haz = out;
+    this._hazKey = key;
+    return out;
+  }
+
+  _drawHazards(ctx, view, w, h, ui, key) {
+    const list = this._hazardList(view, key);
+    if (!list.length) return;
+    const p = this.pred && !this.pred.isPutt ? this.pred : null;
+    const focus = p ? p.carryYd : null;
+    const ranked = [...list].sort((a, b) => (focus == null ? a.front - b.front : Math.abs((a.front + a.back) / 2 - focus) - Math.abs((b.front + b.back) / 2 - focus))).slice(0, 4);
+    ctx.save();
+    ctx.font = `800 ${9.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+    ctx.textBaseline = 'middle';
+    const placed = [];
+    for (const hz of ranked) {
+      const [X, Y] = view.toPx(hz.x, hz.y);
+      const txt = hz.kind === 'water' ? `WATER ${Math.round(hz.front)}–${Math.round(hz.back)}` : `${Math.round(hz.front)}–${Math.round(hz.back)}`;
+      const tw = ctx.measureText(txt).width + 9 * ui, th = 15 * ui;
+      let bx = hz.u >= 0 ? X + 10 * ui : X - 10 * ui - tw, by = Y - th / 2;
+      bx = Math.max(4, Math.min(w - tw - 4, bx));
+      if (by < 4 || by > h - th - 4) continue;
+      if (placed.some((q) => Math.abs(q.y - by) < th && Math.abs(q.x - bx) < Math.max(q.w, tw))) continue;
+      placed.push({ x: bx, y: by, w: tw });
+      ctx.fillStyle = hz.kind === 'water' ? 'rgba(18,52,82,0.92)' : 'rgba(16,18,21,0.86)';
+      ctx.beginPath(); ctx.roundRect(bx, by, tw, th, 4 * ui); ctx.fill();
+      ctx.strokeStyle = hz.kind === 'water' ? 'rgba(110,180,240,0.7)' : 'rgba(233,216,166,0.55)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = hz.kind === 'water' ? '#bfe2ff' : '#f0e2b8';
+      ctx.textAlign = 'left';
+      ctx.fillText(txt, bx + 4.5 * ui, Y + 0.5);
+    }
+    ctx.restore();
   }
 
   _drawAim(ctx, view, w, h, ui) {
