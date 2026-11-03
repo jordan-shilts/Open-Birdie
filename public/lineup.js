@@ -298,10 +298,13 @@ export class Lineup {
     const c = this.clubInfo;
     const isPutt = !!pred?.isPutt;
     $('planner').classList.remove('hidden');
-    $('pl-eyebrow').textContent = pred ? `PREDICTED · ${c.name.toUpperCase()}` : `${c.name.toUpperCase()}`;
+    const partial = !isPutt && pred?.partial;
+    $('pl-eyebrow').textContent = pred ? `PREDICTED · ${c.name.toUpperCase()}${partial ? ' · PARTIAL' : ''}` : `${c.name.toUpperCase()}`;
     const src = pred?.source;
     $('pl-source').textContent = !pred ? 'Prediction unavailable'
       : isPutt ? this._puttRead(pred)
+      // inside the shortest full shot: the swing that finishes at the pin, by ball speed
+      : partial ? `${Math.round(pred.launch.speedMph)} mph ball speed to the pin · full carries ${Math.round(partial.fullCarryYd)}`
       : src === 'player' ? `Your ${c.name.toLowerCase()}: last ${pred.n} shot${pred.n === 1 ? '' : 's'}`
       : src === 'scaled' ? `Typical ${c.name.toLowerCase()}, scaled to your speed`
       : `Typical ${c.name.toLowerCase()}: hit a few to learn yours`;

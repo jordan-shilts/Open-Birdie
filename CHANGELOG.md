@@ -16,6 +16,13 @@ All notable changes to Open-Birdie are documented here.
   Doglegs and holes played over water or trees now get a fairway to aim at instead of the straight line to
   the pin; AUTO says where it aims ("Aiming at the middle of the fairway"), and the map marks the spot
   (AUTO · FAIRWAY) until the aim is moved. Putts still read the line to the cup.
+- **Short shots are planned as partial swings** — inside the shortest full shot in the bag (a lob wedge's
+  full carry), the planner showed a full swing of the club in hand, so a 15 yd chip read as an 80 yd landing
+  band. Each club is now predicted as the partial swing that finishes at the pin: its own launch with less
+  ball speed and spin, in proportion, with the ball speed to aim for ("34 mph ball speed to the pin · full
+  carries 76") and a landing band that shrinks with the swing. A 7-iron chips and runs, a lob wedge flies.
+  Further out every club is still swung in full, so a club that flies the green still shows it
+  (`lib/predict.js` `partialSwing`).
 - **Aiming in yards** — the aim reads as yards left or right of the pin at the club's carry ("7 yd L", "On
   pin") on the bottom bar and on the map, where the aim line runs solid to a target ring at the carry and
   faint beyond; a ghost line shows where a click would aim, and a double-click aims back at the pin.

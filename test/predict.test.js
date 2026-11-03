@@ -228,6 +228,43 @@ test('carries fall club by club, and the club for the pin', () => {
   assert.ok(slow.clubs[0].carryYd < c.clubs[0].carryYd - 10);
 });
 
+test('inside the shortest full shot, a club is predicted as the partial swing that finishes at the pin', () => {
+  const g = lineupGame();
+  const near = { x: 0, y: PIN[1] - 45 * YD };   // 45 yd out, on the fairway
+  g.ball = near;
+  const fullLw = predictCarries(g).clubs.find((x) => x.club === 'LW');
+  assert.ok(fullLw.carryYd > 60, `a full lob wedge carries ${fullLw.carryYd}`);
+  const at45 = {};
+  for (const club of ['LW', 'SW', 'I7']) {
+    const p = at45[club] = predictShot(g, { club });
+    assert.ok(p.partial, `${club}: a partial swing`);
+    assert.ok(p.partial.share > 0.2 && p.partial.share < 0.95, `${club}: ${p.partial.share} of full speed`);
+    const miss = Math.hypot(p.rest.x - PIN[0], p.rest.y - PIN[1]);
+    assert.ok(p.holed || miss <= 0.6, `${club} stops ${miss.toFixed(2)} m from the pin`);
+    assert.ok(p.carryYd < 47 && p.carryYd < p.partial.fullCarryYd);
+    assert.ok(Math.abs(p.launch.speedMph - typical(club).speedMph * p.partial.share) < 1, 'the club\'s launch, slower');
+    assert.ok(p.launch.totalSpin < typical(club).totalSpin && p.launch.vla === typical(club).vla);
+  }
+  assert.equal(at45.LW.partial.fullCarryYd, fullLw.carryYd, 'what a full one does, as the club bar has it');
+  assert.ok(at45.I7.partial.share < at45.SW.partial.share && at45.SW.partial.share < at45.LW.partial.share);
+  assert.ok(at45.I7.carryYd < at45.LW.carryYd, 'the 7-iron chips and runs, the lob wedge flies');
+  // closer in, a smaller swing; its spread shrinks with it
+  g.ball = { x: 0, y: PIN[1] - 20 * YD };
+  const at20 = predictShot(g, { club: 'LW' });
+  assert.ok(at20.partial.share < at45.LW.partial.share);
+  assert.ok(at20.dispersion.majorYd < at45.LW.dispersion.majorYd);
+  // past the lob wedge's full carry every club is swung in full, even one that flies the green
+  g.ball = { x: 0, y: PIN[1] - 95 * YD };
+  for (const club of ['LW', 'I7']) {
+    const p = predictShot(g, { club });
+    assert.equal(p.partial, null, club);
+    assert.deepEqual(p.launch, { speedMph: typical(club).speedMph, vla: typical(club).vla, hla: 0, totalSpin: typical(club).totalSpin, spinAxis: 0 });
+  }
+  assert.ok(predictShot(g, { club: 'I7' }).carryYd > 120);
+  g.ball = { x: 0, y: 0 };
+  assert.equal(predictShot(g, { club: 'DR' }).partial, null);
+});
+
 test('putts: on the green the prediction is a putt at a pace to finish just past the hole', () => {
   const g = lineupGame();
   g.ball = { x: 1.5, y: PIN[1] - 9 };
