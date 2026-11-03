@@ -355,7 +355,9 @@ kbd {
 .aim-step svg { width: 20px; height: 20px; stroke-width: 2.4; }
 .aim-step:hover { background: rgba(255, 255, 255, 0.12); color: var(--accent); }
 .aim-read { min-width: 62px; text-align: center; }
-.aim-read b { display: block; font-size: 21px; line-height: 1.05; color: var(--accent); }
+.aim-read b { display: block; font-size: 21px; line-height: 1.05; color: var(--accent); white-space: nowrap; }
+.aim-read b small { font-size: 11px; margin-left: 2px; letter-spacing: 0.04em; color: var(--accent); opacity: 0.85; }
+.aim-read b small.aim-on { font-size: 13px; margin: 0; letter-spacing: 0.08em; color: var(--text); opacity: 1; }
 .aim-ctl input[type="range"] { width: 150px; }
 .aim-auto {
   height: 44px; min-width: 44px; padding: 0 12px; border-radius: 9px; cursor: pointer;

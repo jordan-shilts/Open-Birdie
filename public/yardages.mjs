@@ -1,9 +1,12 @@
 // Yardage-book numbers for the lineup, from the course plan (sim metres, x east, y north):
 // the front and back of the green on the line from the ball through the pin, and the
-// front and back of every bunker and water hazard near the line of play. Shared by the
-// overhead map (aim-map.js) and the 3D view (render/lineup-fx.js); pure, so Node tests it.
+// front and back of every bunker and water hazard near the line of play; which of the
+// course's surfaces belong to the hole being played; and an aim in yards off the pin.
+// Shared by the overhead map (aim-map.js), the lineup (lineup.js) and the 3D view
+// (render/lineup-fx.js); pure, so Node tests it.
 const YD = 0.9144;
 const DEG = Math.PI / 180;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export function pointInPoly(x, y, poly) {
   let inside = false;
@@ -186,4 +189,63 @@ export function yardageMarks(geo, { ball, pin, baseAimDeg, practice = false }) {
     greenPoly,
     hazards: hazardsAlong(geo, ball, baseAimDeg, { maxM: pinV + 25 }),
   };
+}
+
+// how far from this hole's line a surface of each kind can be and still be this hole's
+const FOCUS_LIMIT_M = { tee: 45, fairway: 70, rough: 70, bunker: 60, water: 80, green: 0, range: -1 };
+
+// distance (m) from (x, y) to a polyline [[x, y], ...]
+export function distToLine(x, y, line) {
+  let best = Infinity;
+  for (let i = 1; i < line.length; i++) {
+    const [ax, ay] = line[i - 1], [bx, by] = line[i];
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
+    const t = clamp(((x - ax) * dx + (y - ay) * dy) / L2, 0, 1);
+    best = Math.min(best, Math.hypot(x - (ax + dx * t), y - (ay + dy * t)));
+  }
+  return best;
+}
+
+// The surfaces of the hole being played, as a Set of geo.surfaces entries. line: this
+// hole's line of play (null in practice: then everything near the ball-to-flag line);
+// others: every other hole's line. A tee, bunker or patch of water is this hole's when
+// it lies near this hole's line and no nearer another's; a fairway or rough, which can
+// run alongside two holes in one outline, when most of its outline is; the green is
+// the one the pin is on.
+export function holeSurfaces(geo, { ball, pin, line = null, others = [] }) {
+  const own = line && line.length > 1 ? line : [[ball.x, ball.y], pin];
+  const green = greenFor(geo, pin);
+  const out = new Set();
+  for (const su of geo?.surfaces || []) {
+    if (!su.poly || su.poly.length < 3) continue;
+    if (su.kind === 'green') { if (su.poly === green) out.add(su); continue; }
+    const limit = FOCUS_LIMIT_M[su.kind] ?? 60;
+    if (limit < 0) continue;
+    const ours = ([x, y]) => {
+      const d = distToLine(x, y, own);
+      if (d > limit) return false;
+      for (const o of others) if (distToLine(x, y, o) < d - 2) return false;
+      return true;
+    };
+    if (su.kind === 'fairway' || su.kind === 'rough') {
+      const step = Math.max(1, Math.floor(su.poly.length / 40));
+      let n = 0, k = 0;
+      for (let i = 0; i < su.poly.length; i += step, n++) if (ours(su.poly[i])) k++;
+      if (k / n >= 0.35) out.add(su);
+    } else {
+      let cx = 0, cy = 0;
+      for (const [x, y] of su.poly) { cx += x; cy += y; }
+      if (ours([cx / su.poly.length, cy / su.poly.length])) out.add(su);
+    }
+  }
+  return out;
+}
+
+// An aim in a golfer's words: how far left or right of the pin the target sits at the
+// distance the ball is played to (yd), e.g. { yd: 4, side: 'R', text: '4 yd R' }.
+export function aimWords(offsetDeg, distYd) {
+  const yd = Math.round(Math.abs(Math.tan((offsetDeg || 0) * Math.PI / 180) * (distYd || 0)));
+  if (!yd) return { yd: 0, side: '', text: 'On the pin' };
+  const side = offsetDeg > 0 ? 'R' : 'L';
+  return { yd, side, text: `${yd} yd ${side}` };
 }

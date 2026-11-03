@@ -3,10 +3,17 @@
 // the ~2-sigma landing and resting areas, the calm-air flight as a faint ghost (the
 // gap between the two is what the wind is doing), the pin, the wind, and the live shot,
 // plus yardage-book numbers: the front and back of the green and of every bunker and
-// water hazard near the line (yardages.mjs). Click or drag on it to aim.
+// water hazard near the line (yardages.mjs). Click or drag on it to aim; double-click
+// aims straight back at the pin.
+//
+// It shows the hole being played and only that hole: course surfaces carry no hole of
+// their own, so each goes to the hole whose line of play runs nearest it. This hole's
+// tees, fairway, green and hazards are drawn in full, every other hole's fade into the
+// rough, and a soft light along this hole's corridor (tee to green, and ball to pin)
+// keeps the eye on it; a neighbouring tee or green never reads as part of this hole.
 //
 // Sim coordinates: metres, x east, y north. Compass headings clockwise from north.
-import { hazardText } from './yardages.mjs';
+import { hazardText, holeSurfaces } from './yardages.mjs';
 
 const YD = 0.9144;
 const DEG = Math.PI / 180;
@@ -18,7 +25,16 @@ const PAL = {
   green: '#5aa64c', bunker: '#d6c495', water: '#2c6c9e', waterEdge: '#4a8fc4',
   tree: 'rgba(8, 18, 10, 0.78)', treeHi: 'rgba(40, 70, 40, 0.55)',
 };
+// the other holes: their shapes stay readable as the course around this hole, a step
+// above the rough, but never compete with it
+const MUTED = {
+  rough: '#1d2b1f', fairway: '#243827', tee: '#213325', range: '#223426',
+  green: '#29422b', bunker: '#4a4636', water: '#285a80', waterEdge: '#356d98',
+};
 const Z = { rough: 0, range: 1, fairway: 1, tee: 2, green: 3, bunker: 4, water: 4 };
+// This hole's corridor (m): half its width along the line of play, and the round
+// spaces kept lit at the green, the tee and the ball.
+const CORRIDOR_HALF_M = 44, GREEN_R_M = 40, TEE_R_M = 26, BALL_R_M = 22;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -121,7 +137,8 @@ export class AimMap {
     this._drawWind(ctx, w, h, ui, view);
   }
 
-  // course plan: surfaces, woods and tree canopies (cached per hole and size)
+  // course plan: surfaces, woods and tree canopies (cached per hole and size): every
+  // other hole muted, this hole in full under the light of its corridor, the rest dimmed
   _drawStatic(view, W, H, dpr, w, h) {
     const c = this._static;
     c.width = W; c.height = H;
@@ -136,31 +153,49 @@ export class AimMap {
       }
       return false;
     };
-    const poly = (pts) => {
-      ctx.beginPath();
-      pts.forEach((p, i) => { const [X, Y] = view.toPx(p[0], p[1]); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
-      ctx.closePath();
+    const poly = (g, pts) => {
+      g.beginPath();
+      pts.forEach((p, i) => { const [X, Y] = view.toPx(p[0], p[1]); i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+      g.closePath();
     };
-    // lakes beside the course (the scenery layer) first, so course surfaces sit on top
-    for (const wt of this.geo.sceneryWater || []) {
-      if (!wt.poly || wt.poly.length < 3 || !inView(wt.poly)) continue;
-      poly(wt.poly);
-      ctx.fillStyle = PAL.water; ctx.fill();
-      ctx.strokeStyle = PAL.waterEdge; ctx.lineWidth = 1; ctx.stroke();
-    }
+    const mine = this._focus();
     const surfs = (this.geo.surfaces || []).filter((su) => PAL[su.kind] && su.poly && su.poly.length >= 3 && inView(su.poly))
       .sort((a, b) => (Z[a.kind] ?? 1) - (Z[b.kind] ?? 1));
-    for (const su of surfs) {
-      poly(su.poly);
-      ctx.fillStyle = PAL[su.kind];
-      ctx.fill();
-      if (su.kind === 'water') { ctx.strokeStyle = PAL.waterEdge; ctx.lineWidth = 1; ctx.stroke(); }
-      if (su.kind === 'green') { ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1; ctx.stroke(); }
+    const paint = (g, su, pal) => {
+      poly(g, su.poly);
+      g.fillStyle = pal[su.kind]; g.fill();
+      if (su.kind === 'water') { g.strokeStyle = pal.waterEdge; g.lineWidth = 1; g.stroke(); }
+    };
+    // 1. the course around: lakes, then every surface muted
+    for (const wt of this.geo.sceneryWater || []) {
+      if (!wt.poly || wt.poly.length < 3 || !inView(wt.poly)) continue;
+      paint(ctx, { kind: 'water', poly: wt.poly }, MUTED);
     }
-    // woods and lidar canopies: dark crowns with a lit rim toward the top of the map
+    for (const su of surfs) paint(ctx, su, MUTED);
+    // 2. this hole in full, faded out at the edge of its corridor
+    const mask = this._corridorMask(view, W, H, dpr);
+    const layer = this._layerCanvas(W, H);
+    const lc = layer.getContext('2d');
+    lc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (const wt of this.geo.sceneryWater || []) {
+      if (wt.poly && wt.poly.length >= 3 && inView(wt.poly)) paint(lc, { kind: 'water', poly: wt.poly }, PAL);
+    }
+    for (const su of surfs) {
+      if (!mine.has(su)) continue;
+      paint(lc, su, PAL);
+      if (su.kind === 'green') { lc.strokeStyle = 'rgba(255,255,255,0.35)'; lc.lineWidth = 1.2; lc.stroke(); }
+    }
+    lc.setTransform(1, 0, 0, 1, 0, 0);
+    lc.globalCompositeOperation = 'destination-in';
+    lc.drawImage(mask, 0, 0);
+    lc.globalCompositeOperation = 'source-over';
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(layer, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // 3. woods and lidar canopies: dark crowns with a lit rim toward the top of the map
     ctx.fillStyle = PAL.tree;
     for (const wd of this.geo.woods || []) {
-      if (wd.length >= 3 && inView(wd)) { poly(wd); ctx.fill(); }
+      if (wd.length >= 3 && inView(wd)) { poly(ctx, wd); ctx.fill(); }
     }
     const trees = [];
     for (const t of this.geo.canopy || []) trees.push([t[0], t[1], Math.max(1.5, t[2] || 3)]);
@@ -176,15 +211,72 @@ export class AimMap {
         ctx.fillStyle = PAL.treeHi; ctx.fill();
       }
     }
+    // 4. everything outside the corridor dimmed a little further
+    lc.setTransform(1, 0, 0, 1, 0, 0);
+    lc.clearRect(0, 0, W, H);
+    lc.fillStyle = 'rgba(6, 10, 7, 0.34)';
+    lc.fillRect(0, 0, W, H);
+    lc.globalCompositeOperation = 'destination-out';
+    lc.drawImage(mask, 0, 0);
+    lc.globalCompositeOperation = 'source-over';
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(layer, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     // the hole's own line of play (doglegs), faint
     const line = this.hole.line;
     if (line && line.length > 1) {
       ctx.setLineDash([2, 5]);
-      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1;
       ctx.beginPath();
       line.forEach((p, i) => { const [X, Y] = view.toPx(p[0], p[1]); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
       ctx.stroke(); ctx.setLineDash([]);
     }
+  }
+
+  // This hole's surfaces (holeSurfaces), worked out once per hole and lie.
+  _focus() {
+    const { ball, pin, line } = this.hole;
+    const key = `${this.geo.courseRevision ?? this.geo.name}|${pin[0]},${pin[1]}|${ball.x},${ball.y}|${line ? line.length : 0}`;
+    if (this._focusKey !== key) {
+      const others = line
+        ? (this.geo.holes || []).map((h) => h.line).filter((l) => l && l.length > 1 && l !== line && !(l[l.length - 1][0] === pin[0] && l[l.length - 1][1] === pin[1]))
+        : [];
+      this._focusSet = holeSurfaces(this.geo, { ball, pin, line, others });
+      this._focusKey = key;
+    }
+    return this._focusSet;
+  }
+
+  // The corridor as a soft-edged mask (device pixels): the line of play tee to green,
+  // the ball to the pin, and round spaces at the green, the tee and the ball.
+  _corridorMask(view, W, H, dpr) {
+    const m = this._maskCanvas || (this._maskCanvas = document.createElement('canvas'));
+    m.width = W; m.height = H;
+    const g = m.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.filter = `blur(${Math.max(3, CORRIDOR_HALF_M * view.s * 0.22).toFixed(1)}px)`;
+    g.strokeStyle = '#fff'; g.fillStyle = '#fff';
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.lineWidth = 2 * CORRIDOR_HALF_M * view.s;
+    const { ball, pin, line } = this.hole;
+    const stroke = (pts) => {
+      g.beginPath();
+      pts.forEach((p, i) => { const [X, Y] = view.toPx(p[0], p[1]); i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+      g.stroke();
+    };
+    if (line && line.length > 1) stroke(line);
+    stroke([[ball.x, ball.y], pin]);
+    const disc = (x, y, r) => { const [X, Y] = view.toPx(x, y); g.beginPath(); g.arc(X, Y, r * view.s, 0, Math.PI * 2); g.fill(); };
+    disc(pin[0], pin[1], GREEN_R_M);
+    disc(ball.x, ball.y, BALL_R_M);
+    if (line && line.length > 1) disc(line[0][0], line[0][1], TEE_R_M);
+    return m;
+  }
+
+  _layerCanvas(W, H) {
+    const l = this._layer || (this._layer = document.createElement('canvas'));
+    l.width = W; l.height = H;
+    return l;
   }
 
   // yardage arcs every 50 y (25 y on short shots) from the ball, labelled on the right
@@ -336,15 +428,56 @@ export class AimMap {
     ctx.restore();
   }
 
+  // The aim: a line from the ball, solid out to a target ring at the club's carry (the
+  // pin's distance without a prediction) and faint beyond, the target labelled with how
+  // far left or right of the pin it is. While the pointer is over the map, a ghost line
+  // shows where a click would aim.
   _drawAim(ctx, view, w, h, ui) {
-    const { ox, oy } = view;
-    const a = this.aimOffset * DEG;
+    const { ox, oy, s } = view;
     const L = Math.hypot(w, h);
     ctx.save();
-    ctx.setLineDash([6 * ui, 6 * ui]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.2 * ui;
-    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + Math.sin(a) * L, oy - Math.cos(a) * L); ctx.stroke();
+    if (this._hover != null && !this._dragging && this._hover !== this.aimOffset) {
+      const b = this._hover * DEG;
+      ctx.setLineDash([2 * ui, 5 * ui]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.1 * ui;
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + Math.sin(b) * L, oy - Math.cos(b) * L); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    const a = this.aimOffset * DEG;
+    const dYd = this.pred && !this.pred.isPutt && this.pred.carryYd > 0 ? this.pred.carryYd : this._pinYd();
+    const R = dYd * YD * s;
+    const tx = ox + Math.sin(a) * R, ty = oy - Math.cos(a) * R;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.6 * ui;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(tx - Math.sin(a) * 9 * ui, ty + Math.cos(a) * 9 * ui); ctx.stroke();
+    ctx.setLineDash([5 * ui, 6 * ui]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.1 * ui;
+    ctx.beginPath(); ctx.moveTo(tx + Math.sin(a) * 9 * ui, ty - Math.cos(a) * 9 * ui); ctx.lineTo(ox + Math.sin(a) * L, oy - Math.cos(a) * L); ctx.stroke();
+    ctx.setLineDash([]);
+    // the target: a ring with four ticks, and how far off the pin it is, on its left
+    // (the prediction's labels go on the right)
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6 * ui;
+    ctx.beginPath(); ctx.arc(tx, ty, 7 * ui, 0, Math.PI * 2); ctx.stroke();
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      ctx.beginPath(); ctx.moveTo(tx + dx * 4 * ui, ty + dy * 4 * ui); ctx.lineTo(tx + dx * 11 * ui, ty + dy * 11 * ui); ctx.stroke();
+    }
+    const yd = Math.round(Math.abs(Math.tan(a) * dYd));
+    const txt = yd ? `AIM ${yd} ${a > 0 ? 'R' : 'L'}` : 'AIM PIN';
+    ctx.font = `800 ${10 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+    const tw = ctx.measureText(txt).width + 10 * ui, th = 16 * ui;
+    const bx = Math.max(4 * ui, tx - 15 * ui - tw), by = ty - th / 2;
+    ctx.fillStyle = 'rgba(16,18,21,0.9)';
+    ctx.beginPath(); ctx.roundRect(bx, by, tw, th, 5 * ui); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(txt, bx + 5 * ui, ty + 0.5);
     ctx.restore();
+  }
+
+  // the pin's distance from the ball (yd)
+  _pinYd() {
+    const { ball, pin } = this.hole;
+    return Math.hypot(pin[0] - ball.x, pin[1] - ball.y) / YD;
   }
 
   _path(ctx, view, pts) {
@@ -507,5 +640,17 @@ export class AimMap {
     };
     this.canvas.addEventListener('pointerup', end);
     this.canvas.addEventListener('pointercancel', end);
+    // a ghost line where a click would aim, and a double-click back at the pin
+    this.canvas.addEventListener('pointermove', (e) => {
+      if (this._dragging || e.pointerType === 'touch') return;
+      const off = toOffset(e);
+      if (off === this._hover) return;
+      this._hover = off; this.draw();
+    });
+    this.canvas.addEventListener('pointerleave', () => { if (this._hover != null) { this._hover = null; this.draw(); } });
+    this.canvas.addEventListener('dblclick', () => {
+      this.aimOffset = 0; this._hover = null; this.draw();
+      this.onAimEnd?.(0);
+    });
   }
 }

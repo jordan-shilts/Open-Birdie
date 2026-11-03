@@ -4,7 +4,7 @@
 // shot card (to the pin, the green's front and back, plays like, why), the planner (side
 // view + overhead aim map + carry / total / where it ends), and the 3D view (predicted
 // arc, landing zone, and the front and back of the hazards the club can reach).
-import { yardageMarks } from './yardages.mjs';
+import { aimWords, yardageMarks } from './yardages.mjs';
 
 const $ = (id) => document.getElementById(id);
 const YD = 0.9144, FT = 0.3048;
@@ -222,8 +222,7 @@ export class Lineup {
     if (!s) return;
     this.aim = Math.max(-30, Math.min(30, Math.round(offset * 2) / 2));
     this._dragging = true;
-    $('aim-slider').value = this.aim;
-    $('aim-val').textContent = `${this.aim > 0 ? 'R' : this.aim < 0 ? 'L' : ''}${Math.abs(this.aim).toFixed(1)}°`;
+    this.showAim();
     this.aimMap.setAim(this.aim);
     this.scene.setAim(s.aimDeg - (s.aimOffset || 0) + this.aim);
     this.predict({ debounce: 40 });
@@ -234,6 +233,19 @@ export class Lineup {
           .finally(() => { this._dragging = false; });
       }, 220);
     }
+  }
+
+  // The aim control: the slider, and the aim in yards left or right of the pin at the
+  // club's carry (the pin's distance for a putt or without a prediction).
+  showAim(offset = this.aim) {
+    const s = this.state;
+    const p = this.pred;
+    const dist = p && !p.isPutt && p.carryYd > 0 ? p.carryYd : (s?.distToPinYd || 0);
+    const a = aimWords(offset, dist);
+    $('aim-slider').value = offset;
+    $('aim-val').innerHTML = a.yd ? `${a.yd}<small>yd ${a.side}</small>` : '<small class="aim-on">ON PIN</small>';
+    $('aim-val').title = `${Math.abs(offset).toFixed(1)}° ${offset > 0 ? 'right' : offset < 0 ? 'left' : 'straight'}${a.yd ? `: ${a.text} of the pin at ${Math.round(dist)} yd` : ''}`;
+    $('aim-val').closest('.aim-read')?.classList.toggle('off', !!a.yd);
   }
 
   autoAim() {
@@ -270,6 +282,7 @@ export class Lineup {
 
   render(pred) {
     this.pred = pred;
+    this.showAim();
     const c = this.clubInfo;
     const isPutt = !!pred?.isPutt;
     $('planner').classList.remove('hidden');

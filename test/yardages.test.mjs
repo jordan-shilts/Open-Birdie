@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { greenFor, greenFrontBack, hazardsAlong, hazardText, yardageMarks, pointInPoly } from '../public/yardages.mjs';
+import { aimWords, greenFor, greenFrontBack, hazardsAlong, hazardText, holeSurfaces, yardageMarks, pointInPoly } from '../public/yardages.mjs';
 
 const YD = 0.9144;
 const rect = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -106,4 +106,47 @@ test('one lie\'s marks: the green and the hazards out to just past the pin', () 
   near(m.green.frontYd, 290 / YD); near(m.green.backYd, 310 / YD);
   assert.equal(m.hazards.length, 1);
   assert.deepEqual(yardageMarks(geo, { ball: { x: 0, y: 0 }, pin: [0, 300], baseAimDeg: 0, practice: true }).hazards, []);
+});
+
+// ---- the hole being played (holeSurfaces) and the aim in yards (aimWords) ----
+
+// Two holes side by side, 60 m apart, both running north 300 m: A on x = 0, B on x = 60.
+const box = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+function twoHoles() {
+  const s = {
+    teeA: { kind: 'tee', poly: box(-5, -10, 5, 0) }, teeB: { kind: 'tee', poly: box(55, -10, 65, 0) },
+    greenA: { kind: 'green', poly: box(-12, 290, 12, 312) }, greenB: { kind: 'green', poly: box(48, 290, 72, 312) },
+    shared: { kind: 'fairway', poly: box(-15, 100, 75, 250) },      // one outline across both fairways
+    fairwayB: { kind: 'fairway', poly: box(45, 60, 75, 280) },
+    bunkerA: { kind: 'bunker', poly: box(17, 215, 23, 225) }, bunkerB: { kind: 'bunker', poly: box(42, 215, 48, 225) },
+    lakeFar: { kind: 'water', poly: box(-20, 390, 20, 430) },
+    range: { kind: 'range', poly: box(-30, -60, 30, -20) },
+  };
+  const geo = { surfaces: Object.values(s) };
+  const lineA = [[0, 0], [0, 300]], lineB = [[60, 0], [60, 300]];
+  return { s, geo, lineA, lineB };
+}
+
+test('the map focus: this hole\'s tee, green, fairway and hazards, never the neighbour\'s', () => {
+  const { s, geo, lineA, lineB } = twoHoles();
+  const mine = holeSurfaces(geo, { ball: { x: 0, y: -5 }, pin: [0, 300], line: lineA, others: [lineB] });
+  const names = Object.entries(s).filter(([, su]) => mine.has(su)).map(([k]) => k).sort();
+  assert.deepEqual(names, ['bunkerA', 'greenA', 'shared', 'teeA']);
+  const theirs = holeSurfaces(geo, { ball: { x: 60, y: -5 }, pin: [60, 300], line: lineB, others: [lineA] });
+  assert.ok(theirs.has(s.teeB) && theirs.has(s.greenB) && theirs.has(s.fairwayB) && theirs.has(s.bunkerB));
+  assert.ok(!theirs.has(s.teeA) && !theirs.has(s.greenA) && !theirs.has(s.bunkerA));
+});
+
+test('the map focus in practice: whatever is near the ball-to-flag line', () => {
+  const { s, geo } = twoHoles();
+  const mine = holeSurfaces(geo, { ball: { x: 0, y: -5 }, pin: [0, 300] });
+  assert.ok(mine.has(s.teeA) && mine.has(s.greenA) && mine.has(s.bunkerA));
+  assert.ok(!mine.has(s.range) && !mine.has(s.lakeFar) && !mine.has(s.greenB));
+});
+
+test('an aim in yards off the pin at the distance played', () => {
+  assert.deepEqual(aimWords(0, 250), { yd: 0, side: '', text: 'On the pin' });
+  assert.equal(aimWords(1.5, 268).text, '7 yd R');
+  assert.equal(aimWords(-1.5, 268).text, '7 yd L');
+  assert.equal(aimWords(0.2, 100).text, 'On the pin');   // well under a yard
 });

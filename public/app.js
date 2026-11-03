@@ -140,8 +140,7 @@ function applyState(s) {
   }
   updateForward(s);
   if (!lineup._dragging) {
-    $('aim-slider').value = s.aimOffset;
-    $('aim-val').textContent = `${s.aimOffset > 0 ? 'R' : s.aimOffset < 0 ? 'L' : ''}${Math.abs(s.aimOffset).toFixed(1)}°`;
+    lineup.showAim(s.aimOffset);
   }
   updateScoreChip(s);
   updateHolePills(s);

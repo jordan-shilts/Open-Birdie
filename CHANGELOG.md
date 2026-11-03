@@ -4,6 +4,16 @@ All notable changes to Open-Birdie are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **The overhead map shows the hole you're on, and only that hole** — course surfaces carry no hole of
+  their own, so each now goes to the hole whose line of play runs nearest it: this hole's tees, fairway,
+  green and hazards are drawn in full, every other hole's fade into the rough, and a soft light along this
+  hole's corridor (tee to green, and ball to pin) keeps the eye on it. A neighbouring tee or green no longer
+  reads as part of this hole (`yardages.mjs` `holeSurfaces`, `aim-map.js`).
+- **Aiming in yards** — the aim reads as yards left or right of the pin at the club's carry ("7 yd L", "On
+  pin") on the bottom bar and on the map, where the aim line runs solid to a target ring at the carry and
+  faint beyond; a ghost line shows where a click would aim, and a double-click aims back at the pin.
+
 ### Fixed
 - **The launch monitor keeps the club you pick on it** — after every shot Open-Birdie sent the monitor a
   player update with the new distance to the pin, and that update repeated Open-Birdie's own club (Driver
