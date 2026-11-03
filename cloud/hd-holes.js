@@ -7,7 +7,7 @@
 // 3DEP + NAIP providers into BIRDIE_DATA_DIR/hd-courses, where the package picks the
 // bundles up (lib/hd-bundle.js resolveHdBundles). A hole that fails (no imagery, 3DEP
 // down) is skipped: the course still ships, that hole on the course-wide terrain.
-// Each hole is built in a process of its own (hd-hole-worker.mjs), so a hole that runs
+// Each hole is built in a process of its own (hd-hole-worker.js), so a hole that runs
 // the machine out of memory or never comes back costs only itself: the build, and its
 // heartbeat, carry on with the next hole.
 
@@ -19,7 +19,7 @@ const { pathToFileURL } = require('node:url');
 
 const HD_DIR = path.join(__dirname, '..', 'tools', 'hd-course');
 const MANIFESTS_DIR = path.join(HD_DIR, 'manifests');
-const WORKER = path.join(__dirname, 'hd-hole-worker.mjs');
+const WORKER = path.join(__dirname, 'hd-hole-worker.js');
 
 // HD holes stop starting after this long, so a course with many (Chambers Bay has 18)
 // still publishes inside a 45-minute Hobby sandbox session; the rest are skipped.

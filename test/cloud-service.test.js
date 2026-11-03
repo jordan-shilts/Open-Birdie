@@ -597,6 +597,9 @@ test('each HD hole is published as it lands; a hole that hangs or dies costs onl
   await assert.rejects(runHoleInChild(job, { worker: hangs, timeoutMs: 300 }), (e) => e.code === 'HD_HOLE_TIMEOUT');
   await assert.rejects(runHoleInChild(job, { worker: dies }), (e) => e.code === 'HD_HOLE_CRASHED' && /exit 137/.test(e.message));
   await assert.rejects(runHoleInChild(job, { worker: fails }), (e) => e.code === 'HD_NAIP_NO_COVERAGE');
+  // the real worker: it loads the HD tools, takes the job and answers with the hole's error
+  await assert.rejects(runHoleInChild({ coursePath: path.join(dir, 'missing.json'), hole: 7, manifest: { hole: 7 } }),
+    (e) => e.code === 'ENOENT');
 
   // the default path: the course goes to a file once, each hole to runHole, and a stuck
   // hole is skipped with its code while the next one still builds
