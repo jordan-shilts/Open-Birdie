@@ -289,7 +289,9 @@ kbd {
 #flightview { padding: 2px 2px 0; }
 .fv-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 2px 2px; }
 .fv-stat { font-family: var(--num); font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 0.03em; }
-#flightview svg { display: block; width: 100%; height: auto; overflow: visible; }
+/* its own layer: the graph redraws every frame of a shot, and without one each redraw
+   repainted the planner around it (~1.2 ms a frame in flight) */
+#flightview svg { display: block; width: 100%; height: auto; overflow: visible; will-change: transform; }
 #flightview text { font-family: var(--num); font-variant-numeric: tabular-nums; stroke-width: 0; }
 .fv-gl { stroke: rgba(243, 243, 240, 0.07); stroke-width: 1; }
 .fv-gl.fv-base { stroke: rgba(243, 243, 240, 0.32); }
