@@ -6,9 +6,10 @@
 //     waiting on this build can start playing;
 //  2. its scenery — OSM buildings, Meta/WRI canopy trees (geotiff) and the
 //     max-quality tiled NAIP aerial (sharp), buildings first (lib/course-enrichment.js);
-//  3. its 1 m HD holes, when the repository has hole manifests for the course
-//     (`hd`, cloud/hd-holes.js);
-//  4. published again as the complete package.
+//  3. published as the complete package;
+//  4. its 1 m HD holes (`hd`, cloud/hd-holes.js: the repository's hole manifests for
+//     the course, and every other hole of a US course auto-pinned), then the complete
+//     package again with them. Picks never wait on HD.
 // The course is staged in BIRDIE_DATA_DIR (a scratch dir) and removed afterwards.
 // A build whose staging is gone (restart) resumes from the published package.
 
@@ -46,7 +47,7 @@ function createCourseBuilder({
   loadCourse,
   providers,
   aerialQuality = 'tiled',
-  // { manifestsFor(courseId) -> hole manifests, build({course, manifests, onHole, log})
+  // { plan(course) -> [{hole, manifest|null}], build({course, entries, onHole, log})
   //   -> {built, failed} } (cloud/hd-holes.js), or null for no HD holes
   hd = null,
   generator = 'open-birdie-cloud',
@@ -98,41 +99,44 @@ function createCourseBuilder({
       onLayer: async ({ course: enriched, artifacts }) => persistSceneryUpdate({ cacheDir, course: enriched, artifacts }),
     });
 
-    // 1 m HD holes go into dataDir/hd-courses, where the package below picks them up;
-    // holes the published package already carries (installed on resume) are kept
-    let hdManifests = hd ? hd.manifestsFor(source.courseId) : [];
-    if (hdManifests.length) {
-      const present = resolveHdBundles(course, { dataDir });
-      const have = new Set(present.status === 'valid' ? present.descriptors.map((d) => d.hole) : []);
-      hdManifests = hdManifests.filter((m) => !have.has(m.hole));
-    }
-    let hdReport = null;
-    if (hdManifests.length) {
+    // The HD plan: holes the published package already carries (installed on resume)
+    // are kept; the rest are built after the complete package is out.
+    const plan = hd ? hd.plan(course) : [];
+    const present = plan.length ? resolveHdBundles(course, { dataDir }) : null;
+    const have = new Set(present && present.status === 'valid' ? present.descriptors.map((d) => d.hole) : []);
+    const todo = plan.filter((e) => !have.has(e.hole));
+    const hdPlanned = hd ? plan.map((e) => e.hole) : undefined;
+    const pack = (hdMissing) => publishPackage(store, buildCoursePackage({
+      dataDir, source, complete: true, sceneryFailed: outcome.failed, now, generator, hdPlanned, hdMissing,
+    }));
+
+    progress('publish', 'publishing the complete course', todo.length ? 84 : 95);
+    let final = await pack(todo.map((e) => ({ hole: e.hole, code: 'HD_PENDING' })));
+    update({ packageId: final.packageId, complete: true });
+
+    if (todo.length) {
       const hdOutcome = await hd.build({
         course,
-        manifests: hdManifests,
+        entries: todo,
         log,
         onHole: (hole, i, total) => progress('hd', `adding 1 m terrain: hole ${hole} (${i + 1} of ${total})`, 85 + Math.round((i / total) * 9)),
       });
       log.log(`[cloud] ${key}: HD holes ${hdOutcome.built.map((b) => b.hole).join(', ') || 'none'}` +
         `${hdOutcome.failed.length ? `, skipped ${hdOutcome.failed.map((f) => `${f.hole} (${f.code})`).join(', ')}` : ''}`);
-      hdReport = {
-        built: hdOutcome.built.map((b) => b.hole),
-        skipped: hdOutcome.failed.map((f) => ({ hole: f.hole, code: f.code, message: String(f.message || '').slice(0, 160) })),
-      };
+      progress('publish', 'publishing the HD holes', 95);
+      final = await pack(hdOutcome.failed.map((f) => ({ hole: f.hole, code: f.code })));
+      // In the job record: what this build added and skipped (and why), and every HD
+      // hole the published package carries (a manifest read right after an overwrite can lag).
+      update({
+        packageId: final.packageId,
+        complete: true,
+        hd: {
+          built: hdOutcome.built.map((b) => b.hole),
+          skipped: hdOutcome.failed.map((f) => ({ hole: f.hole, code: f.code, message: String(f.message || '').slice(0, 160) })),
+          packaged: (final.hd || []).map((h) => h.hole),
+        },
+      });
     }
-
-    progress('publish', 'publishing the complete course', 95);
-    const final = await publishPackage(store, buildCoursePackage({
-      dataDir, source, complete: true, sceneryFailed: outcome.failed, now, generator,
-    }));
-    // In the job record: what this build added and skipped (and why), and every HD hole
-    // the published package carries; a manifest read right after an overwrite can lag.
-    update({
-      packageId: final.packageId,
-      complete: true,
-      ...(hdReport || (final.hd && final.hd.length) ? { hd: { ...(hdReport || { built: [], skipped: [] }), packaged: (final.hd || []).map((h) => h.hole) } } : {}),
-    });
     log.log(`[cloud] ${key}: complete package ${final.packageId.slice(0, 12)} — ` +
       `buildings ${final.scenery.buildings ?? '-'}, trees ${final.scenery.canopyTrees ?? '-'}, aerial ${final.scenery.aerial ?? '-'}` +
       `${outcome.failed.length ? `, failed: ${outcome.failed.join(', ')}` : ''}`);

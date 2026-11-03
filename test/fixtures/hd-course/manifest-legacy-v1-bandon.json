@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "course": {
+    "name": "Bandon Dunes Golf Resort",
+    "cacheVersion": 3,
+    "courseId": "osm:way:362513477",
+    "fingerprint": "5cc7fad9f7bd234c2d2113a2a6905d7dece28260aff8ecc8741e999ef390709d"
+  },
+  "hole": 1,
+  "padding": 150,
+  "terrain": {
+    "targetSpacingM": 3,
+    "crs": "EPSG:3857"
+  },
+  "imagery": {
+    "collection": "naip",
+    "date": "2022-06-23",
+    "gsdM": 0.3,
+    "itemIds": [
+      "or_m_4312453_ne_10_030_20220623",
+      "or_m_4312453_se_10_030_20220623"
+    ]
+  },
+  "providers": {
+    "elevation": "https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer",
+    "imagery": "https://planetarycomputer.microsoft.com/api/stac/v1"
+  },
+  "limits": {
+    "maxPixels": 80000000,
+    "maxDownloadBytes": 3221225472,
+    "maxBundleBytes": 157286400
+  },
+  "normalization": {
+    "format": "webp",
+    "quality": 90
+  },
+  "discovered": {
+    "state": "resolved",
+    "bounds": {
+      "minX": -146.71000000000004,
+      "minY": -230.66000000000008,
+      "maxX": 318.28999999999996,
+      "maxY": 414.3399999999999
+    },
+    "assets": [
+      {
+        "url": "https://naipeuwest.blob.core.windows.net/naip/v002/or/2022/or_030cm_2022/43124/m_4312453_ne_10_030_20220623.tif",
+        "contentLength": 1444945879,
+        "etag": "0x8DBFAF0BAD1EF9B"
+      },
+      {
+        "url": "https://naipeuwest.blob.core.windows.net/naip/v002/or/2022/or_030cm_2022/43124/m_4312453_se_10_030_20220623.tif",
+        "contentLength": 1420382117,
+        "etag": "0x8DBFB035A0269AF"
+      }
+    ]
+  }
+}

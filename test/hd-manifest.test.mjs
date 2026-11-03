@@ -7,13 +7,16 @@ import { fileURLToPath } from 'node:url';
 import { parseManifest, loadManifest, isBuildable, assertBuildable } from '../tools/hd-course/config.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+// Bandon hole 1 as committed before it was re-pinned (v1 fingerprint, a NAIP pin since
+// dropped from the catalog): the legacy shape the migration check exists for.
+const legacyBandonPath = path.join(HERE, 'fixtures', 'hd-course', 'manifest-legacy-v1-bandon.json');
 const bandonPath = path.join(HERE, '..', 'tools', 'hd-course', 'manifests', 'bandon-dunes-hole-01.json');
 const resolved = JSON.parse(
   fs.readFileSync(path.join(HERE, 'fixtures', 'hd-course', 'manifest-resolved.json'), 'utf8'),
 );
 
-test('the committed legacy Bandon manifest loads but requires rediscovery before rebuild', () => {
-  const m = loadManifest(bandonPath);
+test('a legacy (v1) manifest loads but requires rediscovery before rebuild', () => {
+  const m = loadManifest(legacyBandonPath);
   assert.equal(m.hole, 1);
   assert.equal(m.imagery.date, '2022-06-23');
   assert.equal(m.discovered.state, 'resolved');
@@ -25,6 +28,16 @@ test('the committed legacy Bandon manifest loads but requires rediscovery before
     () => assertBuildable(m),
     (error) => error.code === 'HD_MANIFEST_MIGRATION_REQUIRED',
   );
+});
+
+test('the committed Bandon manifest is re-pinned and rediscovered (v2, buildable)', () => {
+  const m = loadManifest(bandonPath);
+  assert.equal(m.hole, 1);
+  assert.equal(m.course.fingerprintVersion, 2);
+  assert.equal(m.course.courseId, 'osm:way:362513477');
+  assert.equal(m.discovered.state, 'resolved');
+  assert.deepEqual(m.imagery.itemIds, ['or_m_4312453_ne_10_030_20220623']);
+  assert.equal(isBuildable(m), true);
 });
 
 test('v2 manifest identity fields validate', () => {

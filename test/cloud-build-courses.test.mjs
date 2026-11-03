@@ -2,7 +2,7 @@
 // build, against a stand-in for the cloud client — no network.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCourses, buildOne, parseOsmRef, readFeatured, resolveCourse } from '../tools/cloud-build-courses.mjs';
+import { buildCourses, buildOne, hdRequestFor, parseOsmRef, readFeatured, resolveCourse } from '../tools/cloud-build-courses.mjs';
 
 const HAZELTINE = { name: 'Hazeltine National Golf Club', osmType: 'relation', osmId: 9892305, bbox: [44.82, 44.84, -93.59, -93.58] };
 const noWait = async () => {};
@@ -57,7 +57,7 @@ test('the featured list resolves; a featured id brings its name and box; names a
 
 test('a course the cloud has complete is skipped; otherwise it is built and followed to the end', async () => {
   const key = 'osm-relation-9892305';
-  const done = fakeClient({ built: { [key]: { complete: true, totalBytes: 5 } } });
+  const done = fakeClient({ built: { [key]: { complete: true, totalBytes: 5, hdPlanned: [] } } });
   const skipped = await buildOne(done, HAZELTINE, { hdHolesFor: () => [], sleep: noWait, log: () => {} });
   assert.equal(skipped.status, 'built');
   assert.equal(skipped.skipped, true);
@@ -83,24 +83,41 @@ test('a course the cloud has complete is skipped; otherwise it is built and foll
   assert.ok(waits.every((ms) => ms >= 5000), 'polls at the pace the cloud asks for, never hammering it');
 });
 
-test('a built course with HD manifests here but no HD holes in its package is upgraded', async () => {
+test('which HD holes to ask for: plan an old package, retry passing failures and reviewed holes, never permanent ones', () => {
+  const has = (...holes) => holes.map((hole) => ({ hole, bundleId: 'b' }));
+  assert.equal(hdRequestFor(null), null, 'not built: the build plans HD itself');
+  assert.equal(hdRequestFor({ complete: false }), null);
+  assert.equal(hdRequestFor({ complete: true, hd: [] }), true, 'built before HD planning: plan it');
+  const pkg = {
+    complete: true,
+    hdPlanned: [1, 2, 3, 4],
+    hd: has(1),
+    hdMissing: [{ hole: 2, code: 'HD_3DEP_HTTP' }, { hole: 3, code: 'HD_NAIP_NO_COVERAGE' }, { hole: 4, code: 'HD_TIME_BUDGET' }],
+  };
+  assert.deepEqual(hdRequestFor(pkg), [2, 4], 'a 502 and running out of time are worth another try; no imagery is not');
+  assert.deepEqual(hdRequestFor(pkg, [3, 16]), [2, 3, 4, 16], 'a reviewed manifest is tried again (it may have been re-pinned)');
+  assert.deepEqual(hdRequestFor({ complete: true, hdPlanned: [1], hd: has(1), hdMissing: [] }, [1]), [], 'settled');
+});
+
+test('a built course is upgraded with the HD holes worth trying, and skipped once settled', async () => {
   const key = 'osm-relation-9892305';
-  const hdHolesFor = () => [16, 17, 18];
   const upgraded = fakeClient({
-    built: { [key]: { complete: true, totalBytes: 11, hd: [] } },
-    jobs: { [key]: [{ status: 'running' }, { status: 'done' }] },
+    built: { [key]: { complete: true, totalBytes: 11, hdPlanned: [16, 17, 18], hd: [{ hole: 16, bundleId: 'b' }], hdMissing: [{ hole: 17, code: 'HD_3DEP_HTTP' }, { hole: 18, code: 'HD_PENDING' }] } },
+    jobs: { [key]: [{ status: 'running' }, { status: 'done', hd: { built: [17, 18], skipped: [], packaged: [16, 17, 18] } }] },
   });
-  const r = await buildOne(upgraded, HAZELTINE, { hdHolesFor, sleep: noWait, log: () => {} });
+  const r = await buildOne(upgraded, HAZELTINE, { hdHolesFor: () => [], sleep: noWait, log: () => {} });
   const [, , body] = upgraded.calls.find(([op]) => op === 'build');
-  assert.deepEqual(body.hd, [16, 17, 18], 'asks for the HD holes by number');
+  assert.deepEqual(body.hd, [17, 18], 'asks for the missing holes by number');
   assert.equal(body.force, undefined, 'an upgrade, not a rebuild');
   assert.equal(r.status, 'built');
-  // a package that has them is done; a course without manifests never asks
-  const done = fakeClient({ built: { [key]: { complete: true, totalBytes: 12, hd: [16, 17, 18].map((hole) => ({ hole, bundleId: 'b' })) } } });
-  assert.equal((await buildOne(done, HAZELTINE, { hdHolesFor, sleep: noWait, log: () => {} })).skipped, true);
-  const plain = fakeClient({ jobs: { 'osm-way-5': [{ status: 'running' }, { status: 'done' }] } });
-  await buildOne(plain, { name: 'Plain', osmType: 'way', osmId: 5, bbox: null }, { hdHolesFor: () => [], sleep: noWait, log: () => {} });
-  assert.equal(plain.calls.find(([op]) => op === 'build')[2].hd, undefined);
+  assert.deepEqual(r.hd, [16, 17, 18], 'reported from the job (a fresh manifest read can lag)');
+  const old = fakeClient({ built: { [key]: { complete: true, totalBytes: 11, hd: [] } }, jobs: { [key]: [{ status: 'running' }, { status: 'done' }] } });
+  await buildOne(old, HAZELTINE, { hdHolesFor: () => [], sleep: noWait, log: () => {} });
+  assert.equal(old.calls.find(([op]) => op === 'build')[2].hd, true, 'a package from before HD planning gets planned');
+  const settled = fakeClient({ built: { [key]: { complete: true, totalBytes: 12, hdPlanned: [16], hd: [{ hole: 16, bundleId: 'b' }], hdMissing: [{ hole: 5, code: 'HD_NAIP_NO_COVERAGE' }] } } });
+  const s = await buildOne(settled, HAZELTINE, { hdHolesFor: () => [16], sleep: noWait, log: () => {} });
+  assert.equal(s.skipped, true);
+  assert.ok(!settled.calls.some(([op]) => op === 'build'));
 });
 
 test('one failure does not stop the rest, and concurrency is respected', async () => {

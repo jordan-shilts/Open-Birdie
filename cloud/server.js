@@ -30,7 +30,7 @@ if (!process.env.BIRDIE_DATA_DIR) process.env.BIRDIE_DATA_DIR = path.join(os.tmp
 const http = require('node:http');
 const { createCloudService } = require('./app');
 const { createCourseBuilder } = require('./builder');
-const { buildHdHoles, hdManifestsFor } = require('./hd-holes');
+const { buildHdHoles, hdPlanFor } = require('./hd-holes');
 const { createJobQueue } = require('./jobs');
 const { storeFromEnv } = require('./store');
 
@@ -70,7 +70,7 @@ async function startCloudServer({
       aerialQuality: sharp ? 'tiled' : 'single',
       // HD holes need tools/hd-course in the deployment (the container image leaves it
       // out, so there are no manifests and no HD step)
-      hd: { manifestsFor: hdManifestsFor, build: buildHdHoles },
+      hd: { plan: (course) => hdPlanFor(course), build: buildHdHoles },
       log,
     });
   }

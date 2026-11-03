@@ -451,41 +451,76 @@ test('a complete package from before a scenery layer existed is upgraded on the 
   assert.equal((await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 23 } } })).status, 202);
 });
 
-test('HD holes: built after the scenery for courses with manifests; a package without them is upgraded when asked', async (t) => {
+test('HD holes: built after the complete package is out; packages say what is planned and missing; upgrades on request', async (t) => {
   const store = createFsStore(tempDir('birdie-store-'));
   const pipeline = fakePipeline();
   pipeline.open();
   const calls = [];
   const hd = {
-    manifestsFor: (courseId) => (courseId === 'osm:way:31' ? [{ hole: 4 }, { hole: 7 }] : []),
-    async build({ course, manifests, onHole }) {
-      manifests.forEach((m, i) => onHole(m.hole, i, manifests.length));
-      calls.push({ courseId: course.source.courseId, holes: manifests.map((m) => m.hole), buildings: (course.buildings || []).length });
-      return { built: manifests.map((m) => ({ hole: m.hole, bundleId: 'x' })), failed: [] };
+    // a reviewed manifest for hole 4, hole 7 auto-pinned
+    plan: (course) => (course.source.courseId === 'osm:way:31' ? [{ hole: 4, manifest: { hole: 4 } }, { hole: 7, manifest: null }] : []),
+    async build({ course, entries, onHole }) {
+      entries.forEach((e, i) => onHole(e.hole, i, entries.length));
+      const published = await store.getJson(manifestKey('osm-way-31'));
+      calls.push({ courseId: course.source.courseId, holes: entries.map((e) => e.hole), buildings: (course.buildings || []).length, published });
+      return { built: [{ hole: 4, bundleId: 'x' }], failed: [{ hole: 7, code: 'HD_3DEP_HTTP', message: 'image HTTP 502' }] };
     },
   };
   const svc = await startService({ store, pipeline, hd });
   t.after(() => svc.close());
   const job = (await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 31 } } })).json.job;
   await waitFor(async () => (await svc.api('GET', `/v1/jobs/${job.id}`)).json.status === 'done');
-  assert.deepEqual(calls, [{ courseId: 'osm:way:31', holes: [4, 7], buildings: 1 }], 'once, with the scenery already on the course');
-  assert.deepEqual((await svc.api('GET', `/v1/jobs/${job.id}`)).json.hd, { built: [4, 7], skipped: [], packaged: [] }, 'the job says which HD holes were built (the fake builds none for real)');
-  // no HD manifests: no HD step
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].holes, [4, 7]);
+  assert.equal(calls[0].buildings, 1, 'with the scenery already on the course');
+  assert.equal(calls[0].published.complete, true, 'the complete package was out before the HD holes started');
+  assert.deepEqual(calls[0].published.hdMissing, [{ hole: 4, code: 'HD_PENDING' }, { hole: 7, code: 'HD_PENDING' }]);
+  assert.deepEqual((await svc.api('GET', `/v1/jobs/${job.id}`)).json.hd, {
+    built: [4], skipped: [{ hole: 7, code: 'HD_3DEP_HTTP', message: 'image HTTP 502' }], packaged: [],
+  }, 'the job says what was built and skipped (the fake builds no real bundles)');
+  const final = await store.getJson(manifestKey('osm-way-31'));
+  assert.deepEqual(final.hdPlanned, [4, 7]);
+  assert.deepEqual(final.hdMissing.map((m) => [m.hole, m.code]), [[7, 'HD_3DEP_HTTP']], 'the package says which planned holes it lacks, and why');
+  // nothing planned: no HD step, and the package says so
   const other = (await svc.api('POST', '/v1/courses', { body: { source: { osmType: 'way', osmId: 32 } } })).json.job;
   await waitFor(async () => (await svc.api('GET', `/v1/jobs/${other.id}`)).json.status === 'done');
   assert.equal(calls.length, 1);
+  assert.deepEqual((await store.getJson(manifestKey('osm-way-32'))).hdPlanned, []);
   // way 32's complete package carries no HD holes: ready, unless the caller says it should
   const plain = { body: { source: { osmType: 'way', osmId: 32 } } };
   assert.equal((await svc.api('POST', '/v1/courses', plain)).json.status, 'ready');
+  assert.equal((await svc.api('POST', '/v1/courses', { body: { ...plain.body, hd: true } })).json.status, 'ready', 'already planned');
   assert.equal((await svc.api('POST', '/v1/courses', { body: { ...plain.body, hd: [0] } })).status, 400);
   assert.equal((await svc.api('POST', '/v1/courses', { body: { ...plain.body, hd: [] } })).json.status, 'ready', 'no holes asked, nothing missing');
   const upgrade = await svc.api('POST', '/v1/courses', { body: { ...plain.body, hd: [4, 7] } });
   assert.equal(upgrade.status, 202, 'an HD upgrade is a build');
   await waitFor(async () => (await svc.api('GET', `/v1/jobs/${upgrade.json.job.id}`)).json.status === 'done');
   assert.equal(pipeline.loads.filter((id) => id === 'osm:way:32').length, 1, 'the upgrade resumed from the package, not from OSM');
+  // a package from before HD planning gets planned when asked
+  const before = await store.getJson(manifestKey('osm-way-32'));
+  const { hdPlanned, hdMissing, ...older } = before;
+  await store.putJson(manifestKey('osm-way-32'), older);
+  assert.equal((await svc.api('POST', '/v1/courses', { body: { ...plain.body, hd: true } })).status, 202);
 });
 
-test('the HD step skips a hole that fails and stops starting holes when out of time', async () => {
+test('the HD plan: reviewed manifests first, then every other hole 1-18 of a US course; none without the tools', () => {
+  const { hdPlanFor, inConus } = require('../cloud/hd-holes');
+  const dir = tempDir('birdie-hd-plan-');
+  fs.writeFileSync(path.join(dir, 'm-hole-02.json'), JSON.stringify({ course: { courseId: 'osm:way:5' }, hole: 2 }));
+  const tools = tempDir('birdie-hd-tools-');
+  fs.writeFileSync(path.join(tools, 'cli.mjs'), '');
+  const holes = [1, 2, 3, 3, null, 19].map((ref) => ({ ref }));
+  const us = { source: { courseId: 'osm:way:5' }, origin: { lat: 44.8, lon: -93.6 }, holes };
+  const plan = hdPlanFor(us, { dir, toolsDir: tools, auto: true });
+  assert.deepEqual(plan.map((e) => [e.hole, Boolean(e.manifest)]), [[1, false], [2, true]], 'hole 3 twice (ambiguous), no ref and 19 are left out');
+  assert.deepEqual(hdPlanFor(us, { dir, toolsDir: tools, auto: false }).map((e) => e.hole), [2], 'auto off: reviewed manifests only');
+  const scotland = { ...us, origin: { lat: 56.34, lon: -2.8 } };
+  assert.equal(inConus(scotland), false);
+  assert.deepEqual(hdPlanFor(scotland, { dir, toolsDir: tools }).map((e) => e.hole), [2]);
+  assert.deepEqual(hdPlanFor(us, { dir, toolsDir: path.join(tools, 'missing') }), [], 'no HD tools deployed: no HD');
+});
+
+test('the HD step pins auto holes, falls back to coarser lidar, skips a hole that fails and stops when out of time', async () => {
   const { buildHdHoles, hdManifestsFor } = require('../cloud/hd-holes');
   const dir = tempDir('birdie-hd-manifests-');
   const write = (name, m) => fs.writeFileSync(path.join(dir, name), JSON.stringify(m));
@@ -497,23 +532,31 @@ test('the HD step skips a hole that fails and stops starting holes when out of t
   assert.deepEqual(hdManifestsFor('osm:way:5', { dir: path.join(dir, 'missing') }), []);
 
   const warnings = [];
-  const out = await buildHdHoles({
-    course: {},
-    manifests: [{ hole: 1 }, { hole: 2 }, { hole: 3 }],
-    log: { warn: (m) => warnings.push(m) },
+  const pins = [];
+  const tools = {
+    coarseTerrain: { targetSpacingM: 3, crs: 'EPSG:3857' },
+    pinHole: async ({ hole, terrain }) => { pins.push([hole, terrain ? 'coarse' : '1 m']); return { hole, auto: true, terrain: terrain || { targetSpacingM: 1 } }; },
     buildHole: async ({ manifest }) => {
       if (manifest.hole === 2) throw Object.assign(new Error('tile replaced'), { code: 'HD_COG_DRIFT' });
+      if (manifest.hole === 4 && manifest.terrain.targetSpacingM === 1) throw Object.assign(new Error('coarse'), { code: 'HD_3DEP_COARSE' });
       return { bundleId: `b${manifest.hole}` };
     },
+  };
+  const out = await buildHdHoles({
+    course: {},
+    entries: [{ hole: 1, manifest: { hole: 1 } }, { hole: 2, manifest: { hole: 2 } }, { hole: 3, manifest: null }, { hole: 4, manifest: null }],
+    log: { warn: (m) => warnings.push(m) },
+    tools,
   });
-  assert.deepEqual(out.built, [{ hole: 1, bundleId: 'b1' }, { hole: 3, bundleId: 'b3' }]);
+  assert.deepEqual(out.built, [{ hole: 1, bundleId: 'b1' }, { hole: 3, bundleId: 'b3' }, { hole: 4, bundleId: 'b4' }]);
   assert.deepEqual(out.failed.map((f) => [f.hole, f.code]), [[2, 'HD_COG_DRIFT']]);
+  assert.deepEqual(pins, [[3, '1 m'], [4, '1 m'], [4, 'coarse']], 'auto holes pinned; hole 4 again on coarser lidar');
   assert.equal(warnings.length, 1);
 
   let t = 0;
   const timed = await buildHdHoles({
-    course: {}, manifests: [{ hole: 1 }, { hole: 2 }], log: quiet, budgetMs: 100, now: () => t,
-    buildHole: async () => { t += 150; return { bundleId: 'b' }; },
+    course: {}, entries: [{ hole: 1, manifest: { hole: 1 } }, { hole: 2, manifest: { hole: 2 } }], log: quiet, budgetMs: 100, now: () => t,
+    tools: { ...tools, buildHole: async () => { t += 150; return { bundleId: 'b' }; } },
   });
   assert.deepEqual(timed.built.map((b) => b.hole), [1]);
   assert.deepEqual(timed.failed.map((f) => [f.hole, f.code]), [[2, 'HD_TIME_BUDGET']]);

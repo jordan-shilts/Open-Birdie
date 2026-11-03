@@ -27,11 +27,33 @@ const { packageKeyFor } = require('../lib/course-key');
 const { normalizeCourseSource } = require('../lib/course-identity');
 const { hdManifestsFor } = require('../cloud/hd-holes');
 
-// The holes this repository has 1 m HD manifests for (tools/hd-course/manifests);
-// the cloud compiles them into the course's package.
+// The holes this repository has reviewed 1 m HD manifests for (tools/hd-course/manifests);
+// the cloud plans the others of a US course itself (auto-pinned).
 const repoHdHoles = (course) => hdManifestsFor(normalizeCourseSource(course).courseId).map((m) => m.hole);
 const packageHdHoles = (manifest) => (Array.isArray(manifest.hd) ? manifest.hd.map((h) => h.hole) : []);
 const holesText = (holes) => holes.join(', ');
+// [{hole, code}] -> "5, 6 (HD_NAIP_NO_COVERAGE); 13 (HD_3DEP_HTTP)"
+const missingText = (missing) => {
+  const byCode = new Map();
+  for (const { hole, code } of missing) byCode.set(code, [...(byCode.get(code) || []), hole]);
+  return [...byCode].map(([code, holes]) => `${holesText(holes)} (${code})`).join('; ');
+};
+
+// Why an HD hole can't be built that another try won't change: no imagery or lidar
+// there, or no such hole.
+const PERMANENT_HD = new Set(['HD_NAIP_NO_COVERAGE', 'HD_3DEP_NODATA', 'HD_3DEP_COARSE', 'HD_HOLE_NOT_FOUND', 'HD_NO_GEOMETRY', 'HD_BOUNDS_NONFINITE']);
+
+// What to ask the cloud for a course's HD holes: null when it isn't built (a build
+// plans HD itself), true to plan HD for a package from before HD planning, else the
+// holes worth another try ([] = nothing to do): a reviewed manifest's hole the package
+// lacks, or one that failed for a passing reason (a timeout, a 502, out of time).
+export function hdRequestFor(manifest, repoHoles = []) {
+  if (!manifest || !manifest.complete) return null;
+  if (!Array.isArray(manifest.hdPlanned)) return true;
+  const have = packageHdHoles(manifest);
+  const retry = (manifest.hdMissing || []).filter((m) => !PERMANENT_HD.has(String(m.code))).map((m) => m.hole);
+  return [...new Set([...retry, ...repoHoles.filter((h) => !have.includes(h))])].sort((a, b) => a - b);
+}
 
 const BUILD_TIMEOUT_MS = 45 * 60 * 1000;   // a Hobby sandbox session is at most 45 min
 const MIN_POLL_MS = 5000;
@@ -65,33 +87,38 @@ export async function resolveCourse(entry, { search, featured = [] }) {
 const label = (c) => `${(c.name || `${c.osmType}/${c.osmId}`).split(',')[0]} (${c.osmType}/${c.osmId})`;
 const mb = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
 
-// One course: skip it when the cloud has the complete package (with HD holes, when
-// the repository has HD manifests for it) unless force; else ask for a build (an HD
-// upgrade resumes from the package) and follow the job until it ends.
-// Returns { course, key, status, ... }.
+// One course: skip it when the cloud has the complete package with every HD hole a
+// retry could add (unless force); else ask for a build (an HD upgrade resumes from the
+// package) and follow the job until it ends. Returns { course, key, status, ... }.
 export async function buildOne(client, course, {
   force = false, hdHolesFor = repoHdHoles,
   sleep = (ms) => new Promise((r) => setTimeout(r, ms)), now = Date.now, log = console.log,
 } = {}) {
   const key = packageKeyFor(normalizeCourseSource({ osmType: course.osmType, osmId: course.osmId }));
-  const hdWanted = hdHolesFor(course);
+  const repoHoles = hdHolesFor(course);
   const started = now();
-  const missing = (manifest) => hdWanted.filter((h) => !packageHdHoles(manifest).includes(h));
-  const done = (manifest) => manifest && manifest.complete && !missing(manifest).length;
+  const settled = (manifest) => {
+    const ask = hdRequestFor(manifest, repoHoles);
+    return Array.isArray(ask) && !ask.length;
+  };
+  const skipped = (manifest) => ({
+    course, key, status: 'built', skipped: true, bytes: manifest.totalBytes, hd: packageHdHoles(manifest), hdMissing: manifest.hdMissing || [],
+  });
+  let hd = null;
   if (!force) {
     const manifest = await client.getManifest(key);
-    if (done(manifest)) return { course, key, status: 'built', skipped: true, bytes: manifest.totalBytes, hd: packageHdHoles(manifest) };
-    if (manifest && manifest.complete) log(`  ${label(course)}: adding the 1 m HD holes ${holesText(missing(manifest))}`);
+    if (settled(manifest)) return skipped(manifest);
+    hd = hdRequestFor(manifest, repoHoles);
+    if (hd === true) log(`  ${label(course)}: planning its 1 m HD holes`);
+    else if (hd) log(`  ${label(course)}: adding the 1 m HD holes ${holesText(hd)}`);
   }
   const body = {
     ...buildRequestBody({ name: course.name, bbox: course.bbox }, course),
     ...(force ? { force: true } : {}),
-    ...(hdWanted.length ? { hd: hdWanted } : {}),
+    ...(hd ? { hd } : {}),
   };
   const reply = await client.requestBuild(body);
-  if (reply.status === 'ready' && done(reply.manifest)) {
-    return { course, key, status: 'built', skipped: true, bytes: reply.manifest.totalBytes, hd: packageHdHoles(reply.manifest) };
-  }
+  if (reply.status === 'ready' && reply.manifest && reply.manifest.complete) return skipped(reply.manifest);
   let job = reply.job;
   if (!job) return { course, key, status: 'failed', message: 'the cloud started no build' };
   let last = '';
@@ -102,8 +129,8 @@ export async function buildOne(client, course, {
       const manifest = await client.getManifest(key);
       return {
         course, key, status: manifest && manifest.complete ? 'built' : 'failed',
-        bytes: manifest && manifest.totalBytes, hd: (job.hd && job.hd.packaged) || (manifest ? packageHdHoles(manifest) : []), hdWanted,
-        hdSkipped: (job.hd && job.hd.skipped) || [], ms: now() - started,
+        bytes: manifest && manifest.totalBytes, hd: (job.hd && job.hd.packaged) || (manifest ? packageHdHoles(manifest) : []),
+        hdMissing: (job.hd && job.hd.skipped) || (manifest && manifest.hdMissing) || [], ms: now() - started,
       };
     }
     if (job.status === 'failed') {
@@ -173,9 +200,10 @@ async function main(argv) {
     for (const c of courses) {
       const key = packageKeyFor(normalizeCourseSource(c));
       const m = await client.getManifest(key).catch((e) => ({ error: e.message }));
-      const wanted = repoHdHoles(c);
       const have = m && !m.error ? packageHdHoles(m) : [];
-      const hd = have.length ? `, HD holes ${holesText(have)}` : wanted.length ? `, HD holes ${holesText(wanted)} not built yet` : '';
+      const hd = !m || m.error || !m.complete ? ''
+        : !Array.isArray(m.hdPlanned) ? ', HD not planned yet'
+          : `${have.length ? `, HD holes ${holesText(have)}` : ', no HD holes'}${m.hdMissing && m.hdMissing.length ? `; missing ${missingText(m.hdMissing)}` : ''}`;
       const what = !m ? 'not built' : m.error ? `unknown (${m.error})` : m.complete ? `built, ${mb(m.totalBytes)}${hd}` : 'base only (scenery still being added)';
       console.log(`  ${label(c)}: ${what}`);
     }
@@ -188,9 +216,8 @@ async function main(argv) {
   const results = await buildCourses(client, courses, { concurrency: args.concurrency, force: args.force });
   console.log('\nSummary');
   for (const r of results) {
-    const skipped = (r.hdSkipped || []).map((s) => `${s.hole} (${s.code}${s.message ? `: ${s.message}` : ''})`).join('; ');
-    const hd = `${r.hd && r.hd.length ? `, HD holes ${holesText(r.hd)}` : r.hdWanted && r.hdWanted.length ? ', no HD holes' : ''}` +
-      `${skipped ? `; HD skipped ${skipped}` : ''}`;
+    const hd = `${r.hd && r.hd.length ? `, HD holes ${holesText(r.hd)}` : ''}` +
+      `${r.hdMissing && r.hdMissing.length ? `; HD missing ${missingText(r.hdMissing)}` : ''}`;
     const what = r.status === 'built'
       ? `${r.skipped ? 'already built' : `built in ${Math.round((r.ms || 0) / 60000)} min`}${r.bytes ? `, ${mb(r.bytes)}` : ''}${hd}`
       : `FAILED: ${r.message}`;

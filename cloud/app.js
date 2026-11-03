@@ -82,8 +82,9 @@ function parseBuildRequest(body) {
     }
     Object.assign(request, { lat, lon });
   }
-  // hd: the 1 m HD holes the repository has manifests for (the caller checked), or
-  // true for "any": a complete package without them is upgraded, not served as ready
+  // hd: hole numbers the caller wants in 1 m HD (a complete package missing any is
+  // upgraded, not served as ready), or true: plan HD for a package built before HD
+  // planning (one without hdPlanned)
   let hd = null;
   if (body.hd === true) hd = true;
   else if (Array.isArray(body.hd)) {
@@ -98,9 +99,8 @@ function parseBuildRequest(body) {
 // The asked-for HD holes the package lacks ([] when it has them all, or none were asked).
 function missingHdHoles(manifest, hd) {
   if (!hd) return [];
+  if (hd === true) return Array.isArray(manifest.hdPlanned) ? [] : ['plan'];
   const have = Array.isArray(manifest.hd) ? manifest.hd.map((h) => h.hole) : [];
-  const hasAny = have.length > 0 || (manifest.files || []).some((f) => f.role === 'hd');
-  if (hd === true) return hasAny ? [] : ['any'];
   return hd.filter((hole) => !have.includes(hole));
 }
 
