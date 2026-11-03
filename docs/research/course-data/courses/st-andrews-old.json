@@ -1,0 +1,1021 @@
+{
+  "course": "Old Course at St Andrews",
+  "slug": "st-andrews-old",
+  "location": {
+    "city": "St Andrews",
+    "region": "Fife",
+    "country": "Scotland, UK",
+    "lat": 56.343,
+    "lon": -2.803
+  },
+  "data_as_of": "Everyday tees: St Andrews Links Trust Black/Blue/Green card as mirrored by GolfPass (accessed 2026-11-02; edition year not printed on the mirror). Championship: R&A card for the 150th Open (2022) plus R&A proposals (Oct 2025) for the 155th Open (2027).",
+  "sources": [
+    {
+      "id": "S1",
+      "title": "St. Andrews Links - Old Course: Scorecard and Tees (Black/Blue/Green card, stroke index, tee table)",
+      "url": "https://www.golfpass.com/travel-advisor/courses/17192-st-andrews-links-old-course/scorecard-and-layout",
+      "publisher": "GolfPass"
+    },
+    {
+      "id": "S2",
+      "title": "Old Course at St Andrews Links (tee totals incl. winter tees)",
+      "url": "https://www.golfbreaks.com/en-gb/holidays/st-andrews/st-andrews-links/old-course",
+      "publisher": "Golfbreaks"
+    },
+    {
+      "id": "S3",
+      "title": "St Andrews Links (The Old Course) - tee totals and SSS",
+      "url": "https://www.where2golf.com/scotland/st-andrews-links-the-old-course/",
+      "publisher": "where2golf"
+    },
+    {
+      "id": "S4",
+      "title": "The Old Course - WHS course ratings (gents and ladies)",
+      "url": "https://mygolfdays.com/golf-courses-in-scotland/st-andrews-golf/the-old-course/",
+      "publisher": "MyGolfDays"
+    },
+    {
+      "id": "S5",
+      "title": "The Old Course St Andrews (tee totals and ratings)",
+      "url": "https://visitdundee.com/golf/old-course/",
+      "publisher": "Visit Dundee"
+    },
+    {
+      "id": "S6",
+      "title": "St Andrews - The Old Course scorecard (men's/women's par and stroke index)",
+      "url": "https://www.allsquaregolf.com/golf-courses/scotland/st-andrews-the-old-course",
+      "publisher": "AllSquare"
+    },
+    {
+      "id": "S7",
+      "title": "Course guide - The 150th Open, St Andrews",
+      "url": "https://www.theopen.com/st-andrews-150th-open/course-guide",
+      "publisher": "The R&A / The Open"
+    },
+    {
+      "id": "S8",
+      "title": "Visualisations of the adjustments to the Old Course at St Andrews (October 2025)",
+      "url": "https://www.theopen.com/-/media/files/155-course/st-andrews-old-course-visualisations-2025-10.pdf",
+      "publisher": "The R&A / St Andrews Links Trust"
+    },
+    {
+      "id": "S9",
+      "title": "Old Course enhancements and restoration explainer (28 Oct 2025)",
+      "url": "https://www.theopen.com/latest/old-course-st-andrews-enhancements-restoration-explainer",
+      "publisher": "The R&A / The Open"
+    },
+    {
+      "id": "S10",
+      "title": "Official course card and yardage for the 150th Open (26 Apr 2022)",
+      "url": "https://www.theopen.com/latest/official-course-card-yardage-st-andrews-150th-open",
+      "publisher": "The R&A / The Open"
+    },
+    {
+      "id": "S11",
+      "title": "Card of the course - St Andrews, 2024 AIG Women's Open",
+      "url": "https://www.aigwomensopen.com/news/2024/08/card-of-the-course-st-andrews",
+      "publisher": "The R&A / AIG Women's Open"
+    },
+    {
+      "id": "S12",
+      "title": "Course guide - St Andrews 2024, AIG Women's Open",
+      "url": "https://www.aigwomensopen.com/previous-championships/st-andrews-2024/course-guide",
+      "publisher": "The R&A / AIG Women's Open"
+    },
+    {
+      "id": "S13",
+      "title": "Old Course: Hole by Hole (13 Jul 2015)",
+      "url": "https://www.golf365.com/features/old-course-hole-by-hole",
+      "publisher": "Golf365"
+    },
+    {
+      "id": "S14",
+      "title": "An in-depth, hole-by-hole look at St Andrews' Old Course (9 Jul 2022)",
+      "url": "https://www.golfchannel.com/news/british-open-2022-depth-hole-hole-look-st-andrews-old-course",
+      "publisher": "Golf Channel"
+    },
+    {
+      "id": "S15",
+      "title": "The Old Course's Greens, Ranked (Clyde Johnson, 11 Jul 2022)",
+      "url": "https://thefriedegg.com/the-old-course-at-st-andrews-greens-ranking/",
+      "publisher": "The Fried Egg"
+    },
+    {
+      "id": "S16",
+      "title": "Grounds upkeep at the Home of Golf (Mike Jiggens, 15 Mar 2021)",
+      "url": "https://www.turfandrec.com/grounds-upkeep-at-the-home-of-golf/",
+      "publisher": "Turf & Rec"
+    },
+    {
+      "id": "S17",
+      "title": "Tournament fact sheet: The 150th Open (R&A)",
+      "url": "https://www.gcsaa.org/docs/default-source/tournament-fact-sheets/special-events/2022/7.14-the-150th-open-(r-a).pdf",
+      "publisher": "GCSAA"
+    },
+    {
+      "id": "S18",
+      "title": "Course Information - St Andrews (19 Mar 2010)",
+      "url": "https://www.europeantour.com/dpworld-tour/news/articles/detail/course-information-st-andrews/",
+      "publisher": "European Tour"
+    },
+    {
+      "id": "S19",
+      "title": "Nine things to know: the Old Course at St Andrews (10 Jul 2022)",
+      "url": "https://www.pgatour.com/needtoknow/2022/07/10/nine-things-to-know-the-old-course-at-st-andrews-the-open-championship-home-of-golf-tiger-woods-jack-nicklaus.html",
+      "publisher": "PGA Tour"
+    },
+    {
+      "id": "S20",
+      "title": "8 great courses with gigantic greens",
+      "url": "https://linksmagazine.com/8-great-courses-with-gigantic-greens/",
+      "publisher": "LINKS Magazine"
+    },
+    {
+      "id": "S21",
+      "title": "St Andrews, the Old Course: 9-9 score (18 Dec 2017)",
+      "url": "https://www.si.com/golf/travel/feature-2017-12-18-st-andrews-the-old-course-9-9-score",
+      "publisher": "Sports Illustrated / Golf.com"
+    },
+    {
+      "id": "S22",
+      "title": "Grannie Clark's Wynd: the road across the 1st and 18th (13 Jul 2022)",
+      "url": "https://www.nationalclubgolfer.com/rules/grannie-clarks-wynd-1st-18th-old-course",
+      "publisher": "National Club Golfer"
+    },
+    {
+      "id": "S23",
+      "title": "St Andrews 18th hole out of bounds (14 Jul 2022)",
+      "url": "https://www.nationalclubgolfer.com/rules/st-andrews-18th-hole-out-of-bounds/",
+      "publisher": "National Club Golfer"
+    },
+    {
+      "id": "S24",
+      "title": "R&A removes out-of-bounds stakes at 16th green/17th tee (AP, 13 Jul 2010)",
+      "url": "https://www.golfdigest.com/story/golf-british-boundary-ap/amp",
+      "publisher": "Golf Digest / Associated Press"
+    },
+    {
+      "id": "S25",
+      "title": "The bunkers of the Old Course (1 Oct 2014)",
+      "url": "https://www.europeantour.com/dpworld-tour/news/articles/detail/the-bunkers-of-the-old-course/",
+      "publisher": "European Tour"
+    },
+    {
+      "id": "S26",
+      "title": "What is the Valley of Sin? (2 Jul 2022)",
+      "url": "https://golfmonthly.com/tour/open-championship/what-is-the-valley-of-sin",
+      "publisher": "Golf Monthly"
+    },
+    {
+      "id": "S27",
+      "title": "Great Holes of the British Isles: 11th, St Andrews (Old), 'Eden'",
+      "url": "https://linksmagazine.com/great-holes-of-the-british-isles-11th-st-andrews-old-eden-hole/",
+      "publisher": "LINKS Magazine"
+    },
+    {
+      "id": "S28",
+      "title": "Stat Focus: The Old Course at St Andrews (9 May 2019; old 6,387-yd yellow card)",
+      "url": "https://www.golfshake.com/improve/view/13743/Stat_Focus_The_Old_Course_at_St_Andrews.html",
+      "publisher": "Golfshake"
+    },
+    {
+      "id": "S29",
+      "title": "New challenge at the Old Course (14 Mar 2006; 6,721-yd medal card)",
+      "url": "https://www.golfbusinessnews.com/news/travel/new-challenge-at-the-old-course/",
+      "publisher": "Golf Business News"
+    },
+    {
+      "id": "S30",
+      "title": "Old Course at St Andrews",
+      "url": "https://en.wikipedia.org/wiki/Old_Course_at_St_Andrews",
+      "publisher": "Wikipedia"
+    },
+    {
+      "id": "S31",
+      "title": "Old Course Guide (17 Jul 2000)",
+      "url": "https://www.golfmagic.com/courses/old-course-guide/799",
+      "publisher": "GolfMagic"
+    },
+    {
+      "id": "S32",
+      "title": "7 things I didn't know about the Old Course until my first round",
+      "url": "https://linksmagazine.com/7-things-i-didnt-know-about-the-old-course-until-my-first-round/",
+      "publisher": "LINKS Magazine"
+    },
+    {
+      "id": "S33",
+      "title": "The features and evolution of the Old Course (Jul 2020)",
+      "url": "https://www.theopen.com/latest/2020/07/the-features-and-evolution-of-the-old-course",
+      "publisher": "The R&A / The Open"
+    },
+    {
+      "id": "S34",
+      "title": "The 150th Open: taking in Eden corner",
+      "url": "https://quadrilateral.substack.com/p/the-150th-open-taking-in-eden-corner",
+      "publisher": "The Quadrilateral"
+    }
+  ],
+  "tees": [
+    {
+      "name": "Black",
+      "total_yards": 6670,
+      "par": 72,
+      "rating": 73.4,
+      "slope": 136,
+      "sex": "M",
+      "source": "S1, S4"
+    },
+    {
+      "name": "Blue",
+      "total_yards": 6359,
+      "par": 72,
+      "rating": 71.8,
+      "slope": 133,
+      "sex": "M",
+      "source": "S1, S4"
+    },
+    {
+      "name": "Green",
+      "total_yards": 6044,
+      "par": 72,
+      "rating": 70.2,
+      "slope": 127,
+      "sex": "M",
+      "source": "S1, S4"
+    },
+    {
+      "name": "Black",
+      "total_yards": 6670,
+      "par": 76,
+      "rating": 79.8,
+      "slope": 148,
+      "sex": "F",
+      "source": "S1, S4"
+    },
+    {
+      "name": "Blue",
+      "total_yards": 6359,
+      "par": 76,
+      "rating": 78.2,
+      "slope": 143,
+      "sex": "F",
+      "source": "S1, S4"
+    },
+    {
+      "name": "Green",
+      "total_yards": 6044,
+      "par": 76,
+      "rating": 76.5,
+      "slope": 140,
+      "sex": "F",
+      "source": "S1, S3, S4"
+    }
+  ],
+  "greens": {
+    "grass": "Fescue (slender creeping red and chewings, overseeded spring and autumn) with browntop bentgrass; Poa annua also present. Cut to about 3.5-4 mm.",
+    "typical_stimp": "About 9-9.5 ft for daily play; quickened to about 10-10.5 ft for The Open (course manager's figures, 2021). A 2010 reading was 9'8\".",
+    "average_size_sqft": 13600,
+    "notes": "Seven double greens (2/16, 3/15, 4/14, 5/13, 6/12, 7/11, 8/10; each pair sums to 18) and four single greens (1, 9, 17, 18). 13,600 sq ft is LINKS Magazine's per-hole average with double greens split in half; counting each double green once the average is 22,267 sq ft. Largest: 5/13 double green, 37,846 sq ft. Smallest: 17th, 7,078 sq ft. Largest single: 18th, 15,570 sq ft. Outward holes carry white flags, inward holes red (the 18th is white).",
+    "source": "S16, S17, S18, S20, S33"
+  },
+  "boundaries": {
+    "ob_summary": "R&A hole guides list out of bounds on the 1st (left and right), 14th (boundary wall right), 16th (right, along the old railway line), 17th (right, hotel grounds) and 18th (right, town side, plus a fence a few paces behind the green). A 2000 guide also lists OB down the right of the 15th. Grannie Clark's Wynd (the road across 1 and 18) and the road/path behind the 17th green are in-bounds integral objects with no free relief, according to the local rule quoted by National Club Golfer.",
+    "penalty_area_summary": "The Swilcan Burn is the course's only water hazard (GCSAA: one water hazard in play on two holes). It crosses in front of the 1st green and the 18th fairway near the tee. The Eden estuary lies just beyond the 11th green, below a steep drop, but no source found says whether it is a penalty area or out of bounds. Gorse lines several holes; no source marks it as a penalty area.",
+    "source": "S7, S12, S17, S22, S23, S27, S31"
+  },
+  "holes": [
+    {
+      "number": 1,
+      "name": "Burn",
+      "par": 4,
+      "handicap": 10,
+      "yards": {
+        "Black": 367,
+        "Blue": 355,
+        "Green": 346
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published elevation figure. The green sits just beyond the Swilcan Burn.",
+        "source": "S15",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": true,
+        "sides": [
+          "left",
+          "right"
+        ],
+        "description": "OB left and right. The left boundary is across the shared 129-yard-wide 1st/18th fairway, so only a big hook reaches it. Grannie Clark's Wynd (the road across the fairway) is in bounds as an integral object.",
+        "source": "S7, S12, S22, S33",
+        "confidence": "high"
+      },
+      "penalty_areas": {
+        "description": "Swilcan Burn runs down the right of the fairway and across the front of the green. Its marking colour is not confirmed.",
+        "source": "S14, S17"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Front half fairly flat; slopes and ripples at the back, with a back-left upper shelf.",
+        "features": "Single green, no bunkers; fronted by the Swilcan Burn.",
+        "source": "S14, S15",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 4, women's SI 12. Shared fairway with the 18th, 129 yards wide (7.2 acres). Open yardages: 2015 375, 2022 375, 2027 (proposed) 375; 2024 AIG Women's Open 375."
+    },
+    {
+      "number": 2,
+      "name": "Dyke",
+      "par": 4,
+      "handicap": 6,
+      "yards": {
+        "Black": 400,
+        "Blue": 385,
+        "Green": 368
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published figure. A diagonal ridge runs up to the front of the green, and the high left side of the green sits beyond a sharp ridge.",
+        "source": "S7, S14",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Series of ridges into the left half, with a 4-5 ft drop from high to low; diagonal ridge at the front.",
+        "features": "Double green shared with the 16th; two bunkers to the right of the green.",
+        "source": "S7, S15",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 5, women's SI 14. Gorse right; Cheape's bunker left, about 300 yds from the championship tee (2015). 2027: right-side fairway bunkers moved further down the hole. Open yardages: 2015 452, 2022 452, 2027 (proposed) 452; 2024 AIG Women's Open 400."
+    },
+    {
+      "number": 3,
+      "name": "Cartgate (Out)",
+      "par": 4,
+      "handicap": 16,
+      "yards": {
+        "Black": 366,
+        "Blue": 344,
+        "Green": 322
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published figure. Green rises beyond a hidden depression; the back-right quarter sits 4-5 ft lower.",
+        "source": "S15",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Vast, with subtle undulations and a counter-break. The back-right quarter is a lower tier, and a small ridge at the front can kick balls.",
+        "features": "Double green shared with the 15th; the Cartgate bunker cuts into the front-left.",
+        "source": "S7, S14, S15",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 4, women's SI 8. Bunker on the left of the fairway. Open yardages: 2015 398, 2022 398, 2027 (proposed) 398; 2024 AIG Women's Open 366."
+    },
+    {
+      "number": 4,
+      "name": "Ginger Beer",
+      "par": 4,
+      "handicap": 8,
+      "yards": {
+        "Black": 413,
+        "Blue": 402,
+        "Green": 397
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published figure. A large 4-5 ft mound sits just short of the centre of the green.",
+        "source": "S7, S15",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Slopes away to the right, falling sharply from the left over successive shoulders; the rear shelf is hard to reach.",
+        "features": "Double green shared with the 14th; deep bunker left, hidden bunker right; Ginger Beer pot bunker behind.",
+        "source": "S7, S14, S15, S31",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 5, women's SI 6. Narrow fairway with mounds left and gorse right. Open yardages: 2015 480, 2022 480, 2027 (proposed) 480; 2024 AIG Women's Open 413."
+    },
+    {
+      "number": 5,
+      "name": "Hole O'Cross (Out)",
+      "par": 5,
+      "handicap": 2,
+      "yards": {
+        "Black": 519,
+        "Blue": 509,
+        "Green": 462
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No tee-to-green figure. The green sits on a plinth behind a hollow 12-15 ft deep, so the approach must climb a steep bank.",
+        "source": "S15, S31",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": 37846,
+        "depth_yards": 92,
+        "width_yards": null,
+        "slope": "Steep drop-off along the front left; deep swale in front.",
+        "features": "Double green shared with the 13th and the largest on the course; 37,846 sq ft is the whole double green. Depth is given as 92 yd (Golf Channel), 99 yd (Fried Egg) and about 100 yd (R&A).",
+        "source": "S7, S14, S15, S16",
+        "confidence": "high"
+      },
+      "notes": "Women's par 5, women's SI 2. Seven bunkers right of the fairway; the Spectacles (two deep pots) sit about 50-60 yds short of the green. 2027: new championship tee. Open yardages: 2015 570, 2022 570, 2027 (proposed) 605; 2024 AIG Women's Open 525."
+    },
+    {
+      "number": 6,
+      "name": "Heathery (Out)",
+      "par": 4,
+      "handicap": 12,
+      "yards": {
+        "Black": 368,
+        "Blue": 358,
+        "Green": 324
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "downhill",
+        "description": "No figure. The hole drops to a lower level beyond a gorse-covered ridge, and a hidden dip crosses the front of the green.",
+        "source": "S14",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": 104,
+        "slope": "Relatively flat, with a 3-4 ft false front that falls away and a hidden swale in front.",
+        "features": "Double green shared with the 12th; 104 yd is the width of the whole double green. No greenside bunkers.",
+        "source": "S13, S15, S19, S31",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 4, women's SI 10. Blind tee shot; Coffin bunkers and hidden bunkers. 2027: new championship tee, road realignment and new left fairway bunker. Open yardages: 2015 414, 2022 414, 2027 (proposed) 431; 2024 AIG Women's Open 370."
+    },
+    {
+      "number": 7,
+      "name": "High (Out)",
+      "par": 4,
+      "handicap": 4,
+      "yards": {
+        "Black": 359,
+        "Blue": 347,
+        "Green": 340
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published figure. An abrupt ridge sits in front of the green.",
+        "source": "S15",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": 112,
+        "slope": "Winds and slopes from left to right; quieter ripples at the back.",
+        "features": "Double green shared with the 11th; 112 yd is the width of the whole double green. Shell bunker guards the approach.",
+        "source": "S7, S14, S15, S19",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 4, women's SI 4. The course's only true dogleg. Huge Shell bunker about 310 yds from the championship tee. 2027: new championship tee. Open yardages: 2015 371, 2022 371, 2027 (proposed) 393; 2024 AIG Women's Open 361."
+    },
+    {
+      "number": 8,
+      "name": "Short",
+      "par": 3,
+      "handicap": 14,
+      "yards": {
+        "Black": 170,
+        "Blue": 157,
+        "Green": 143
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published figure. The green is partly hidden by a ridge.",
+        "source": "S14",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": 36063,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Relatively flat; the front feeds away from the tee and the rear climbs to a shallow ridge with a steep drop behind. Tricky to read.",
+        "features": "Double green shared with the 10th; 36,063 sq ft is the whole double green. Short Hole pot bunker guards the front left.",
+        "source": "S7, S14, S15, S16",
+        "confidence": "high"
+      },
+      "notes": "Women's par 3, women's SI 18. Open yardages: 2015 174, 2022 187, 2027 (proposed) 187; 2024 AIG Women's Open 173."
+    },
+    {
+      "number": 9,
+      "name": "End",
+      "par": 4,
+      "handicap": 18,
+      "yards": {
+        "Black": 349,
+        "Blue": 290,
+        "Green": 263
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "flat",
+        "description": "Green sits at grade with barely visible rippling; no published elevation figure.",
+        "source": "S15",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Relatively flat, tilting slightly from back left to front.",
+        "features": "Single green; two bunkers in front, gorse close to the left. Few visual cues for judging distance.",
+        "source": "S13, S14, S15",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 4, women's SI 16. Fairway bunkers right at about 260 and 290 yds (championship tee); gorse left. 2027: approach bunkers widened slightly. Open yardages: 2015 352, 2022 352, 2027 (proposed) 352; 2024 AIG Women's Open 349."
+    },
+    {
+      "number": 10,
+      "name": "Bobby Jones",
+      "par": 4,
+      "handicap": 15,
+      "yards": {
+        "Black": 341,
+        "Blue": 310,
+        "Green": 296
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published figure. A rippled crease steps up 4-5 ft from the fairway to a raised front of the green.",
+        "source": "S14, S15",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": 36063,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Slopes front to back, falling away from a raised front, with subtle undulations.",
+        "features": "Double green shared with the 8th; 36,063 sq ft is the whole double green.",
+        "source": "S7, S14, S16",
+        "confidence": "high"
+      },
+      "notes": "Women's par 4, women's SI 13. Narrow, undulating fairway; two small bunkers right at about 290 yds. 2027: new championship tee and new left fairway bunker. Open yardages: 2015 386, 2022 386, 2027 (proposed) 415; 2024 AIG Women's Open 341."
+    },
+    {
+      "number": 11,
+      "name": "High (In)",
+      "par": 3,
+      "handicap": 7,
+      "yards": {
+        "Black": 173,
+        "Blue": 164,
+        "Green": 154
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Elevated green behind a near-vertical front bank of about 8 ft; described as playing slightly uphill. No tee-to-green figure.",
+        "source": "S15, S27, S34",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": "The Eden estuary sits just behind the green, below a steep drop-off. Whether it is a penalty area or out of bounds is not confirmed.",
+        "source": "S27"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": 112,
+        "slope": "Slopes severely from back to front, with a large false front; very steep run-off over the back.",
+        "features": "Double green shared with the 7th (112 yd is the whole green). R&A calls it probably the second-shallowest green after the 17th. Hill bunker front-left and Strath pot bunker front.",
+        "source": "S7, S14, S15, S19, S27",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 3, women's SI 17. The original 'Eden' hole, fully exposed to wind off the estuary. 2027: championship tee extended. Open yardages: 2015 174, 2022 174, 2027 (proposed) 195; 2024 AIG Women's Open 165."
+    },
+    {
+      "number": 12,
+      "name": "Heathery (In)",
+      "par": 4,
+      "handicap": 3,
+      "yards": {
+        "Black": 309,
+        "Blue": 303,
+        "Green": 299
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published figure. Two-tiered green with a near-vertical rise to the upper tier.",
+        "source": "S14, S15",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": 104,
+        "slope": "Two tiers; the top tier is only 12 paces deep (about 18 on the right). A hump on the right and hollows pinch the sides.",
+        "features": "Double green shared with the 6th (104 yd is the whole green); prominent central pot bunker.",
+        "source": "S14, S15, S19",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 4, women's SI 3. Short par 4 that long hitters can drive; several bunkers in the centre of the fairway are hidden from the tee, with gorse left and right. 2027: tees adjusted and area before the approach bunker reshaped. Open yardages: 2015 348, 2022 351, 2027 (proposed) 349; 2024 AIG Women's Open 351."
+    },
+    {
+      "number": 13,
+      "name": "Hole O'Cross (In)",
+      "par": 4,
+      "handicap": 11,
+      "yards": {
+        "Black": 414,
+        "Blue": 391,
+        "Green": 379
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Green slightly elevated, at least half a club uphill from the fairway; semi-blind approach over a large mound. No published figure.",
+        "source": "S12, S14, S15",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": false,
+        "sides": [],
+        "description": "No OB mentioned in the R&A hole guide.",
+        "source": "S7",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": 37846,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Shallow hollow to the left; pockets above a steep drop-off.",
+        "features": "Double green shared with the 5th; 37,846 sq ft is the whole double green. A narrow entrance between the Lion's Mouth bunker and a pot; swale and bunker to the right.",
+        "source": "S7, S13, S15, S16",
+        "confidence": "high"
+      },
+      "notes": "Women's par 5, women's SI 11. Coffin bunkers just under 300 yds from the championship tee; fairway ends around 300 yds. Open yardages: 2015 465, 2022 465, 2027 (proposed) 465; 2024 AIG Women's Open 430."
+    },
+    {
+      "number": 14,
+      "name": "Long",
+      "par": 5,
+      "handicap": 1,
+      "yards": {
+        "Black": 527,
+        "Blue": 514,
+        "Green": 492
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published figure. The green's face rises steeply, then drops away to the back and left, and the rear rises 5-6 ft toward a hidden pot bunker. Hell bunker is about 10 ft deep.",
+        "source": "S13, S15, S25",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": true,
+        "sides": [
+          "right"
+        ],
+        "description": "Boundary wall down the right. The Elysian Fields fairway lies between the Beardies bunkers and the wall.",
+        "source": "S7, S12, S19, S30",
+        "confidence": "high"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": 41,
+        "width_yards": null,
+        "slope": "Steep front face, then falls away to the back and left; bulky dune shoulder at the front right.",
+        "features": "Double green shared with the 4th; sand surrounds the green.",
+        "source": "S7, S15, S21",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 5, women's SI 1. Beardies bunkers left off the tee; the second shot must avoid Hell bunker (about 10 ft deep; its area is given as 300 sq m, 300 sq yd or 300 sq ft depending on the source). 2027: tee realigned, the only 2027 tee change that affects everyday golfers. Open yardages: 2015 614, 2022 614, 2027 (proposed) 614; 2024 AIG Women's Open 577."
+    },
+    {
+      "number": 15,
+      "name": "Cartgate (In)",
+      "par": 4,
+      "handicap": 9,
+      "yards": {
+        "Black": 415,
+        "Blue": 391,
+        "Green": 369
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published figure. The approach is described as a run up the slope onto the green.",
+        "source": "S31",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": true,
+        "sides": [
+          "right"
+        ],
+        "description": "A 2000 guide says OB runs all down the right. The 2022 R&A guide does not mention OB on this hole, so this is unconfirmed.",
+        "source": "S31",
+        "confidence": "low"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Deceptively deep and hard to read; humps and bumps in front, then a slope that is steeper at first and flattens out.",
+        "features": "Double green shared with the 3rd; pot bunker front left.",
+        "source": "S7, S14, S15",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 4, women's SI 5. Fairway narrows around 300 yds; Sutherland bunker mid-fairway, with pot bunkers further up. Open yardages: 2015 455, 2022 455, 2027 (proposed) 455; 2024 AIG Women's Open 415."
+    },
+    {
+      "number": 16,
+      "name": "Corner of the Dyke",
+      "par": 4,
+      "handicap": 13,
+      "yards": {
+        "Black": 377,
+        "Blue": 346,
+        "Green": 327
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published figure. The green rises sharply at the front, with a 3-4 ft step.",
+        "source": "S14, S15",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": true,
+        "sides": [
+          "right"
+        ],
+        "description": "OB right, along the fence on the old railway route. For the 2010 Open the R&A removed the OB stakes right of the 16th green (left of the 17th tee); their status in everyday play is not confirmed.",
+        "source": "S7, S12, S13, S24",
+        "confidence": "high"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Rises sharply at the front.",
+        "features": "Double green shared with the 2nd; bunkers in front and behind. The front-right pin is about eight paces from the boundary fence.",
+        "source": "S13, S14, S15",
+        "confidence": "medium"
+      },
+      "notes": "Women's par 4, women's SI 9. Principal's Nose (three bunkers) in the centre of the fairway; risk/reward tee shot between them and the OB. 2027: championship tee extended, fairway restored left of the Principal's Nose and two bunkers added. Open yardages: 2015 418, 2022 418, 2027 (proposed) 428; 2024 AIG Women's Open 380."
+    },
+    {
+      "number": 17,
+      "name": "Road",
+      "par": 4,
+      "handicap": 5,
+      "yards": {
+        "Black": 449,
+        "Blue": 427,
+        "Green": 417
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No published figure. The green is perched above the surrounding ground, banked at about 2-3%, with a false front. The Road Hole bunker sits in front, and a road and wall run behind.",
+        "source": "S15",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": true,
+        "sides": [
+          "right"
+        ],
+        "description": "OB right: the hotel grounds. The tee shot crosses the corner of the Old Course Hotel / replica railway sheds. Sources disagree about the road and wall behind the green. NCG, quoting the local rule, and Golf Channel treat the road as in bounds (integral object, no free relief). Wikipedia and Fried Egg describe the road or wall as OB.",
+        "source": "S7, S13, S14, S15, S22, S30",
+        "confidence": "high"
+      },
+      "penalty_areas": {
+        "description": null,
+        "source": null
+      },
+      "green": {
+        "size_sqft": 7078,
+        "depth_yards": 10,
+        "width_yards": null,
+        "slope": "Set at about 45 degrees between the Road Hole bunker and the road, banked about 2-3%; the right half is the preferred side.",
+        "features": "Single green and the smallest on the course (7,078 sq ft). The R&A calls it the shallowest green; 10 yd is its shallowest point. Road Hole bunker front-left; path, road and wall behind.",
+        "source": "S7, S13, S15, S16",
+        "confidence": "high"
+      },
+      "notes": "Women's par 5, women's SI 7. Blind drive over the hotel corner; from the championship tee the carry over the replica shed is about 260 yds (2015). For the 2010 Open the championship tee moved back about 40 yds. 2027: ridge left of the Road Hole bunker lowered; the bunker's size and shape are unchanged. Open yardages: 2015 495, 2022 495, 2027 (proposed) 495; 2024 AIG Women's Open 439."
+    },
+    {
+      "number": 18,
+      "name": "Tom Morris",
+      "par": 4,
+      "handicap": 17,
+      "yards": {
+        "Black": 354,
+        "Blue": 366,
+        "Green": 346
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No tee-to-green figure. The green is the highest on the course above sea level, and the Valley of Sin short left of it is a hollow of about 5-6 ft (Fried Egg) or 8 ft (Golf Monthly).",
+        "source": "S15, S26",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": true,
+        "sides": [
+          "right",
+          "long"
+        ],
+        "description": "OB right along the town side. A fence with white posts a couple of paces beyond the green is a boundary, with no free relief from it. Grannie Clark's Wynd across the fairway is in bounds (integral object).",
+        "source": "S7, S12, S22, S23",
+        "confidence": "high"
+      },
+      "penalty_areas": {
+        "description": "Swilcan Burn crosses the shared fairway about 30-40 yds in front of the tee (Swilcan Bridge). Its marking colour is not confirmed.",
+        "source": "S17, S21"
+      },
+      "green": {
+        "size_sqft": 15570,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Large and undulating, with a back-right slant across the green; the rear-left section is flatter than it looks.",
+        "features": "Single green, the largest single green (15,570 sq ft). Valley of Sin short left; boundary fence just behind.",
+        "source": "S7, S15, S16",
+        "confidence": "high"
+      },
+      "notes": "Women's par 4, women's SI 15. Drivable for long hitters. The Blue tee (366) is listed longer than the Black (354); the 2019 card showed the same pattern (yellow 361 vs white 357). Open yardages: 2015 356, 2022 356, 2027 (proposed) 356; 2024 AIG Women's Open 354."
+    }
+  ],
+  "gaps": [
+    "Official scorecard: could not read the St Andrews Links Trust card directly. standrews.com renders client-side, its 2020 scorecard JPG redirects, and the Wayback Machine is blocked. Black/Blue/Green per-hole yardages and stroke indexes come from GolfPass's mirror (S1). The per-hole figures sum to the totals (6,670 / 6,359 / 6,044). Golfbreaks (S2) and where2golf (S3) give matching totals, except that Golfbreaks has Blue at 6,355. Edition year unknown.",
+    "Tee naming and totals conflict between aggregators. The older Links Trust card was White 6,721 (73.1/132), Yellow/Blue 6,387 (71.4/129) and Green 6,032 (69.9/125; women 75.5/138) (S1 tee table, S21, S28, S29). Visit Dundee (S5) and MyGolfDays (S4) call the 6,721 tee 'Black' but give the newer Black rating (73.4/136). MyGolfDays also lists a 'White' tee (M 75.6/143, W 77.5/142) with no yardage; it is not included here.",
+    "Ratings/slopes come from MyGolfDays (S4) and are partly corroborated by where2golf SSS (73.4 / 71.8 / 76.5) and Visit Dundee. No official Scottish Golf/WHS listing found.",
+    "Stroke index (men's and women's) and women's par per hole (76 total; par 5 for women on 2, 4, 13, 17) come from aggregators (S1, S6). They agree, and LINKS Magazine (S27) corroborates the 11th (men 7 / women 17), but they are not confirmed on an official card. AllSquare's per-hole 'yards' are really metres of the old 6,721-yd card, so only its par/SI rows were used.",
+    "2027 enhancement works began in November 2025. The 14th-tee realignment affects everyday tees, so the Black/Blue/Green card may predate it.",
+    "Elevation: no published tee-to-green height change exists for any hole, so change_ft is null for all 18. Only qualitative descriptions and greenside feature heights are recorded. No course-wide height above sea level was found either.",
+    "Green sizes are published only for 5/13 (37,846 sq ft), 8/10 (36,063), 17 (7,078) and 18 (15,570), plus widths of the 6/12 (104 yd) and 7/11 (112 yd) double greens. Every other size, depth and width is null. Depth of the 5th green conflicts: 92 yd (S14), 99 yd (S15), about 100 yd (S7). The 17th's 10 yd is its shallowest point, not the full depth.",
+    "Course-wide greens: LINKS Magazine's per-hole average (13,600 sq ft) wrongly lists hole 2 as a single green (it is 9). GolfMagic 2000 calls the 16th 'the biggest of the greens', which conflicts with the 5/13 figures. The bunker count is 112 (S18, S30) or 110 (S17).",
+    "Out of bounds: no official Links Trust or R&A local-rules document was retrievable. OB is taken from the R&A hole guides (S7, S12) and press reports of the local rule (S22, S23). Holes 2-13 are marked present:false only because no source mentions OB there. OB on the 15th rests on a single 2000 guide (low confidence). Sources conflict on whether the road and wall behind the 17th green are OB. Whether the OB stakes right of the 16th green (removed for the 2010 Open) apply in everyday play is unknown.",
+    "Penalty areas: no source gives the marking colour (red/yellow) of the Swilcan Burn. No source states whether the Eden estuary behind the 11th green is a penalty area or out of bounds. Gorse is not identified as a penalty area by any source.",
+    "Hell bunker's area is reported as 300 sq m (S25), 300 sq yd (S19) and 300 sq ft (S32). The Valley of Sin depth is 8 ft (S26) or 5-6 ft (S15).",
+    "Open yardages in hole notes: 2022 and proposed 2027 per hole are from the R&A (S8, S10). The '2027:' change notes come from S8 and S9, and the 2024 AIG Women's Open yardages from S11 (6,784 total). The 2015 per-hole yardages are from Golf365 (S13); they sum to 7,297, which matches the R&A's statement that 2022 was 16 yds longer. Wikipedia's 7,305-yd card (likely 2010) differs (e.g. 8th 175 vs 187 in 2022) and was not used.",
+    "Location coordinates are approximate (Wikipedia infobox, S30).",
+    "Hole 18 is printed longer from the Blue tee (366) than the Black tee (354) on the GolfPass copy of the Links Trust card; kept as printed, unverified against the Links Trust original.",
+    "Tee entries with par 76 are women's ratings; hole pars in this file are men's (72). Women's pars per hole are in hole notes where found."
+  ]
+}
