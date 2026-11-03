@@ -15,6 +15,11 @@ All notable changes to Open-Birdie are documented here.
   faint beyond; a ghost line shows where a click would aim, and a double-click aims back at the pin.
 
 ### Fixed
+- **A tree no longer stretches the landing area across the whole hole** — the predicted landing and
+  resting areas come from launches one sigma either side of the typical one, and when one of those met a
+  tree the shot itself flies clear of, its drop 35 yd out stretched a drive's area to 615 yd ("lands
+  35–558 yd" on Hazeltine's 14th). Such a launch now gives way to its clean twin, and no one launch moves
+  the ball more than a fifth of the way it goes in that estimate (`lib/predict.js` `spreadCov`).
 - **The launch monitor keeps the club you pick on it** — after every shot Open-Birdie sent the monitor a
   player update with the new distance to the pin, and that update repeated Open-Birdie's own club (Driver
   unless picked here); OpenFlight applies the club from every update, so a club chosen on the monitor
