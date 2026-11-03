@@ -572,10 +572,14 @@ export class GolfScene {
     this._addTrees(geo, group);
     try { this._addBuildings(geo, group); }
     catch (e) { console.warn('[render] buildings skipped:', e && e.message); }
+    const groundCoverFrom = group.children.length;
     this._addGrass(geo, group);
     this._addFlowers(geo, group);
     this._addGrassField(group);
     this._addFairwayGrass(geo, group);
+    // ground cover stays out of the pond mirrors: they can't show it, and re-drawing
+    // it (the camera grass field alone is ~100k instances) was most of a mirror's cost
+    this._waterSetMirrorSkip?.(group.children.slice(groundCoverFrom));
     // LIDAR green meshes are a visual enhancement — never let a bug here break
     // the course load (the picker, physics, base render must still work). With an
     // HD bundle the high-res terrain + aerial already supply the greens, and
@@ -930,7 +934,8 @@ export class GolfScene {
       const depth = foamEnabled
         ? { depthTexture: this.waterDepth.depthTexture, resolution: this.waterDepth.resolution, near: this.camera.near, far: this.camera.far }
         : null;
-      const { meshes, waterMeshes, waterUpdate, setSun, setSky, updateMirrors } = buildWater(this._ponds || [], this.sunDir, depth);
+      const { meshes, waterMeshes, waterUpdate, setSun, setSky, updateMirrors, setMirrorSkip } = buildWater(this._ponds || [], this.sunDir, depth);
+      this._waterSetMirrorSkip = setMirrorSkip;
       setSky(this._equirect || null);
       this._waterSetSky = setSky;
       this._waterMirrors = updateMirrors;
@@ -940,6 +945,7 @@ export class GolfScene {
       this._waterSetSun = setSun;
       this._waterMeshList = waterMeshes;
     } else {
+      this._waterSetMirrorSkip = null;
       this._waterMeshes(geo).forEach((m) => group.add(m));
     }
   }

@@ -10,9 +10,9 @@ export const RENDER_CONFIG = {
   // 2.0), which flattened the course into soft, shadowless haze and turned every
   // undulation into a blotch. A real clear day is lit by the sun: crisp tree shadows,
   // bright even turf. Sky stays as fill.
-  toneMappingExposure: 0.7,
-  environmentIntensity: 0.4,
-  sunIntensity: 5.0,
+  toneMappingExposure: 0.8,
+  environmentIntensity: 0.32,
+  sunIntensity: 5.2,
   fogDensity: 0.00042, // aerial-perspective fog (atmosphere.js curve: linear + quadratic) to the HDRI horizon; each time-of-day preset sets its own (sky-presets.js)
   groundApron: true,   // countryside ring past the course edge + horizon haze band (horizon.js)
   // Google Photorealistic 3D Tiles around the course (google-tiles.js). Only ever loads when
@@ -27,7 +27,7 @@ export const RENDER_CONFIG = {
   // Sun direction: null = auto-estimate from the HDRI's brightest texel.
   // Set BOTH (degrees) to override when the estimate is wrong on a diffuse HDRI (D2).
   sunAzimuthDeg: null,
-  sunAltitudeDeg: 36, // either axis can be set alone; 36 deg gives long, readable tree shadows
+  sunAltitudeDeg: 24, // either axis can be set alone; 24 deg rakes the lidar relief and gives long tree shadows (36 lit it flat)
   hdriFile: 'puresky_4k.hdr',
   // Material-first ground (2026-07-04 plan): the aerial TINTS the lit turf instead of
   // replacing it; the raw photo only crossfades in at TRUE far range. Weights are the

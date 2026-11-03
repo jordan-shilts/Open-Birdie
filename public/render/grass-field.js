@@ -24,7 +24,7 @@ function clumpGeometry() {
     const ox = Math.cos(ang + 1.3) * off, oz = Math.sin(ang + 1.3) * off;
     const segs = 3;
     for (let i = 0; i <= segs; i++) {
-      const t = i / segs, w = 0.0055 * (1 - 0.88 * t);
+      const t = i / segs, w = 0.0068 * (1 - 0.88 * t);
       const bend = lean * t * t * 0.4;   // curls over toward the tip
       for (const side of [-1, 1]) {
         pos.push(ox + c * w * side + s * bend, t, oz + s * w * side - c * bend);
@@ -91,9 +91,12 @@ const GRASS_BEGIN = /* glsl */`
     wp.x += sway * t * t * h;
     wp.z += sway * 0.5 * t * t * h;
     transformed = wp;
-    // the turf's own base colour, darker in the clump, a little brighter at the tips
+    // the turf's own base colour: dark deep in the clump (the blades shade each other),
+    // bright toward the lit tips, so a blade reads against the ground it grows from
+    // instead of melting into it; one clump in seven a shade yellower (older blades)
     vec3 base = texture2D(uBase, suv).rgb;
-    vGrassCol = base * mix(0.55, 1.12, t) * (0.86 + 0.28 * hh.x);
+    float older = step(0.86, fract(hh.x * 7.31 + hh.y * 3.17));
+    vGrassCol = base * mix(vec3(1.0), vec3(1.25, 1.1, 0.62), older * 0.55) * mix(0.38, 1.28, t) * (0.78 + 0.44 * hh.x);
     vTip = t;
   }`;
 
@@ -112,7 +115,7 @@ function grassMaterial(u) {
       // a blade's back face must keep the up normal (DoubleSide flips it: black blades)
       .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n normal = normalize(vNormal); nonPerturbedNormal = normal;');
   };
-  m.customProgramCacheKey = () => 'grass-field-v1';
+  m.customProgramCacheKey = () => 'grass-field-v2';
   return m;
 }
 
@@ -155,7 +158,7 @@ export class GrassField {
     const geom = clumpGeometry();
     // [spacing m, grid N, fade start, fade end, mown blade m, rough blade m]
     const rings = [
-      [0.085 / Math.sqrt(scale), Math.round(290 * Math.sqrt(scale)), 6, 11, 0.04, 0.08],
+      [0.085 / Math.sqrt(scale), Math.round(290 * Math.sqrt(scale)), 7, 12, 0.04, 0.08],
       [0.24 / Math.sqrt(scale), Math.round(270 * Math.sqrt(scale)), 20, 34, 0.0, 0.1],
     ];
     this.rings = rings.map(([spacing, N, f0, f1, hm, hr]) => {

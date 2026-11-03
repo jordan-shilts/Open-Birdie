@@ -4,6 +4,25 @@ All notable changes to Open-Birdie are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Daylight that shows the ground** — the default sun sits at 24° (was 36°), a little warmer, with less sky
+  fill, so the 1 m lidar relief reads: mounds, swales, green slopes and bunker faces get a lit and a shaded
+  side, and tree shadows run long across the fairways (`sky-presets.js`, `config.js`).
+- **Turf that behaves like grass** (`turf.js` v39) — mow stripes and the green's checker are a sheen that
+  depends on where you stand (a band is light looking down its grain and dark against it, and the bands
+  swap as you walk round), grass brightens with the sun behind you and darkens looking into it, and the
+  blade texture has real tooth near the player. The palette moved from kelly/lime to olive green, and tees
+  sit in the fairway family instead of glowing above it (`course-character.js`).
+- **Grass blades that read** — the camera's blade field shades each clump dark at the root and bright at
+  the tips, with some older, yellower clumps, slightly wider blades and a longer reach (`grass-field.js`).
+- **Windows that reflect the sky** — glass lifts the sky reflection and some rooms show blinds or lights,
+  instead of every pane being black (`buildings.js`).
+- **Cheaper pond mirrors** — the live water mirrors no longer redraw grass blades, flowers or litter (a pond
+  can't show them) (`water.js`).
+- **Faster turf** — the turf shader's ~65 noise samples a pixel read one texture tap each instead of four
+  `sin()` hashes (same smoothstep value noise). With the mirror change, frames are 10-12% faster on Hazeltine
+  (25.1 -> 22.5 ms at a tee with ponds in view, 21.6 -> 19.1 ms at a green; 1600x900, Apple M3 Pro).
+
 ### Added
 - **Trees grown from real branch structures** — every species (oak, maple, birch, pine, spruce/fir) has
   three generated models, two open-grown and one grown in closed woods (`tree-gen.js`): broadleaves grow by

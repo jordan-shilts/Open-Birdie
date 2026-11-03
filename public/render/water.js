@@ -106,7 +106,7 @@ const POND_FRAG = /* glsl */`
     #include <fog_fragment>
   }`;
 
-function mirrorPond(geom, shared) {
+function mirrorPond(geom, shared, skip) {
   const refl = new Reflector(geom, {
     textureWidth: 1024, textureHeight: 1024, clipBias: 0.003, color: 0xc4d0cc,
     shader: {
@@ -130,13 +130,19 @@ function mirrorPond(geom, shared) {
   // Reflector re-renders the scene in onBeforeRender, which fires for EVERY pass that
   // draws the pond (the main pass, the AO normal pass, other ponds' mirrors). Render
   // only when the budget asked for it this frame, once, and never nested in another
-  // pond's mirror.
+  // pond's mirror. Ground cover (grass blades, flowers, litter: `skip`) stays out of
+  // the mirror: a pond can't show it, and redrawing it was most of a mirror's cost.
   const render = refl.onBeforeRender.bind(refl);
   refl.onBeforeRender = (...args) => {
     if (!refl.userData.refresh || inMirror) return;
     refl.userData.refresh = false;
     inMirror = true;
-    try { render(...args); } finally { inMirror = false; }
+    const hidden = [];
+    for (const o of skip) if (o.visible) { o.visible = false; hidden.push(o); }
+    try { render(...args); } finally {
+      inMirror = false;
+      for (const o of hidden) o.visible = true;
+    }
   };
   return refl;
 }
@@ -164,9 +170,10 @@ function skyPond(geom, shared) {
 
 // ponds: water-shore.js coursePonds (grown outline + water level per pond);
 // sunDir: world Vector3 toward the sun; depth: the terrain depth pre-pass or null.
-// Returns { meshes, waterMeshes, waterUpdate, setFoamDepth }.
+// Returns { meshes, waterMeshes, waterUpdate, setFoamDepth, setMirrorSkip }.
 export function buildWater(ponds, sunDir, depth) {
   const meshes = [];
+  const mirrorSkip = [];   // objects left out of the live mirrors (setMirrorSkip)
   const reflect = RENDER_CONFIG.waterReflect;
   const shared = {
     uTime: { value: 0 },
@@ -193,7 +200,7 @@ export function buildWater(ponds, sunDir, depth) {
     const g = new THREE.ShapeGeometry(shape);
     // a hair over the flattened water line: the bank where it rises out draws the shore
     const level = p.level + 0.03;
-    const m = reflect ? mirrorPond(g, shared) : skyPond(g, shared);
+    const m = reflect ? mirrorPond(g, shared, mirrorSkip) : skyPond(g, shared);
     m.rotation.x = -Math.PI / 2;
     m.position.y = level;
     m.updateMatrixWorld(true);
@@ -245,5 +252,6 @@ export function buildWater(ponds, sunDir, depth) {
     setSky: (tex) => { shared.uSky.value = tex; },
     updateMirrors,
     setFoamDepth,
+    setMirrorSkip: (objects) => { mirrorSkip.length = 0; mirrorSkip.push(...objects.filter(Boolean)); },
   };
 }
