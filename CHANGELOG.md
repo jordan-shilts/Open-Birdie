@@ -4,6 +4,16 @@ All notable changes to Open-Birdie are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Players and leagues** — a roster of everyone who plays on the simulator (a name and an optional handicap
+  index; the round card is the player switcher), and leagues: some of the roster playing a season of weeks, a
+  course each week, scored net or gross. A league round starts from the week's board (Play, per player; the
+  week's course loads if it isn't the one in play) and its card posts itself when the round is finished; the
+  first card a player finishes for a week is the one that counts. Each week pays 10 · 8 · 6 · 5 · 4 · 3 · 2
+  points for 1st to 7th and 1 for every other card, ties sharing, and the standings add them up with cards
+  played, average to par, best round and weeks won. Kept in `DATA_DIR/leagues.json` (`lib/leagues.js`,
+  `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
+
 ### Fixed
 - **The launch monitor keeps the club you pick on it** — after every shot Open-Birdie sent the monitor a
   player update with the new distance to the pin, and that update repeated Open-Birdie's own club (Driver
