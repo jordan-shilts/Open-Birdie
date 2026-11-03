@@ -15,6 +15,11 @@ data/course-cache.json
 /cloud-store/
 # this computer's cloud address and build token (a secret)
 data/cloud.json
+# the player's shot history (bag), what waits to go to Supabase, and the Supabase
+# project address + publishable key
+data/bag.json*
+data/bag-outbox.json*
+data/supabase.json
 
 # HD compiler build workspace + generated hole bundles
 # (regenerate from open 3DEP/NAIP data; too large for normal git history)
