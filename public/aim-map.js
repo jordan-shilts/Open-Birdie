@@ -70,6 +70,8 @@ export class AimMap {
     this.draw();
   }
   setAim(offset) { this.aimOffset = offset; this.draw(); }
+  // the safe spot AUTO is aiming at ({x, y, kind}), or null once the aim is moved by hand
+  setAuto(spot) { this.auto = spot || null; this.draw(); }
   setPrediction(pred) { this.pred = pred; this.draw(); }
   setWind(wind) { this.wind = wind; this.draw(); }
   setShot(points) { this.shot = points && points.length > 1 ? points : null; this.draw(); }
@@ -462,7 +464,17 @@ export class AimMap {
       ctx.beginPath(); ctx.moveTo(tx + dx * 4 * ui, ty + dy * 4 * ui); ctx.lineTo(tx + dx * 11 * ui, ty + dy * 11 * ui); ctx.stroke();
     }
     const yd = Math.round(Math.abs(Math.tan(a) * dYd));
-    const txt = yd ? `AIM ${yd} ${a > 0 ? 'R' : 'L'}` : 'AIM PIN';
+    // AUTO's aim in effect: the safe spot it aims for, marked
+    const auto = this.auto && !this._dragging ? this.auto : null;
+    if (auto) {
+      const [sx, sy] = view.toPx(auto.x, auto.y);
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - 6 * ui); ctx.lineTo(sx + 6 * ui, sy); ctx.lineTo(sx, sy + 6 * ui); ctx.lineTo(sx - 6 * ui, sy); ctx.closePath();
+      ctx.fillStyle = 'rgba(69,212,131,0.35)'; ctx.fill();
+      ctx.strokeStyle = '#45d483'; ctx.lineWidth = 1.6 * ui; ctx.stroke();
+    }
+    const txt = auto ? `AUTO · ${auto.kind === 'green' ? 'GREEN' : auto.kind === 'fairway' ? 'FAIRWAY' : 'LINE'}`
+      : yd ? `AIM ${yd} ${a > 0 ? 'R' : 'L'}` : 'AIM PIN';
     ctx.font = `800 ${10 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
     const tw = ctx.measureText(txt).width + 10 * ui, th = 16 * ui;
     const bx = Math.max(4 * ui, tx - 15 * ui - tw), by = ty - th / 2;

@@ -10,6 +10,12 @@ All notable changes to Open-Birdie are documented here.
   green and hazards are drawn in full, every other hole's fade into the rough, and a soft light along this
   hole's corridor (tee to green, and ball to pin) keeps the eye on it. A neighbouring tee or green no longer
   reads as part of this hole (`yardages.mjs` `holeSurfaces`, `aim-map.js`).
+- **AUTO aims for the safe spot** — the middle of the green when the club gets there (the point furthest
+  inside the green, not the pin), else the middle of this hole's fairway where the ball comes down, else
+  the hole's line of play, wind and shape allowed for (`lib/safe-spot.js`, `lib/predict.js` aimAssist).
+  Doglegs and holes played over water or trees now get a fairway to aim at instead of the straight line to
+  the pin; AUTO says where it aims ("Aiming at the middle of the fairway"), and the map marks the spot
+  (AUTO · FAIRWAY) until the aim is moved. Putts still read the line to the cup.
 - **Aiming in yards** — the aim reads as yards left or right of the pin at the club's carry ("7 yd L", "On
   pin") on the bottom bar and on the map, where the aim line runs solid to a target ring at the carry and
   faint beyond; a ghost line shows where a click would aim, and a double-click aims back at the pin.

@@ -753,7 +753,7 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     lineup.setAim(lineup.aim + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 2 : 0.5));
   } else if (k.toLowerCase() === 'a') {
-    if (!lineup.autoAim()) showToast('Auto-aim', 'Needs a prediction for this club');
+    autoAim();
   } else if (k === '0') lineup.setAim(0);
 });
 
@@ -761,7 +761,13 @@ $('aim-slider').oninput = (e) => lineup.setAim(+e.target.value);
 $('aim-left').onclick = () => lineup.setAim(lineup.aim - 0.5);
 $('aim-right').onclick = () => lineup.setAim(lineup.aim + 0.5);
 $('aim-reset').onclick = () => lineup.setAim(0);
-$('aim-auto').onclick = () => { if (!lineup.autoAim()) showToast('Auto-aim', 'Needs a prediction for this club'); };
+$('aim-auto').onclick = () => autoAim();
+// AUTO: the safe spot, with where it aims said out loud
+function autoAim() {
+  const where = lineup.autoAim();
+  if (!where) showToast('Auto aim', 'Needs a prediction for this club');
+  else showToast(`Aiming at ${where}`, 'Allowing for the wind and your shape');
+}
 fetch('/api/clubs').then((r) => r.json()).then((p) => { clubPresets = p; });
 
 // practice panel

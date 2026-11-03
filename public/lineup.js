@@ -44,6 +44,12 @@ const readSpread = () => { try { return SPREAD[localStorage.getItem(SPREAD_KEY)]
 
 // The prediction as drawn: dispersion areas scaled to the chosen spread, and the band
 // of carry distances (and bearings, relative to north) its landing area covers.
+// where AUTO aims a full shot, in words (lib/safe-spot.js kinds)
+const SPOT_WORDS = {
+  green: 'the middle of the green', fairway: 'the middle of the fairway',
+  line: 'down the middle of the hole', pin: 'the pin',
+};
+
 export function withSpread(pred, spread, ball) {
   if (!pred || pred.isPutt || !pred.dispersion) return pred;
   const k = SPREAD[spread] ?? 1;
@@ -170,6 +176,7 @@ export class Lineup {
     this.lieKey = lie;
     this.condKey = cond;
     if (!this._dragging) this.aim = s.aimOffset || 0;
+    if (newLie) { this.autoSpot = null; this.aimMap.setAuto(null); }
     this.aimMap.setHole({
       ball: s.ball, pin: s.pin, baseAimDeg: base, aimOffset: this.aim,
       line: s.practice ? null : (this.scene.geo?.holes?.[s.hole - 1]?.line || null),
@@ -217,10 +224,12 @@ export class Lineup {
 
   // ---- aim ----
   // a live aim (slider drag, map drag, keys): preview at once, commit after a pause
-  setAim(offset, { commit = true } = {}) {
+  setAim(offset, { commit = true, auto = null } = {}) {
     const s = this.state;
     if (!s) return;
     this.aim = Math.max(-30, Math.min(30, Math.round(offset * 2) / 2));
+    this.autoSpot = auto;   // where AUTO aims, until the aim is moved by hand
+    this.aimMap.setAuto(auto);
     this._dragging = true;
     this.showAim();
     this.aimMap.setAim(this.aim);
@@ -248,11 +257,14 @@ export class Lineup {
     $('aim-val').closest('.aim-read')?.classList.toggle('off', !!a.yd);
   }
 
+  // AUTO: aim for the safe spot (lib/safe-spot.js), wind and shape allowed for. Returns
+  // where it aims, in words, or null without a prediction to aim from.
   autoAim() {
     const a = this.pred?.aimAssist;
-    if (!a || !Number.isFinite(a.offsetDeg)) return false;
-    this.setAim(a.offsetDeg);
-    return true;
+    if (!a || !Number.isFinite(a.offsetDeg)) return null;
+    this.setAim(a.offsetDeg, { auto: this.pred.isPutt ? null : a.spot || null });
+    if (this.pred.isPutt) return 'the cup, on the read';
+    return SPOT_WORDS[a.spot?.kind] || 'the line to the pin';
   }
 
   // ---- prediction ----
