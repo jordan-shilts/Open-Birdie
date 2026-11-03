@@ -141,3 +141,22 @@ test('leagues.json keeps everything across restarts; a broken file is set aside'
   assert.deepEqual(broken.state().players, []);
   assert.ok(fs.existsSync(path.join(dir, 'leagues.json.corrupt')));
 });
+
+test('standings carry each player\'s movement since last week and their form week by week', () => {
+  const { lg, a, b, c, league } = threePlayerLeague('gross');
+  lg.postRound(league.id, 1, a.id, card(36));   // week 1: Ana 1st, Ben 2nd
+  lg.postRound(league.id, 1, b.id, card(40));
+  let rows = lg.state().leagues[0].standings;
+  assert.ok(rows.every((r) => r.move === 0), 'no movement after the first week');
+  lg.updateLeague(league.id, { currentWeek: 2 });
+  lg.postRound(league.id, 2, c.id, card(33));   // week 2: Cy wins and climbs from 3rd
+  lg.postRound(league.id, 2, b.id, card(35));
+  rows = lg.state().leagues[0].standings;
+  const by = Object.fromEntries(rows.map((r) => [r.name, r]));
+  assert.equal(by.Ben.rank, 1);                  // 8 + 8
+  assert.equal(by.Ben.move, 1);                  // was 2nd after week 1
+  assert.deepEqual([by.Cy.rank, by.Cy.move], [2, 1]);     // 10 pts, level with Ana: up from 3rd
+  assert.deepEqual([by.Ana.rank, by.Ana.move], [2, -1]);  // down from 1st
+  assert.deepEqual(by.Ana.form, [{ week: 1, rank: 1, tied: false }, null]);
+  assert.deepEqual(by.Cy.form, [null, { week: 2, rank: 1, tied: false }]);
+});
