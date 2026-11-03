@@ -42,7 +42,7 @@ import {
   disjointQueryDisposition,
   normalizePerformanceRequest,
 } from './capture-performance.js';
-import { HoleFlyover } from './flyover.js';
+import { HoleFlyover, treeCeiling } from './flyover.js';
 import { GoogleTiles } from './google-tiles.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, z, -y); // sim -> three
@@ -1716,9 +1716,17 @@ export class GolfScene {
       }
       return true;
     };
+    // the glide stays above tree crowns: one height lookup per tree set, built on its
+    // first shot rather than per shot (a course has thousands of trees)
+    if (this._treeTopFor !== trees) {
+      this._treeTopFor = trees;
+      this._treeTop = trees.length ? treeCeiling(trees, (x, y) => this.hAt(x, y), { marginM: 2 }) : null;
+    }
+    const l = this.lookCur;
     this.anim.plan = flightCameraPlan(points, {
-      startCam: { x: c.x, y: -c.z, z: c.y }, flightTime: ft, isPutt,
-      groundAt: (x, y) => this.hAt(x, y), isClear,
+      startCam: { x: c.x, y: -c.z, z: c.y }, startLook: { x: l.x, y: -l.z, z: l.y },
+      flightTime: ft, isPutt, fovDeg: this._baseFov,
+      groundAt: (x, y) => this.hAt(x, y), treeTopAt: this._treeTop, isClear,
     });
     this.camMode = 'static';
     // Tracer ribbon over the AIR phase (to first contact), plus apex/landing markers.
@@ -1950,12 +1958,13 @@ export class GolfScene {
     else if (this.camMode === 'free') { this._freeStep(dt); this._freeTargets(); }
     this.flyover.update(dt); // owns the camera while camMode === 'flyover'
 
-    // The flight camera's targets are already smooth (flight-camera.js), so track them
-    // tighter than the address/orbit easing — a loose look-lerp lets a 70 m/s ball
-    // run out ahead of frame.
+    // The flight camera's path, look and lens are already smooth (flight-camera.js) and
+    // start exactly where the address camera is, so a replay follows them exactly: any
+    // easing on top drags the camera behind its framing (a 0.3 s lag is 20 m at glide
+    // speed) and lets a 70 m/s ball run out of a telephoto frame.
     const flying = this.camMode === 'static' && this.anim && this.anim.plan;
-    const k = capture?.snapCamera ? 1 : 1 - Math.exp(-(flying ? 3.2 : 4.2) * dt);
-    const kLook = capture?.snapCamera ? 1 : 1 - Math.exp(-(flying ? 9.0 : 4.2) * dt);
+    const k = capture?.snapCamera || flying ? 1 : 1 - Math.exp(-4.2 * dt);
+    const kLook = capture?.snapCamera || flying ? 1 : 1 - Math.exp(-4.2 * dt);
     this.camera.position.lerp(this.camPosT, k);
     this.lookCur.lerp(this.lookT, kLook);
     this.camera.lookAt(this.lookCur);
@@ -1963,7 +1972,7 @@ export class GolfScene {
     // flies the base lens, eased back to it after a shot
     const zoomT = flying ? this._flightZoom : 1;
     if (zoomT !== 1 || this._zoom !== 1) {
-      this._zoom += (zoomT - this._zoom) * (capture?.snapCamera ? 1 : 1 - Math.exp(-6 * dt));
+      this._zoom += (zoomT - this._zoom) * (capture?.snapCamera || flying ? 1 : 1 - Math.exp(-6 * dt));
       if (Math.abs(this._zoom - 1) < 1e-3 && zoomT === 1) this._zoom = 1;
       const half = THREE.MathUtils.degToRad(this._baseFov / 2);
       this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(half) / this._zoom));
