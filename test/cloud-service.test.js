@@ -459,10 +459,12 @@ test('HD holes: built after the complete package is out; packages say what is pl
   const hd = {
     // a reviewed manifest for hole 4, hole 7 auto-pinned
     plan: (course) => (course.source.courseId === 'osm:way:31' ? [{ hole: 4, manifest: { hole: 4 } }, { hole: 7, manifest: null }] : []),
-    async build({ course, entries, onHole }) {
+    async build({ course, entries, onHole, onBuilt }) {
       entries.forEach((e, i) => onHole(e.hole, i, entries.length));
       const published = await store.getJson(manifestKey('osm-way-31'));
-      calls.push({ courseId: course.source.courseId, holes: entries.map((e) => e.hole), buildings: (course.buildings || []).length, published });
+      await onBuilt({ hole: 4, bundleId: 'x' });   // hole 4 lands before hole 7 is tried
+      const afterFirst = await store.getJson(manifestKey('osm-way-31'));
+      calls.push({ courseId: course.source.courseId, holes: entries.map((e) => e.hole), buildings: (course.buildings || []).length, published, afterFirst });
       return { built: [{ hole: 4, bundleId: 'x' }], failed: [{ hole: 7, code: 'HD_3DEP_HTTP', message: 'image HTTP 502' }] };
     },
   };
@@ -475,6 +477,7 @@ test('HD holes: built after the complete package is out; packages say what is pl
   assert.equal(calls[0].buildings, 1, 'with the scenery already on the course');
   assert.equal(calls[0].published.complete, true, 'the complete package was out before the HD holes started');
   assert.deepEqual(calls[0].published.hdMissing, [{ hole: 4, code: 'HD_PENDING' }, { hole: 7, code: 'HD_PENDING' }]);
+  assert.deepEqual(calls[0].afterFirst.hdMissing, [{ hole: 7, code: 'HD_PENDING' }], 'hole 4 was published the moment it landed');
   assert.deepEqual((await svc.api('GET', `/v1/jobs/${job.id}`)).json.hd, {
     built: [4], skipped: [{ hole: 7, code: 'HD_3DEP_HTTP', message: 'image HTTP 502' }], packaged: [],
   }, 'the job says what was built and skipped (the fake builds no real bundles)');
@@ -560,6 +563,58 @@ test('the HD step pins auto holes, falls back to coarser lidar, skips a hole tha
   });
   assert.deepEqual(timed.built.map((b) => b.hole), [1]);
   assert.deepEqual(timed.failed.map((f) => [f.hole, f.code]), [[2, 'HD_TIME_BUDGET']]);
+});
+
+test('each HD hole is published as it lands; a hole that hangs or dies costs only itself', async () => {
+  const { buildHdHoles, runHoleInChild } = require('../cloud/hd-holes');
+  // onBuilt runs after each built hole, before the next one starts
+  const order = [];
+  const tools = {
+    coarseTerrain: {},
+    pinHole: async ({ hole }) => ({ hole }),
+    buildHole: async ({ manifest }) => {
+      order.push(`build ${manifest.hole}`);
+      if (manifest.hole === 2) throw Object.assign(new Error('image HTTP 502'), { code: 'HD_3DEP_HTTP' });
+      return { bundleId: `b${manifest.hole}` };
+    },
+  };
+  const out = await buildHdHoles({
+    course: {}, entries: [1, 2, 3].map((hole) => ({ hole, manifest: { hole } })), log: quiet, tools,
+    onBuilt: async ({ hole }) => { order.push(`publish ${hole}`); },
+  });
+  assert.deepEqual(order, ['build 1', 'publish 1', 'build 2', 'build 3', 'publish 3']);
+  assert.deepEqual(out.failed.map((f) => f.code), ['HD_3DEP_HTTP']);
+
+  // the child-process runner, with stand-in workers
+  const dir = tempDir('birdie-hd-worker-');
+  const worker = (name, body) => { const f = path.join(dir, name); fs.writeFileSync(f, body); return f; };
+  const ok = worker('ok.mjs', "process.once('message', (m) => process.send({ bundleId: `b${m.hole}` }, () => process.exit(0)));");
+  const hangs = worker('hangs.mjs', "process.once('message', () => setInterval(() => {}, 1000));");
+  const dies = worker('dies.mjs', "process.once('message', () => process.exit(137));");
+  const fails = worker('fails.mjs', "process.once('message', () => process.send({ code: 'HD_NAIP_NO_COVERAGE', message: 'no imagery' }, () => process.exit(0)));");
+  const job = { coursePath: path.join(dir, 'course.json'), hole: 5, manifest: null };
+  assert.deepEqual(await runHoleInChild(job, { worker: ok }), { bundleId: 'b5' });
+  await assert.rejects(runHoleInChild(job, { worker: hangs, timeoutMs: 300 }), (e) => e.code === 'HD_HOLE_TIMEOUT');
+  await assert.rejects(runHoleInChild(job, { worker: dies }), (e) => e.code === 'HD_HOLE_CRASHED' && /exit 137/.test(e.message));
+  await assert.rejects(runHoleInChild(job, { worker: fails }), (e) => e.code === 'HD_NAIP_NO_COVERAGE');
+  // the real worker: it loads the HD tools, takes the job and answers with the hole's error
+  await assert.rejects(runHoleInChild({ coursePath: path.join(dir, 'missing.json'), hole: 7, manifest: { hole: 7 } }),
+    (e) => e.code === 'ENOENT');
+
+  // the default path: the course goes to a file once, each hole to runHole, and a stuck
+  // hole is skipped with its code while the next one still builds
+  const seen = [];
+  const out2 = await buildHdHoles({
+    course: { name: 'c' }, entries: [{ hole: 1, manifest: null }, { hole: 2, manifest: { hole: 2 } }], log: quiet,
+    runHole: async ({ coursePath, hole, manifest }) => {
+      seen.push([hole, JSON.parse(fs.readFileSync(coursePath, 'utf8')).name, manifest && manifest.hole]);
+      if (hole === 1) throw Object.assign(new Error('stuck'), { code: 'HD_HOLE_TIMEOUT' });
+      return { bundleId: 'b2' };
+    },
+  });
+  assert.deepEqual(seen, [[1, 'c', null], [2, 'c', 2]]);
+  assert.deepEqual(out2.built, [{ hole: 2, bundleId: 'b2' }]);
+  assert.deepEqual(out2.failed.map((f) => [f.hole, f.code]), [[1, 'HD_HOLE_TIMEOUT']]);
 });
 
 test('a desktop rides out a cloud restart in the middle of a build', async (t) => {
