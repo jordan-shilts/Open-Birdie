@@ -159,6 +159,58 @@ test('a ball that flies into a lake is dropped where it crossed the shore, not b
   assert.equal(r.lie, 'rough');
 });
 
+// ---------- the sea (read from the terrain: public/render/sea.js) ----------
+
+// 400 x 200 m of 2 m cells: a hydro-flattened sea at 0 m west of x = 120 m, then a
+// shore rising to land 8 m up; the hole runs north along the coast, 40 m in from it.
+function coastCourse() {
+  const nx = 200, ny = 100, cellM = 2, minX = 0, minY = 0;
+  const heights = Array.from({ length: nx * ny }, (_, k) => {
+    const x = minX + (k % nx) * cellM;
+    return x < 120 ? 0 : Math.min(8, 0.6 + (x - 120) * 0.4);
+  });
+  return {
+    name: 'Cliff Links',
+    elevation: { nx, ny, cellM, minX, minY, heights },
+    boundary: box(150, -10, 390, 210),     // the outline stops at the cliff
+    surfaces: [
+      { kind: 'tee', poly: box(155, 0, 175, 10) },
+      { kind: 'fairway', poly: box(150, 40, 190, 150) },
+      { kind: 'green', poly: box(155, 160, 185, 190) },
+    ],
+    holes: [{ ref: 1, par: 4, tee: [165, 5], pin: [170, 175], lengthYd: 186, line: [[165, 5], [170, 175]] }],
+  };
+}
+
+test('the sea round a coastal course is water, past the course outline too', (t) => {
+  t.mock.method(console, 'warn', () => {});
+  const at = makeSurfaceLookup(coastCourse());
+  assert.equal(at(60, 100), 'water', 'out in the sea, past the outline: a penalty area, not out of bounds');
+  assert.equal(at(-500, 100), 'water', 'past the edge of the terrain the sea runs on');
+  assert.equal(at(126, 100), 'ob', 'the dry shore past the outline (and its buffer) stays out of bounds');
+  assert.equal(at(200, 100), 'rough');
+  assert.equal(at(170, 100), 'fairway');
+  // no sea on flat inland ground, or with no terrain
+  const inland = coastCourse();
+  inland.elevation.heights = inland.elevation.heights.map((h, k) => 20 + (k % 7) * 0.4);
+  assert.equal(makeSurfaceLookup(inland)(60, 100), 'ob');
+  assert.equal(makeSurfaceLookup({ ...coastCourse(), elevation: null })(60, 100), 'ob');
+});
+
+test('a drive sliced into the sea is a penalty, dropped by the shore it crossed', () => {
+  const g = new Game();
+  g.setCourse(coastCourse());
+  // aimed 35 degrees left of the hole, out over the sea
+  g.setAimOffset(-35);
+  const r = g.handleShot({ Speed: 140, VLA: 13, HLA: 0, TotalSpin: 2800, SpinAxis: 0 });
+  const splash = r.sim.events.find((e) => e.type === 'water');
+  assert.ok(splash && splash.x < 120, `came down at ${splash && splash.x.toFixed(0)} m, in the sea`);
+  assert.equal(r.penalty, 1);
+  assert.equal(r.note, 'Water — lateral drop (+1)');
+  assert.ok(r.end.x >= 118 && r.end.x < 150, `dropped at ${r.end.x.toFixed(1)}, ${r.end.y.toFixed(1)}`);
+  assert.notEqual(r.lie, 'water');
+});
+
 // ---------- Overpass timeout + backoff ----------
 
 let mirrorSeq = 0;

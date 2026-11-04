@@ -13,6 +13,7 @@ const YD = 0.9144;
 // earlier one stays hidden: the prediction's, then the hazards', then the arcs'.
 const LABEL_RANK = { cup: 0, pred: 0, haz: 1, arc: 2 };
 const LABEL_HALF_W = { cup: 30, pred: 36, haz: 34, arc: 22 };   // px, for the overlap test
+const POLE_M = 2.3;   // the pin's pole at scale 1 (pin-flag.js); its flag is about a third as wide
 
 const LINE_VERT = /* glsl */`
   uniform float uPxWorld;   // world metres per pixel at 1 m (2 tan(fov/2) / viewport h)
@@ -118,7 +119,13 @@ export class LineupFx {
     this.root.add(this.arcs, this.pred, this.cup);
     this.labels = [];       // { el, world, kind }
     this._visible = true;
+    this.flag = null;
   }
+
+  // The pin (its Object3D: at the hole, scaled up to read far off): the carry and hazard
+  // labels step aside off it. With the address view framed on the hole, a par 3's carry
+  // label, over a landing spot by the pin, sat right on the flag the player aims at.
+  setFlag(pin) { this.flag = pin || null; }
 
   _clear(group, kind) {
     for (const m of [...group.children]) {
@@ -344,10 +351,23 @@ export class LineupFx {
     for (const g of [this.arcs, this.pred, this.cup]) for (const m of g.children) if (m.material.uniforms?.uPxWorld) m.material.uniforms.uPxWorld.value = pxWorld;
     const v = new THREE.Vector3();
     const shown = [];
+    // the flag on screen: its pole from the cup to the top, with room for the flag either side
+    let flag = null;
+    if (visible && this.flag?.visible) {
+      v.copy(this.flag.position).project(camera);
+      if (v.z < 1) {
+        const fx = (v.x * 0.5 + 0.5) * w, fy = (-v.y * 0.5 + 0.5) * h;
+        v.copy(this.flag.position); v.y += POLE_M * (this.flag.scale.y || 1); v.project(camera);
+        const ty = (-v.y * 0.5 + 0.5) * h;
+        const fw = Math.max(5, (fy - ty) * 0.34);
+        flag = { x0: fx - fw - 6, x1: fx + fw + 6, y0: ty - 6, y1: fy + 2, cx: fx };
+      }
+    }
     for (const l of this.labels) {
       if (!visible) { l.el.style.display = 'none'; continue; }
       v.copy(l.world).project(camera);
-      const sx = (v.x * 0.5 + 0.5) * w, sy = (-v.y * 0.5 + 0.5) * h;
+      let sx = (v.x * 0.5 + 0.5) * w;
+      const sy = (-v.y * 0.5 + 0.5) * h;
       let ok = !(v.z > 1 || sx < 8 || sx > w - 8 || sy < 60 || sy > h - 8);
       const hw = LABEL_HALF_W[l.kind] ?? 24;
       let y = sy;
@@ -361,6 +381,14 @@ export class LineupFx {
         }
       }
       if (!ok) { l.el.style.display = 'none'; continue; }
+      // off the flag: to the side of it the label already leans (its pointer goes; it
+      // would point at the flag, not the spot)
+      let aside = false;
+      if (flag && (l.kind === 'pred' || l.kind === 'haz') && sx + hw > flag.x0 && sx - hw < flag.x1 && y > flag.y0 && y - 30 < flag.y1) {
+        sx = sx < flag.cx ? flag.x0 - hw : flag.x1 + hw;
+        aside = true;
+      }
+      l.el.classList.toggle('aside', aside);
       shown.push({ x: sx, y, hw });
       l.el.style.display = '';
       l.el.style.transform = `translate(-50%,-100%) translate(${sx.toFixed(1)}px, ${y.toFixed(1)}px)`;

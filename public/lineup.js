@@ -94,6 +94,11 @@ export class Lineup {
     this.spread = readSpread();
     this.autoClub = readAutoClub();
     this._pickPending = false;   // a new lie still waiting for its auto club pick
+    // A full shot starts aimed where AUTO aims (the green when this club gets there,
+    // else the fairway it lands on), not down the line to the pin, which on a dogleg or
+    // along a shore can run out over trees or the sea; it follows the club in hand
+    // until the aim is moved by hand at this lie.
+    this._autoAimLie = false;
     this._buildDock();
     this._bindSpread();
   }
@@ -190,7 +195,7 @@ export class Lineup {
     this.lieKey = lie;
     this.condKey = cond;
     if (!this._dragging) this.aim = s.aimOffset || 0;
-    if (newLie) { this.autoSpot = null; this.aimMap.setAuto(null); }
+    if (newLie) { this.autoSpot = null; this.aimMap.setAuto(null); this._autoAimLie = !s.practice; }
     this.aimMap.setHole({
       ball: s.ball, pin: s.pin, baseAimDeg: base, aimOffset: this.aim,
       line: s.practice ? null : (this.scene.geo?.holes?.[s.hole - 1]?.line || null),
@@ -198,7 +203,10 @@ export class Lineup {
     // the green's front and back and the hazards near the line, once per lie
     if (newLie || this._marksGeo !== this.scene.geo) {
       this._marksGeo = this.scene.geo;
-      this.marks = yardageMarks(this.scene.geo, { ball: s.ball, pin: s.pin, baseAimDeg: base, practice: !!s.practice });
+      this.marks = yardageMarks(this.scene.geo, {
+        ball: s.ball, pin: s.pin, baseAimDeg: base, practice: !!s.practice,
+        sea: this.scene.hasSea?.() ? (x, y) => this.scene.isSea(x, y) : null,
+      });
       this.aimMap.setYardages(this.marks);
       this._hazKey = '';
       this.scene.setHazardMarks?.([]);   // the last lie's tags go now; the next prediction picks new ones
@@ -242,6 +250,7 @@ export class Lineup {
     const s = this.state;
     if (!s) return;
     this.aim = Math.max(-30, Math.min(30, Math.round(offset * 2) / 2));
+    if (!auto) this._autoAimLie = false;   // moved by hand: the aim stays where it is put
     this.autoSpot = auto;   // where AUTO aims, until the aim is moved by hand
     this.aimMap.setAuto(auto);
     this._dragging = true;
@@ -339,6 +348,18 @@ export class Lineup {
     this.scene.setLineup?.(this.flying ? null : drawn);
     this._tagHazards(drawn);
     this.conditions?.setEffects(pred);
+    this._followAuto(pred);
+  }
+
+  // At a new lie, aim the full shot where AUTO does (see _autoAimLie): putts keep their
+  // read and chips round the green the pin. Re-aiming predicts again, and AUTO's answer
+  // from its own aim is the same aim, so this settles at once.
+  _followAuto(pred) {
+    const a = pred?.aimAssist, spot = a?.spot;
+    if (!this._autoAimLie || this.flying || this._dragging || !pred || pred.isPutt || !spot || spot.kind === 'pin') return;
+    if (isNearGreen(this.state?.distToPinYd ?? Infinity) || !Number.isFinite(a.offsetDeg)) return;
+    if (Math.abs(a.offsetDeg - this.aim) >= 0.3) this.setAim(a.offsetDeg, { auto: spot });
+    else if (!this.autoSpot) { this.autoSpot = spot; this.aimMap.setAuto(spot); }
   }
 
   // The hazards worth a tag in the 3D view: the ones this shot can find at the spread

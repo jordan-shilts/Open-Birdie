@@ -144,6 +144,10 @@ test('numbers only for the hazards this shot can finish in: water a short one fi
   const half = (pts, c) => pts.map((q) => ({ x: c.x + (q.x - c.x) / 2, y: c.y + (q.y - c.y) / 2 }));
   const tight = { ...pred, dispersion: { land: half(pred.dispersion.land, pred.land), rest: half(pred.dispersion.rest, pred.rest) } };
   assert.deepEqual(at(hazardsInPlay(marks, tight, { max: 10 })), ['water 160', 'bunker 195', 'bunker 188']);
+  // aimed away from the line (round a dogleg, round a bay): the water across it is no carry
+  const shift = (pts, dx) => pts.map((q) => ({ x: q.x + dx, y: q.y }));
+  const away = { land: { x: 45, y: 200 }, rest: { x: 45, y: 215 }, dispersion: { land: shift(pred.dispersion.land, 45), rest: shift(pred.dispersion.rest, 45) } };
+  assert.ok(!hazardsInPlay(marks, away, { max: 10 }).some((hz) => hz.kind === 'water'));
   // none for a putt, or without a prediction
   assert.deepEqual(hazardsInPlay(marks, { ...pred, isPutt: true }), []);
   assert.deepEqual(hazardsInPlay(marks, null), []);
@@ -190,4 +194,29 @@ test('an aim in yards off the pin at the distance played', () => {
   assert.equal(aimWords(1.5, 268).text, '7 yd R');
   assert.equal(aimWords(-1.5, 268).text, '7 yd L');
   assert.equal(aimWords(0.2, 100).text, 'On the pin');   // well under a yard
+});
+
+test('the sea, which no polygon outlines: its carry across the line, then its shore alongside', () => {
+  const near = (a, b, tol = 2) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`);
+  // playing north; an inlet of the sea across the line from 120 to 180 m, and the open
+  // sea west of x = -30 m beside the hole from 220 m on
+  const sea = (x, y) => (y >= 120 && y <= 180 && x < 60) || (y >= 220 && x < -30);
+  const list = hazardsAlong({ surfaces: [] }, { x: 0, y: 0 }, 0, { maxM: 400, sea });
+  const carry = list.find((h) => h.onLine);
+  assert.equal(carry.kind, 'water');
+  near(carry.frontYd * YD, 120); near(carry.backYd * YD, 180);
+  const beside = list.find((h) => !h.onLine);
+  assert.equal(beside.kind, 'water');
+  assert.ok(beside.uMax < 0, 'on the left');
+  near(beside.frontYd * YD, 220, 4); near(beside.backYd * YD, 400, 4);
+  // played into it, the line goes on over the sea: open-ended
+  const out = hazardsAlong({ surfaces: [] }, { x: 0, y: 250 }, 270, { maxM: 150, sea });
+  assert.equal(out[0].onLine, true);
+  assert.equal(out[0].open, true);
+  near(out[0].frontYd * YD, 30, 3);
+  // and no sea, no marks
+  assert.deepEqual(hazardsAlong({ surfaces: [] }, { x: 0, y: 0 }, 0, { maxM: 400 }), []);
+  // the marks of a lie carry it through
+  const marks = yardageMarks({ surfaces: [] }, { ball: { x: 0, y: 0 }, pin: [0, 380], baseAimDeg: 0, sea });
+  assert.ok(marks.hazards.some((h) => h.onLine && Math.abs(h.frontYd * YD - 120) <= 2));
 });

@@ -9,6 +9,28 @@ All notable changes to Open-Birdie are documented here.
   off, 2, 3, 5, 8 or 10 ft. It was fixed at 8 ft. The choice is kept across restarts in
   `BIRDIE_DATA_DIR/settings.json`, and `POST /api/settings` now checks what it is sent (`lib/settings.js`;
   the setting is `gimmeFt`, and the old `gimmeYd`, which always held feet, is still read).
+- **The sea, and the great lakes** — OpenStreetMap draws a coast as a line, not an area, so no course carried
+  its sea, and Carmel Bay at Pebble Beach or Lake Michigan at Whistling Straits drew as grass under haze. The
+  sea is now read from the terrain itself: lidar elevation stores open water as one flat level (or a thin band
+  of survey noise round it), so the lowest dense band of heights, flooded in from the edge of the terrain
+  grid, is the water, outside the course's own ponds and never over its tees, fairways or greens
+  (`render/sea.js`). It draws as one plane out to the horizon: swell and chop running with the day's wind,
+  the sky in the waves, a deep blue body that clears over the sand near the shore, broken lines of surf
+  running in to the waterline, whitecaps in a strong wind, and the sun's glitter (`water.js`). The sea
+  floor is carved under it (render-only, like the pond beds) and the countryside past the course edge
+  runs down under the water instead of rising out of it (`horizon.js`). Found on Pebble Beach, Whistling
+  Straits and Bandon Dunes; none on Sawgrass or Hazeltine. About 0.5 ms a frame with the sea filling half
+  the view.
+- **Shores of sand and rock** — where the ground meets the sea it was grass to the waterline. The terrain
+  shader now lays beach sand on the low, gentle ground by the water, grey-brown rock in beds on the cliffs and
+  bluffs that drop to it (cracked close up), and darker wet ground in the last metre above the water line,
+  from the same terrain the sea is read from (`render/sea.js` `shoreGround`, `turf.js`). Only on the rough:
+  the course's own surfaces keep theirs. The turf shader was at WebGL's 16 texture units, so it drops its
+  roughness map, which only ever fed the 0.9 roughness floor (every texel was under it): same pixels.
+- **The shot in two legs on the map** — the overhead map breaks the shot down the way a GPS card does: how far
+  this one goes, in a quiet round bubble beside its leg, and a faint line on from where it stops to the pin
+  with what it leaves (`aim-map.js` `_drawLegs`). The gold carry stays at the landing spot; round the green
+  the map is as it was.
 
 ### Changed
 - **Round the green, the hole is easy to find** — inside 40 yd (and on the green) the overhead map frames the
@@ -26,6 +48,16 @@ All notable changes to Open-Birdie are documented here.
   number is gone (a hole's number on the scorecard reviews it instead); the Menu is a settings drawer that
   slides in from the right; and Range & Games (the top button now says Games) is a screen of its own with the
   driving range up top and a card for each game.
+- **Calmer water** — the ponds' ripples run at half the speed, and their size follows the day's wind: on a
+  calm day a pond lies still and holds its reflection; the sea's waves and surf slow down too. Moving
+  water pulled the eye off the shot.
+- **At address, the hole gets the frame** — the address camera pitches so the ball sits about three quarters
+  of the way down the view and the pin about 40% down, instead of a level look that gave the top half to
+  the sky, and a full shot tightens the lens from 58 to about 46 degrees. A green 350 m off had been about
+  a pixel deep; the far end of the hole now reads about 1.4 times larger. Chips and putts keep the wide
+  lens, and the lens eases into the flight camera's at impact.
+- **Less haze across the playing distance** — the aerial perspective's linear term is lighter (about 5%
+  haze at 350 m, from 6.6%), so the green and flag read at address; the horizon still closes in haze.
 - **The overhead map shows the hole you're on, and only that hole** — course surfaces carry no hole of
   their own, so each now goes to the hole whose line of play runs nearest it: this hole's tees, fairway,
   green and hazards are drawn in full, every other hole's fade into the rough, and a soft light along this
@@ -47,6 +79,26 @@ All notable changes to Open-Birdie are documented here.
 - **Aiming in yards** — the aim reads as yards left or right of the pin at the club's carry ("7 yd L", "On
   pin") on the bottom bar and on the map, where the aim line runs solid to a target ring at the carry and
   faint beyond; a ghost line shows where a click would aim, and a double-click aims back at the pin.
+- **Every full shot starts on AUTO** — at each new lie the aim goes where AUTO aims (the middle of the green
+  when the club gets there, else the fairway where the ball comes down), and follows the club in hand,
+  instead of the straight line to the pin, which off Pebble Beach's 18th tee ran out over the bay. Moving the
+  aim by hand takes over until the next shot; putts keep their read and chips the pin (`lineup.js`).
+- **Labels keep off the flag** — with the address view framed on the hole, a par 3's carry label, over a
+  landing spot by the pin, sat on the flag the player aims at. The carry and hazard labels now step aside off
+  the flag's pole and cloth (`lineup-fx.js` `setFlag`).
+- **Bunkers read as hollows** — the sand under a bunker's near lip sits in its shadow, the far face rises
+  toward the eye full of light under a thin line of overhang shadow, and across the bowl the sand runs from
+  dim near to bright far (from a blurred mip of the bunker mask, so it still reads 150 m off). Gone looking
+  down from above (`turf.js` sand material).
+- **A bluer sea** — rough water mirrors sky from well above the horizon (its facets tilt up to it), which is
+  why a sea reads deep blue, not the pale band along the horizon; the sea's reflection now leans that way.
+- **Golden fescue on links courses** — Bandon Dunes' dryness was keyed by its full street address, which no
+  course name carries, so it drew as lush parkland; the table is keyed by the course's own name now, and
+  Whistling Straits joins it (`course-character.js`, with its copy in `lib/tree-obstacles.js`). On a links the
+  fescue tufts fill the open ground within 70 m of each hole's line, off the first cut and out of the sand,
+  instead of thinning out over the whole course, and around the camera the grass field (otherwise off) grows
+  tall wispy straw that thins out toward its reach (`grass-field.js`, about 0.5 ms a frame).
+
 ### Added
 - **Players and leagues** — a roster of everyone who plays on the simulator (a name and an optional handicap
   index; the round card is the player switcher), and leagues: some of the roster playing a season of weeks, a
@@ -58,6 +110,23 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **No failed draws when the graphics level changes** — when Auto dropped to Low (a slow machine, or a busy
+  one just after start-up) or the level was changed by hand, about 230 draws a switch failed with a GL error,
+  the pin, buildings and ground among them. The level change drops the sun's shadow map to resize it, and the
+  rebuild's warm-up draw ran before shadows were next redrawn (they redraw on request), so three.js bound a
+  depth texture never put on the GPU in its place. The shadow pass now runs on the next draw whenever the
+  map is missing (`scene.js` `setQuality`, `_warmTerrain`).
+- **The sea in the yardages** — the sea round a coastal course is measured like the course's own water: its
+  carry where the line of play runs over it, and its shore beside the corridor (`yardages.mjs`
+  `hazardsAlong` `sea`). And water across the line counts as in play only when the shot is played down that
+  line (its landing area spans it): aimed away round a dogleg or a bay, as AUTO aims off Pebble Beach's 18th
+  tee, the water the line to the pin crosses is no carry. The map's aim label now keeps the hazard numbers
+  off it too.
+- **A ball in the sea is in a penalty area** — the sea is now played as water wherever it is drawn: a drive
+  off Pebble Beach's 18th tee into the bay sat on the water as if in the rough, and at Bandon Dunes the
+  Pacific played as out of bounds. The server finds the same sea the renderer does (`lib/course.js`
+  `makeSurfaceLookup` requires `render/sea.js` through require(esm)), so it is a penalty with the drop where
+  the ball crossed the shore, past the course outline too.
 - **Lakes beside the course are water, not dry ground** — the lakes fetched around a course (Lake Hazeltine,
   beside 16–18) were drawn but played as rough, so a drive that splashed into the lake on 16 sat on the
   water and was played from there. A lake that reaches the course (inside its outline or within the 15 m
