@@ -463,6 +463,7 @@ export class Lineup {
   setFlying(on) {
     this.flying = on;
     document.body.classList.toggle('flying', on);
-    if (on) { this.scene.setLineup?.(null); this._predAbort?.abort(); this.plan = null; this.aimMap.setPlan(null); }
+    // the map keeps the plan in flight, under the live shot; the next lie plans again
+    if (on) { this.scene.setLineup?.(null); this._predAbort?.abort(); }
   }
 }
