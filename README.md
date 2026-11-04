@@ -125,6 +125,23 @@ once per course.
 
 Gimme distance: `POST /api/settings {"gimmeYd": feet}` (UI toggle coming later).
 
+### Optional: shot history in Supabase
+
+The bag (the last 30 full shots of each club, which the shot lineup predicts with) lives in
+`data/bag.json`. To keep every shot in a Supabase project instead, and share one bag between
+computers:
+
+1. Apply `supabase/migrations/` to the project (SQL editor, or `supabase db push`).
+2. Put the project's URL and **publishable** key in the data dir:
+   `data/supabase.json` = `{"url": "https://<ref>.supabase.co", "key": "sb_publishable_..."}`.
+   A secret key is refused. The publishable key may only read and add shots: a reset is a
+   marker row, and nothing is ever updated or deleted.
+3. Restart the server.
+
+Every shot lands in `data/bag.json` and `data/bag-outbox.json` before anything is sent, so the
+game keeps recording without a connection and sends what waited once Supabase answers. A bag
+recorded before Supabase was set up is sent on the first start.
+
 ### Optional: Google 3D surroundings
 
 With a key, the real houses, trees and lakes around the course stream in as Google

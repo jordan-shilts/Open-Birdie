@@ -261,6 +261,12 @@ All notable changes to Open-Birdie are documented here.
   (25.1 -> 22.5 ms at a tee with ponds in view, 21.6 -> 19.1 ms at a green; 1600x900, Apple M3 Pro).
 
 ### Added
+- **Shot history in Supabase** (optional) — with `data/supabase.json` (project URL and publishable key)
+  every full launch-monitor shot also goes to a Supabase project, and the bag is read back from it, so
+  one bag can follow the player between computers (`lib/bag-supabase.js`, `supabase/migrations/`). The
+  key can only read and insert: a reset is a marker row, never a delete. Shots land in `bag.json` and an
+  outbox first, so the game records without a connection and catches up later; plain `fetch`, no new
+  dependency.
 - **Researched scorecards in play** — the five courses researched in `docs/research/course-data` (Pebble Beach,
   Chambers Bay, Bandon Dunes, the Old Course, TPC Sawgrass) play with their real par, stroke index, scorecard
   yardage per tee and hole names. The HUD length is the play tee's yardage, the minimap names the hole and its
