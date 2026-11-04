@@ -48,6 +48,7 @@ test('every researched course maps to its featured OSM course, with 18 holes and
     'pebble-beach': 'osm:relation:3741806',
     'st-andrews-old': 'osm:way:1019045811',
     'tpc-sawgrass': 'osm:relation:1783123',
+    'whistling-straits': 'osm:way:205111637',
   });
   for (const c of REFERENCE.courses) {
     assert.deepEqual(c.holes.map((h) => h.number), Array.from({ length: 18 }, (_, i) => i + 1), c.slug);
@@ -99,6 +100,32 @@ test('without research the resort round is the old mix (9 of 18 pars wrong)', ()
   const course = parsed('bandon-dunes', { withSource: false });
   const wrong = course.holes.filter((h) => bandon.holes.find((x) => x.number === h.ref).par !== h.par);
   assert.deepEqual(wrong.map((h) => h.ref), [3, 5, 6, 8, 9, 13, 15, 17, 18]);
+});
+
+// Whistling Straits is mapped as one 36-hole outline holding the Straits and the Irish
+// courses; the Irish holes are the way ids 1569896170-87.
+const irishWay = (id) => id >= 1569896170 && id <= 1569896187;
+const straitsNames = () => new Set(fixture('whistling-straits').elements.filter((e) => !irishWay(e.id)).map((e) => e.tags.name));
+
+test('Whistling Straits, mapped with both its courses, is built from the Straits Course', () => {
+  const straits = research('whistling-straits');
+  const course = parsed('whistling-straits');
+  const names = straitsNames();
+  assert.equal(course.holes.length, 18);
+  for (const hole of course.holes) {
+    const want = straits.holes.find((h) => h.number === hole.ref);
+    assert.equal(hole.par, want.par, `hole ${hole.ref} par`);
+    assert.ok(teeDeviation(hole.lengthYd, want.yards) <= 0.15, `hole ${hole.ref}: ${hole.lengthYd} yd`);
+    assert.ok(names.has(hole.name), `hole ${hole.ref} is the Straits Course's, not the Irish: ${hole.name}`);
+  }
+  assert.equal(course.holes[16].name, 'Pinched Nerve');
+  assert.equal(course.holes[16].par, 3);
+});
+
+test('without research the Whistling Straits outline gives the Irish course, the old mix-up', () => {
+  const course = parsed('whistling-straits', { withSource: false });
+  assert.ok(course.holes.every((h) => !straitsNames().has(h.name)), 'every hole the Irish course\'s');
+  assert.equal(course.holes[16].name, 'Irish Mist');
 });
 
 test('single-course outlines pick exactly the same holes with or without research', () => {

@@ -1990,6 +1990,346 @@
      "elevationFt": null
     }
    ]
+  },
+  {
+   "slug": "whistling-straits",
+   "name": "Whistling Straits (Straits Course)",
+   "courseId": "osm:way:205111637",
+   "osmName": "Whistling Straits",
+   "lat": 43.8503,
+   "lon": -87.7316,
+   "dataAsOf": "Everyday resort scorecard as listed by GolfPass and GolfingRecord (undated; the two agree hole by hole on par, handicap and the Black, Blue, Green, White and Red yardages; read Nov 2026). Hole names and features from the 2015 PGA Championship course guide (Sky Sports) and the 2021 Ryder Cup hole-by-hole guide (Sports Illustrated).",
+   "tees": [
+    {
+     "name": "Black",
+     "total": 7790,
+     "par": 72,
+     "rating": 77.2,
+     "slope": 152
+    },
+    {
+     "name": "Blue",
+     "total": 7142,
+     "par": 72,
+     "rating": 74.2,
+     "slope": 145
+    },
+    {
+     "name": "Green",
+     "total": 6663,
+     "par": 72,
+     "rating": 71.9,
+     "slope": 141
+    },
+    {
+     "name": "White",
+     "total": 6360,
+     "par": 72,
+     "rating": 70.4,
+     "slope": 137
+    },
+    {
+     "name": "Red",
+     "total": 5564,
+     "par": 72,
+     "rating": 66.4,
+     "slope": 129
+    }
+   ],
+   "greens": {
+    "grass": null,
+    "stimp": null
+   },
+   "holes": [
+    {
+     "number": 1,
+     "name": "Outward Bound",
+     "par": 4,
+     "handicap": 15,
+     "yards": {
+      "Black": 493,
+      "Blue": 405,
+      "Green": 370,
+      "White": 361,
+      "Red": 325
+     },
+     "note": "Bunkers and dunes left of the landing area and thick rough right; a slight dogleg left.",
+     "green": "Two-tier green ringed by deep bunkers.",
+     "elevationFt": null
+    },
+    {
+     "number": 2,
+     "name": "Cross Country",
+     "par": 5,
+     "handicap": 7,
+     "yards": {
+      "Black": 597,
+      "Blue": 533,
+      "Green": 521,
+      "White": 508,
+      "Red": 447
+     },
+     "note": "Favour the left off the tee, which leaves a blind second shot.",
+     "green": "A deep pot bunker short of a narrow green that runs off steeply to the right.",
+     "elevationFt": null
+    },
+    {
+     "number": 3,
+     "name": "O'Man",
+     "par": 3,
+     "handicap": 17,
+     "yards": {
+      "Black": 188,
+      "Blue": 180,
+      "Green": 166,
+      "White": 154,
+      "Red": 111
+     },
+     "note": "Lake Michigan, deep bunkers and dunes all down the left.",
+     "green": "A huge, undulating green with many pin positions.",
+     "elevationFt": null
+    },
+    {
+     "number": 4,
+     "name": "Glory",
+     "par": 4,
+     "handicap": 1,
+     "yards": {
+      "Black": 494,
+      "Blue": 451,
+      "Green": 414,
+      "White": 404,
+      "Red": 354
+     },
+     "note": "The fairway tilts left toward bunkers, dunes and the lake, with mounds on the right.",
+     "green": "An elevated, well-guarded green on the bluff.",
+     "elevationFt": null
+    },
+    {
+     "number": 5,
+     "name": "Snake",
+     "par": 5,
+     "handicap": 5,
+     "yards": {
+      "Black": 603,
+      "Blue": 563,
+      "Green": 543,
+      "White": 527,
+      "Red": 459
+     },
+     "note": "A narrow fairway with water on both sides that turns sharply right; going for the green in two needs a long carry.",
+     "green": "A shallow green with water short and left.",
+     "elevationFt": null
+    },
+    {
+     "number": 6,
+     "name": "Gremlin's Ear",
+     "par": 4,
+     "handicap": 13,
+     "yards": {
+      "Black": 409,
+      "Blue": 378,
+      "Green": 360,
+      "White": 352,
+      "Red": 282
+     },
+     "note": "A short dogleg right, the shortest par 4 on the front nine.",
+     "green": "A small, shallow green with a deep pot bunker in front.",
+     "elevationFt": null
+    },
+    {
+     "number": 7,
+     "name": "Shipwreck",
+     "par": 3,
+     "handicap": 9,
+     "yards": {
+      "Black": 221,
+      "Blue": 205,
+      "Green": 185,
+      "White": 172,
+      "Red": 132
+     },
+     "note": "Lake Michigan along the right; bunkers and a hill on the left.",
+     "green": "A long, angled green surrounded by deep bunkers.",
+     "elevationFt": null
+    },
+    {
+     "number": 8,
+     "name": "On the Rocks",
+     "par": 4,
+     "handicap": 3,
+     "yards": {
+      "Black": 506,
+      "Blue": 470,
+      "Green": 429,
+      "White": 405,
+      "Red": 355
+     },
+     "note": "A blind tee shot with trouble on the right, where the ground drops toward the dunes and the lake.",
+     "green": "A long green falling away steeply to the lake on the right.",
+     "elevationFt": null
+    },
+    {
+     "number": 9,
+     "name": "Down and Dirty",
+     "par": 4,
+     "handicap": 11,
+     "yards": {
+      "Black": 442,
+      "Blue": 412,
+      "Green": 384,
+      "White": 371,
+      "Red": 347
+     },
+     "note": "The fairway tilts right; a large tree about 100 yards short of the green.",
+     "green": "A two-tier, humpback green guarded by Seven Mile Creek and bunkers.",
+     "elevationFt": null
+    },
+    {
+     "number": 10,
+     "name": "Voyageur",
+     "par": 4,
+     "handicap": 12,
+     "yards": {
+      "Black": 391,
+      "Blue": 376,
+      "Green": 334,
+      "White": 320,
+      "Red": 304
+     },
+     "note": "A deep bunker about 240 yards off the tee; it sits on the right.",
+     "green": "An elevated green with subtle, hard-to-read breaks.",
+     "elevationFt": null
+    },
+    {
+     "number": 11,
+     "name": "Sand Box",
+     "par": 5,
+     "handicap": 6,
+     "yards": {
+      "Black": 645,
+      "Blue": 563,
+      "Green": 544,
+      "White": 519,
+      "Red": 479
+     },
+     "note": "Dunes, bunkers and a drop-off down the right; a deep bunker about 100 yards short of the green.",
+     "green": "A small, elevated green; the approach can be blind.",
+     "elevationFt": null
+    },
+    {
+     "number": 12,
+     "name": "Pop Up",
+     "par": 3,
+     "handicap": 18,
+     "yards": {
+      "Black": 163,
+      "Blue": 138,
+      "Green": 118,
+      "White": 99,
+      "Red": 89
+     },
+     "note": "A downhill par 3, the shortest hole on the course.",
+     "green": "A large, undulating green; deep bunkers long and a 40 ft drop toward Lake Michigan on the right.",
+     "elevationFt": null
+    },
+    {
+     "number": 13,
+     "name": "Cliff Hanger",
+     "par": 4,
+     "handicap": 14,
+     "yards": {
+      "Black": 402,
+      "Blue": 389,
+      "Green": 364,
+      "White": 336,
+      "Red": 319
+     },
+     "note": "Dunes and rough on the right, where the bluffs above the lake take anything that strays.",
+     "green": "A narrow green on the bluffs.",
+     "elevationFt": null
+    },
+    {
+     "number": 14,
+     "name": "Widow's Watch",
+     "par": 4,
+     "handicap": 16,
+     "yards": {
+      "Black": 396,
+      "Blue": 360,
+      "Green": 346,
+      "White": 332,
+      "Red": 271
+     },
+     "note": "Thick rough right; an approach from the left is blind. A long iron off the tee favours the right.",
+     "green": "A heavily guarded green: trouble left and long, deep bunkers on the right.",
+     "elevationFt": null
+    },
+    {
+     "number": 15,
+     "name": "Grand Strand",
+     "par": 4,
+     "handicap": 4,
+     "yards": {
+      "Black": 503,
+      "Blue": 464,
+      "Green": 429,
+      "White": 402,
+      "Red": 367
+     },
+     "note": "A long par 4 with deep dunes on the right; the approach carries dunes.",
+     "green": "A huge green.",
+     "elevationFt": null
+    },
+    {
+     "number": 16,
+     "name": "Endless Bite",
+     "par": 5,
+     "handicap": 10,
+     "yards": {
+      "Black": 568,
+      "Blue": 545,
+      "Green": 535,
+      "White": 513,
+      "Red": 412
+     },
+     "note": "The shortest par 5: the tee shot carries dunes and the green is reachable in two.",
+     "green": "An elevated green approached uphill over dunes, with the lake behind it.",
+     "elevationFt": null
+    },
+    {
+     "number": 17,
+     "name": "Pinched Nerve",
+     "par": 3,
+     "handicap": 8,
+     "yards": {
+      "Black": 249,
+      "Blue": 223,
+      "Green": 197,
+      "White": 165,
+      "Red": 131
+     },
+     "note": "Dunes and bunkers well below the green on the left, with a drop toward Lake Michigan; bunkers and a steep hill on the right.",
+     "green": "Bunkers below the green on the left; misses right find dunes.",
+     "elevationFt": null
+    },
+    {
+     "number": 18,
+     "name": "Dyeabolical",
+     "par": 4,
+     "handicap": 2,
+     "yards": {
+      "Black": 520,
+      "Blue": 487,
+      "Green": 424,
+      "White": 420,
+      "Red": 380
+     },
+     "note": "An aggressive line carries about 300 yards of dunes on the left; Seven Mile Creek guards the tee shot and the approach.",
+     "green": "Seven Mile Creek guards the front of the green.",
+     "elevationFt": null
+    }
+   ]
   }
  ]
 }
