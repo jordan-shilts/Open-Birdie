@@ -2,15 +2,17 @@
 // the club's predicted flight as a dashed gold arc, its roll as a dotted line, the
 // ~2-sigma landing zone as a soft gold patch on the terrain, a "carry" pin over the
 // landing spot, and a small front–back tag over each bunker and water hazard the club
-// can reach. Lines are camera-facing ribbons a fixed number of pixels wide, so they read
-// the same at 20 m and 250 m. Unlit, no shadows, a handful of draw calls.
+// can reach. Round the green (a chip or a putt) it draws bare: the line, a small landing
+// ring and the roll, with the cup ringed and its distance over the flag. Lines are
+// camera-facing ribbons a fixed number of pixels wide, so they read the same at 20 m and
+// 250 m. Unlit, no shadows, a handful of draw calls.
 import * as THREE from 'three';
 
 const YD = 0.9144;
 // Labels are placed in this order each frame and a later one that would overlap an
 // earlier one stays hidden: the prediction's, then the hazards', then the arcs'.
-const LABEL_RANK = { pred: 0, haz: 1, arc: 2 };
-const LABEL_HALF_W = { pred: 36, haz: 34, arc: 22 };   // px, for the overlap test
+const LABEL_RANK = { cup: 0, pred: 0, haz: 1, arc: 2 };
+const LABEL_HALF_W = { cup: 30, pred: 36, haz: 34, arc: 22 };   // px, for the overlap test
 
 const LINE_VERT = /* glsl */`
   uniform float uPxWorld;   // world metres per pixel at 1 m (2 tan(fov/2) / viewport h)
@@ -112,7 +114,8 @@ export class LineupFx {
     this.layer = layer;
     this.arcs = new THREE.Group();
     this.pred = new THREE.Group();
-    this.root.add(this.arcs, this.pred);
+    this.cup = new THREE.Group();
+    this.root.add(this.arcs, this.pred, this.cup);
     this.labels = [];       // { el, world, kind }
     this._visible = true;
   }
@@ -188,8 +191,27 @@ export class LineupFx {
     }
   }
 
-  // The predicted shot (lib/predict.js) or null.
-  setPrediction(p) {
+  // The cup, round the green: a ring on the ground and how far it is, over the flag, so
+  // the hole reads at a glance. cup: { x, y, ft } or null.
+  setCup(cup) {
+    this._clear(this.cup, 'cup');
+    if (!cup) return;
+    const ring = (r) => {
+      const pts = [];
+      for (let i = 0; i <= 36; i++) {
+        const a = (i / 36) * Math.PI * 2;
+        pts.push([cup.x + Math.cos(a) * r, cup.y + Math.sin(a) * r]);
+      }
+      return this._drape(pts, 0.05);
+    };
+    this.cup.add(lineMesh(ring(0.45), { color: 0xffffff, alpha: 0.95, px: 2.6, order: 13 }));
+    this.cup.add(lineMesh(ring(0.8), { color: 0xffffff, alpha: 0.35, px: 1.6, order: 13 }));
+    this._label(this.V(cup.x, cup.y, this.hAt(cup.x, cup.y) + 2.75), `${Math.round(cup.ft)}<span>ft</span>`, 'cup', 'cup');
+  }
+
+  // The predicted shot (lib/predict.js) or null. near: a chip or pitch round the green,
+  // drawn bare (the line, where it lands, the roll) so the cup stays clear.
+  setPrediction(p, { near = false } = {}) {
     this._clear(this.pred, 'pred');
     if (!p || p.isPutt || !p.path || p.path.length < 2) return;
     // The line is drawn on the ground under the ball's flight: seen from behind, an arc
@@ -209,18 +231,19 @@ export class LineupFx {
     const roll = p.path.filter((q) => q.t >= ft - 1e-6).map((q) => [q.x, q.y]);
     // calm-air ghost, when the conditions move the ball
     const std = p.standard && p.standard.path;
-    if (std && std.length > 1 && Math.abs((p.standard.carryYd ?? p.carryYd) - p.carryYd) + Math.abs((p.standard.offlineYd ?? p.offlineYd) - p.offlineYd) > 2) {
+    if (!near && std && std.length > 1 && Math.abs((p.standard.carryYd ?? p.carryYd) - p.carryYd) + Math.abs((p.standard.offlineYd ?? p.offlineYd) - p.offlineYd) > 2) {
       const sp = ground(std, p.standard.flightTime ?? Infinity);
       if (sp.length > 1) this.pred.add(lineMesh(this._drape(sp, 0.2), { color: 0xffffff, alpha: 0.5, px: 2, dash: [1.4, 2.4], fadeFrom: 3, order: 10 }));
     }
     if (flight.length > 1) {
       const pts = this._drape(flight, 0.24);
-      this.pred.add(lineMesh(pts, { color: 0xffb81a, alpha: 0.32, px: 8, fadeFrom: 3, order: 11 }));
-      this.pred.add(lineMesh(pts, { color: 0xffe27a, alpha: 1, px: 3, dash: [3.2, 2.2], fadeFrom: 3, order: 12 }));
+      if (!near) this.pred.add(lineMesh(pts, { color: 0xffb81a, alpha: 0.32, px: 8, fadeFrom: 3, order: 11 }));
+      this.pred.add(lineMesh(pts, { color: 0xffe27a, alpha: near ? 0.85 : 1, px: near ? 2.2 : 3, dash: near ? [0.9, 0.7] : [3.2, 2.2], fadeFrom: near ? 0.6 : 3, order: 12 }));
     }
-    if (roll.length > 1) this.pred.add(lineMesh(this._drape(roll, 0.18), { color: 0xffd21f, alpha: 0.95, px: 3.2, dash: [0.5, 1.4], order: 12 }));
+    if (roll.length > 1) this.pred.add(lineMesh(this._drape(roll, 0.18), { color: 0xffd21f, alpha: near ? 0.8 : 0.95, px: near ? 2.4 : 3.2, dash: [0.5, 1.4], order: 12 }));
     // landing zone: a soft gold patch inside the dispersion outline, draped on the ground
-    const outline = p.dispersion && p.dispersion.land;
+    // (not round the green, where it would sit on the cup)
+    const outline = !near && p.dispersion && p.dispersion.land;
     if (p.land && outline && outline.length >= 6) this.pred.add(this._patch(p.land, outline));
     if (outline && outline.length >= 6) {
       const ring = [...outline, outline[0]].flatMap((q, i, arr) => {
@@ -233,7 +256,7 @@ export class LineupFx {
       this.pred.add(lineMesh(this._drape(ring, 0.16), { color: 0xffd21f, alpha: 0.85, px: 2, order: 11 }));
     }
     // the club's lines: its carry (solid) and the short / long edges of where it lands
-    if (p.band && p.path.length) {
+    if (!near && p.band && p.path.length) {
       const b0 = p.path[0], band = p.band;
       const mid = (band.fromRad + band.toRad) / 2;
       const halfMin = Math.min(0.5, 22 / Math.max(30, band.carryYd * YD));
@@ -256,14 +279,16 @@ export class LineupFx {
       }
     }
     if (p.land) {
-      // a small ring on the landing spot
+      // a small ring on the landing spot (gold and smaller round the green, where the
+      // white ring is the cup's, and no carry pin over it)
+      const r = near ? 0.6 : 1.4;
       const pts = [];
       for (let i = 0; i <= 28; i++) {
         const a = (i / 28) * Math.PI * 2;
-        pts.push([p.land.x + Math.cos(a) * 1.4, p.land.y + Math.sin(a) * 1.4]);
+        pts.push([p.land.x + Math.cos(a) * r, p.land.y + Math.sin(a) * r]);
       }
-      this.pred.add(lineMesh(this._drape(pts, 0.14), { color: 0xffffff, alpha: 0.95, px: 2.4, order: 13 }));
-      this._label(this.V(p.land.x, p.land.y, this.hAt(p.land.x, p.land.y) + 3.2), `${Math.round(p.carryYd)}<span>y</span>`, 'land', 'pred');
+      this.pred.add(lineMesh(this._drape(pts, 0.14), { color: near ? 0xffd21f : 0xffffff, alpha: 0.95, px: near ? 2 : 2.4, order: 13 }));
+      if (!near) this._label(this.V(p.land.x, p.land.y, this.hAt(p.land.x, p.land.y) + 3.2), `${Math.round(p.carryYd)}<span>y</span>`, 'land', 'pred');
     }
   }
 
@@ -316,7 +341,7 @@ export class LineupFx {
     if (visible !== this._visible) { this._visible = visible; this.root.visible = visible; }
     const w = container.clientWidth, h = container.clientHeight;
     const pxWorld = (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / Math.max(1, h);
-    for (const g of [this.arcs, this.pred]) for (const m of g.children) if (m.material.uniforms?.uPxWorld) m.material.uniforms.uPxWorld.value = pxWorld;
+    for (const g of [this.arcs, this.pred, this.cup]) for (const m of g.children) if (m.material.uniforms?.uPxWorld) m.material.uniforms.uPxWorld.value = pxWorld;
     const v = new THREE.Vector3();
     const shown = [];
     for (const l of this.labels) {
@@ -326,7 +351,7 @@ export class LineupFx {
       let ok = !(v.z > 1 || sx < 8 || sx > w - 8 || sy < 60 || sy > h - 8);
       const hw = LABEL_HALF_W[l.kind] ?? 24;
       let y = sy;
-      if (ok && l.kind !== 'pred') {
+      if (ok && l.kind !== 'pred' && l.kind !== 'cup') {
         // an arc number just gives way; a hazard tag stacks above what it would cover
         // (from the tee, bunkers past the landing sit right behind the carry label)
         ok = false;
@@ -345,6 +370,7 @@ export class LineupFx {
   dispose() {
     this._clear(this.arcs, 'arc');
     this._clear(this.pred, 'pred');
+    this._clear(this.cup, 'cup');
     this._dropLabels('haz');
     this.root.parent?.remove(this.root);
   }

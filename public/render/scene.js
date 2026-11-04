@@ -29,6 +29,7 @@ import { RENDER_CONFIG } from './config.js';
 import { isPlayFraming, ballReadScale, pinReadScale } from './framing.js';
 import { ShotTracer, makeGlow, makeLandingRing, makeBallShadow, makeDropLine } from './shot-fx.js';
 import { LineupFx } from './lineup-fx.js';
+import { isNearGreen } from '../map-frame.mjs';
 import { makePin, makeTeeMarkers } from './pin-flag.js';
 import { flightMarkers } from './flight-profile.js';
 import { flightCameraPlan, flightCameraAt } from './flight-camera.js';
@@ -1557,7 +1558,11 @@ export class GolfScene {
   // The predicted shot for the club in hand (lib/predict.js), or null to clear it.
   setLineup(pred) {
     this._lineupPred = pred || null;
-    this.lineupFx?.setPrediction(this._lineupPred);
+    // round the green the overlay goes bare and the cup is marked (none in flight)
+    const pinM = Math.hypot(this.pinSim.x - this.ballSim.x, this.pinSim.y - this.ballSim.y);
+    const near = !!this._lineupPred && isNearGreen(pinM / 0.9144, this._lineupPred.isPutt);
+    this.lineupFx?.setPrediction(this._lineupPred, { near });
+    this.lineupFx?.setCup(near ? { x: this.pinSim.x, y: this.pinSim.y, ft: pinM / 0.3048 } : null);
     this._lineupArcs();
   }
 

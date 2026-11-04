@@ -128,16 +128,6 @@ kbd {
 .hole-body { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 7px 14px 8px; }
 .hole-facts { display: flex; gap: 20px; }
 .fact b { display: block; font-size: 19px; line-height: 1.05; }
-.hole-pills { display: flex; gap: 3px; }
-.hole-pills .pill {
-  width: 17px; height: 6px; border-radius: 3px; border: 0; padding: 0; flex: none; cursor: default;
-  background: rgba(255, 255, 255, 0.14); font-size: 0; position: relative;
-}
-.hole-pills .pill.done { background: rgba(255, 255, 255, 0.45); cursor: pointer; }
-.hole-pills .pill.done:hover { background: var(--text); }
-.hole-pills .pill.active { background: var(--accent); }
-.hole-pills .pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.hole-pills .pill.pickedup { background: rgba(255, 122, 82, 0.7); }
 
 #lm-status {
   align-self: center; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 17px;
@@ -163,7 +153,6 @@ kbd {
 .menu-item.active svg, .menu-item.active span { color: var(--accent); }
 .menu-item.danger:hover, .menu-item.danger:hover svg { color: var(--bad); }
 .menu-sep { height: 1px; background: var(--line); margin: 6px 4px; }
-.menu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 12px; }
 .seg { display: flex; background: rgba(255, 255, 255, 0.06); border-radius: 9px; padding: 3px; gap: 2px; }
 .seg button {
   border: 0; background: transparent; cursor: pointer; padding: 5px 9px; border-radius: 7px;
@@ -171,6 +160,35 @@ kbd {
 }
 .seg button:hover { color: var(--text); }
 .seg button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
+
+/* the menu: settings in a drawer that slides in from the right edge */
+.scrim {
+  position: fixed; inset: 0; z-index: 39; background: rgba(5, 7, 9, 0.45);
+  opacity: 0; visibility: hidden; transition: opacity .2s, visibility .2s;
+}
+.scrim.open { opacity: 1; visibility: visible; }
+.drawer {
+  position: fixed; z-index: 40; top: 0; right: 0; bottom: 0; width: 400px; max-width: 100%;
+  display: flex; flex-direction: column;
+  background: var(--panel-solid); border-left: 1px solid var(--line-hi); box-shadow: -24px 0 60px rgba(0, 0, 0, 0.5);
+  transform: translateX(104%); visibility: hidden; transition: transform .24s ease, visibility .24s;
+}
+.drawer.open { transform: none; visibility: visible; }
+.drawer-head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: 20px 20px 14px; border-bottom: 1px solid var(--line);
+}
+.drawer-head .lbl { color: var(--accent); }
+.drawer-head h3 { font-size: 22px; font-weight: 800; margin-top: 3px; }
+.drawer-body { flex: 1; overflow-y: auto; padding: 4px 10px 20px; }
+.drawer-sec { padding: 14px 0 10px; border-bottom: 1px solid var(--line); }
+.drawer-sec:last-child { border-bottom: 0; }
+.drawer-sec > .lbl { padding: 0 12px 6px; color: var(--faint); }
+.set-row { padding: 8px 12px 10px; }
+.set-text b { display: block; font-family: inherit; font-size: 14px; font-weight: 700; }
+.set-text span { display: block; font-size: 12px; color: var(--dim); line-height: 1.4; margin-top: 2px; }
+.seg.wide { margin-top: 9px; }
+.seg.wide button { flex: 1; padding: 8px 4px; }
 
 #freecam-hint, #course-status {
   position: fixed; left: 50%; transform: translateX(-50%); white-space: nowrap;
@@ -339,15 +357,35 @@ kbd {
 .fv-land-text { fill: #ffffff; }
 
 /* ---------- bottom bar ---------- */
+/* the club in hand on the left (the bag opens over it), the aim in the middle of the
+   screen, the actions on the right */
 #bottombar {
   position: fixed; bottom: 0; left: 0; right: 0;
-  display: flex; align-items: center; justify-content: center; gap: 12px; padding: 0 16px 16px;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 12px; padding: 0 16px 16px;
   pointer-events: none;
 }
 #bottombar > * { pointer-events: auto; }
-.club-dock {
-  display: flex; gap: 3px; padding: 5px;
+#bottombar > .bb-side { display: flex; align-items: flex-end; gap: 12px; min-width: 0; pointer-events: none; }
+.bb-side > * { pointer-events: auto; }
+.bb-right { justify-content: flex-end; }
+.club-picker { position: relative; }
+.club-current {
+  display: flex; align-items: center; gap: 12px; height: 64px; padding: 0 14px 0 16px; cursor: pointer;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow);
+  transition: border-color .15s;
+}
+.club-current:hover, .club-current[aria-expanded="true"] { border-color: var(--accent); }
+.club-current:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cc-text { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.cc-text b { font-size: 24px; line-height: 1; color: var(--accent); }
+.cc-carry { font-family: var(--num); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cc-carry small { font-size: 11px; color: var(--dim); margin-left: 2px; }
+.club-current svg { width: 18px; height: 18px; color: var(--dim); stroke-width: 2.2; transition: transform .15s; }
+.club-current[aria-expanded="true"] svg { transform: rotate(180deg); color: var(--accent); }
+.club-dock {
+  position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 25;
+  display: grid; grid-template-columns: repeat(7, 52px); gap: 3px; padding: 6px;
+  background: var(--panel-solid); border: 1px solid var(--line-hi); border-radius: var(--r); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
 }
 .club {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
@@ -423,6 +461,16 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px 
 .dist-marker.land::after {
   content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%);
   border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--accent);
+}
+/* the cup round the green (lineup-fx.js): how far, over the flag */
+.dist-marker.cup {
+  background: #fff; color: #15130a; border-color: #fff; font-size: 14px; padding: 2px 10px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+}
+.dist-marker.cup span { opacity: 0.7; }
+.dist-marker.cup::after {
+  content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%);
+  border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #fff;
 }
 .shot-label {
   position: absolute; top: 0; left: 0; white-space: nowrap; will-change: transform, opacity;
@@ -517,17 +565,51 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px 
 .sum-chip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 11px; background: rgba(255, 255, 255, 0.07); color: var(--dim); }
 .sum-chip.good { background: rgba(69, 212, 131, 0.14); color: var(--good); }
 
-/* range & games */
-#games-menu { width: 380px; }
-.game-cards { display: grid; gap: 8px; margin-bottom: 10px; }
-.game-card {
-  display: flex; flex-direction: column; gap: 3px; text-align: left; cursor: pointer;
-  padding: 11px 13px; border-radius: 11px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04);
+/* range & games: a screen of its own, like the league's */
+#games-menu {
+  position: fixed; z-index: 22; left: 50%; transform: translateX(-50%); top: 96px; width: 860px;
+  max-width: calc(100% - 32px); max-height: calc(100% - 200px); display: flex; flex-direction: column; overflow: hidden;
+  background: linear-gradient(180deg, #1b1e23 0%, var(--panel-solid) 140px); border: 1px solid var(--line-hi);
+  border-radius: 18px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
 }
-.game-card b { font-family: inherit; font-size: 13.5px; }
-.game-card span { font-size: 11.5px; color: var(--dim); line-height: 1.4; }
+#games-menu .lgx-head .panel-x { margin-left: auto; }
+.hub-body { overflow-y: auto; padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+.hub-sub { color: var(--faint); margin-top: 4px; }
+.game-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.game-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 5px; text-align: left; cursor: pointer;
+  padding: 14px 15px; border-radius: 13px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04);
+  transition: border-color .15s, background .15s, transform .08s;
+}
+.game-card b { font-family: inherit; font-size: 15px; font-weight: 800; }
+.game-card > b + span, .gc-text > span { font-size: 12px; color: var(--dim); line-height: 1.45; }
+.game-card em {
+  margin-top: auto; padding-top: 6px; font-style: normal; font-family: var(--num);
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.12em; color: var(--faint);
+}
 .game-card:hover, .game-card.active { border-color: var(--accent); background: var(--accent-soft); }
-#games-note { font-size: 11.5px; }
+.game-card:active { transform: translateY(1px); }
+.game-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gc-icon {
+  width: 40px; height: 40px; flex: none; border-radius: 11px; display: grid; place-items: center; margin-bottom: 4px;
+  background: rgba(255, 255, 255, 0.06); color: var(--accent);
+}
+.gc-icon svg { width: 24px; height: 24px; }
+.game-card.hero {
+  flex-direction: row; align-items: center; gap: 16px; padding: 16px 18px;
+  background: linear-gradient(90deg, rgba(255, 210, 31, 0.1), rgba(255, 255, 255, 0.03)); border-color: rgba(255, 210, 31, 0.3);
+}
+.game-card.hero .gc-icon { width: 54px; height: 54px; margin: 0; background: var(--accent-soft); }
+.game-card.hero .gc-icon svg { width: 30px; height: 30px; }
+.gc-text { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.game-card.hero b { font-size: 18px; }
+.gc-go {
+  flex: none; height: 40px; padding: 0 16px; border-radius: 10px; display: flex; align-items: center;
+  background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+}
+#games-note { font-size: 12px; }
+#score-table th[data-h] { cursor: pointer; }
+#score-table th[data-h]:hover { color: var(--accent); }
 
 #practice-board {
   position: fixed; left: 16px; top: 160px; width: 300px; max-height: calc(100vh - 420px); overflow-y: auto;
@@ -650,7 +732,7 @@ body.flying #bottombar .aim-ctl, body.flying #cond-widget { opacity: 0.35; point
 }
 @media (max-width: 1100px) {
   .course-name, .round-meta { display: none; }
-  .hole-pills { display: none; }
+  #games-menu .game-cards { grid-template-columns: repeat(2, 1fr); }
   #planner { width: 300px; }
   .panel { right: 330px; }
 }
@@ -672,9 +754,16 @@ body.flying #bottombar .aim-ctl, body.flying #cond-widget { opacity: 0.35; point
   #flightview, .pl-tiles, .pl-head .pl-source { display: none; }
   #shotpanel { display: none; }
   #shot-card { left: 8px; right: 8px; width: auto; bottom: 400px; display: none; }
-  #bottombar { flex-wrap: wrap; padding: 0 8px 8px; gap: 6px; }
-  .club-dock { overflow-x: auto; max-width: 100%; }
+  #bottombar { display: flex; flex-wrap: wrap; justify-content: center; padding: 0 8px 8px; gap: 6px; }
+  #bottombar > .bb-side { display: contents; }
+  .club-current { height: 46px; padding: 0 10px; gap: 8px; }
+  .cc-text b { font-size: 18px; }
+  .cc-text .lbl { display: none; }
+  .club-dock { grid-template-columns: repeat(7, 44px); }
   .club { width: 44px; height: 46px; flex: none; }
+  #games-menu { top: 64px; max-height: calc(100% - 140px); }
+  #games-menu .game-cards { grid-template-columns: 1fr; }
+  .game-card.hero { flex-wrap: wrap; }
   .aim-ctl input[type="range"] { width: 90px; }
   #bottombar .btn { height: 46px; }
   .panel, #conditions, #scorecard, #saved-panel { left: 8px; right: 8px; width: auto; transform: none; bottom: 170px; top: auto; max-height: 70vh; overflow-y: auto; }

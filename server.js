@@ -29,6 +29,7 @@ const { packageKeyFor, parsePackageKey } = require('./lib/course-package');
 const { prepareCourseCandidate } = require('./lib/resolved-course-package');
 const { Game, CLUB_FULL } = require('./lib/game');
 const { PRESETS, conditionsState, loadConditionsFile, saveConditionsFile } = require('./lib/conditions');
+const { normalizeSettings, loadSettingsFile, saveSettingsFile } = require('./lib/settings');
 const { createBag } = require('./lib/bag');
 const { createSavedShots } = require('./lib/saved-shots');
 const { createLeagues, LeagueError, initials } = require('./lib/leagues');
@@ -67,6 +68,12 @@ const CONDITIONS_FILE = path.join(DATA_DIR, 'conditions.json');
 {
   const saved = loadConditionsFile(CONDITIONS_FILE);
   if (saved) game.setConditions(saved);
+}
+// So do the round settings (lib/settings.js: the gimme).
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+{
+  const saved = loadSettingsFile(SETTINGS_FILE);
+  if (saved) game.settings = saved;
 }
 // The player's bag: per-club launch history from the launch monitor (lib/bag.js),
 // which the lineup predicts with (lib/predict.js reads game.bag).
@@ -653,10 +660,18 @@ const server = http.createServer(async (req, res) => {
         broadcast('state', game.state());
         return json(res, { ok: true });
       }
+      // a partial settings object: {gimmeFt: 3}
       if (p === '/api/settings') {
-        Object.assign(game.settings, body);
+        try {
+          game.settings = normalizeSettings(body, game.settings);
+        } catch (error) {
+          if (error.code !== 'BAD_SETTING') throw error;
+          return json(res, { ok: false, error: error.message, code: error.code }, 400);
+        }
+        try { saveSettingsFile(SETTINGS_FILE, game.settings); }
+        catch (error) { console.warn(`[settings] could not save: ${error.message}`); }
         broadcast('state', game.state());
-        return json(res, { ok: true });
+        return json(res, { ok: true, settings: game.settings });
       }
     }
     if (p.startsWith('/api/hd-assets/') && (req.method === 'GET' || req.method === 'HEAD')) {

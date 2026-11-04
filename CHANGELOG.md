@@ -4,7 +4,23 @@ All notable changes to Open-Birdie are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Pick the gimme** — a menu setting for how close a putt has to stop to be given (holed, plus one stroke):
+  off, 2, 3, 5, 8 or 10 ft. It was fixed at 8 ft. The choice is kept across restarts in
+  `BIRDIE_DATA_DIR/settings.json`, and `POST /api/settings` now checks what it is sent (`lib/settings.js`;
+  the setting is `gimmeFt`, and the old `gimmeYd`, which always held feet, is still read).
+
 ### Changed
+- **Round the green, the hole is easy to find** — inside 40 yd (and on the green) the overhead map frames the
+  green itself, ball and cup on it, with rings every 10 ft and the cup ringed with its distance, instead of a
+  long view that was mostly water (`public/map-frame.mjs`, `aim-map.js`). In 3D the wide landing arcs, the
+  gold landing patch and the hazard tags step aside for a chip: the line, a small landing ring and the roll
+  stay, and the cup gets a ring on the ground and its distance over the flag (`lineup-fx.js` `setCup`).
+- **A tidier HUD** — the club dock is one button with the club in hand and its carry, and the whole bag opens
+  over it on a click; the aim control sits in the middle of the screen; the row of hole dots under the hole
+  number is gone (a hole's number on the scorecard reviews it instead); the Menu is a settings drawer that
+  slides in from the right; and Range & Games (the top button now says Games) is a screen of its own with the
+  driving range up top and a card for each game.
 - **The overhead map shows the hole you're on, and only that hole** — course surfaces carry no hole of
   their own, so each now goes to the hole whose line of play runs nearest it: this hole's tees, fairway,
   green and hazards are drawn in full, every other hole's fade into the rough, and a soft light along this

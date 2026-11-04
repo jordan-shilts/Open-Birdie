@@ -90,6 +90,11 @@ const lineup = new Lineup({
   onClubChange: (key) => { const p = clubPresets[key]; if (p) setPractice(p.speedMph, p.vla, p.spin); },
 });
 window.__birdie = { scene, lineup, get state() { return state; } };
+// the gimme (lib/settings.js): the server keeps it; the state shows what it is
+segmented($('seg-gimme'), [['0', 'Off'], ['2', '2 ft'], ['3', '3 ft'], ['5', '5 ft'], ['8', '8 ft'], ['10', '10 ft']], '', (v) => {
+  markSeg($('seg-gimme'), v);
+  fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gimmeFt: +v }) }).catch(() => {});
+});
 segmented($('seg-autoclub'), [['on', 'On'], ['off', 'Off']], lineup.autoClub ? 'on' : 'off', (v) => {
   lineup.autoClub = v === 'on';
   writeAutoClub(lineup.autoClub);
@@ -162,7 +167,7 @@ function applyState(s) {
     lineup.showAim(s.aimOffset);
   }
   updateScoreChip(s);
-  updateHolePills(s);
+  markSeg($('seg-gimme'), String(s.settings?.gimmeFt ?? ''));
 
   // a practice target is its own "hole": a new flag, or a new ball round the green,
   // re-frames the shot from behind the ball
@@ -538,33 +543,8 @@ function updateScoreChip(s) {
   chip.classList.toggle('over', t > 0);
 }
 
-function updateHolePills(s) {
-  const el = $('hole-pills');
-  el.classList.toggle('hidden', !!s.practice);
-  if (el.children.length !== s.holeCount) {
-    el.innerHTML = '';
-    for (let i = 1; i <= s.holeCount; i++) {
-      const p = document.createElement('button');
-      p.className = 'pill'; p.textContent = (s.holeRefs && s.holeRefs[i - 1]) ?? i; p.dataset.h = i; p.type = 'button';
-      p.onclick = () => reviewHoleOnCard(+p.dataset.h);
-      el.appendChild(p);
-    }
-  }
-  for (const p of el.children) {
-    const h = +p.dataset.h;
-    const ref = (s.holeRefs && s.holeRefs[h - 1]) ?? h; // real hole number for labels
-    const done = s.scores[h - 1] != null;
-    p.classList.toggle('active', h === s.hole);
-    p.classList.toggle('done', done);
-    p.classList.toggle('pickedup', !!(s.pickedUp && s.pickedUp[h - 1]));
-    p.disabled = !done && h !== s.hole; // only played holes (and the current one) are reachable
-    p.setAttribute('aria-label', done ? `Hole ${ref}, score ${s.scores[h - 1]}` : `Hole ${ref}`);
-    if (h === s.hole) p.setAttribute('aria-current', 'true'); else p.removeAttribute('aria-current');
-  }
-}
-
-// Review a played hole: open the scorecard and highlight that hole's column.
-// (E1 — review is the scorecard, not a shot replay or a camera move.)
+// Review a played hole: highlight that hole's column on the scorecard (a click on its
+// number there). (E1 — review is the scorecard, not a shot replay or a camera move.)
 function reviewHoleOnCard(h) {
   if (!state || state.scores[h - 1] == null) return;
   reviewHole = h - 1;
@@ -583,7 +563,7 @@ function buildScorecard(s) {
   for (let i = 0; i < n; i++) {
     const hl = i === reviewHole ? ' review' : '';
     const name = s.holeNames && s.holeNames[i];
-    h1 += `<th class="${hl.trim()}"${name ? ` title="${esc(name)}"` : ''}>${(s.holeRefs && s.holeRefs[i]) ?? i + 1}</th>`;
+    h1 += `<th class="${hl.trim()}" data-h="${i + 1}"${name ? ` title="${esc(name)}"` : ''}>${(s.holeRefs && s.holeRefs[i]) ?? i + 1}</th>`;
     tees.forEach((t, k) => { teeRows[k] += `<td class="${hl.trim()}">${t.yards[i] ?? ''}</td>`; });
     p1 += `<td class="${hl.trim()}">${s.pars[i]}</td>`;
     if (hcps) hc += `<td class="${hl.trim()}">${hcps[i] ?? ''}</td>`;
@@ -610,6 +590,10 @@ function buildScorecard(s) {
   $('scorecard').classList.toggle('with-tees', tees.length > 0);
   buildSummary(s);
 }
+$('score-table').onclick = (e) => {
+  const th = e.target.closest('th[data-h]');
+  if (th) reviewHoleOnCard(+th.dataset.h);
+};
 
 function nineRel(s, a, b) {
   let sc = 0, pr = 0;
@@ -763,8 +747,14 @@ function renderPracticeBoard(s) {
 
 $('btn-games').onclick = () => {
   if (!state?.loaded) { openCourseModal(); return; }
-  $('games-menu').classList.toggle('hidden');
-  $('btn-games').classList.toggle('active', !$('games-menu').classList.contains('hidden'));
+  const open = $('games-menu').classList.contains('hidden');
+  if (open) {   // one screen mid-stage at a time
+    leaguesUI.toggle(false);
+    $('scorecard').classList.add('hidden');
+    $('btn-score').classList.remove('active');
+  }
+  $('games-menu').classList.toggle('hidden', !open);
+  $('btn-games').classList.toggle('active', open);
 };
 document.querySelectorAll('#games-menu .game-card').forEach((card) => {
   card.onclick = () => { $('games-menu').classList.add('hidden'); postPractice({ mode: card.dataset.mode }); };
@@ -788,7 +778,11 @@ $('btn-next').onclick = async () => {
 };
 function toggleScorecard() {
   reviewHole = null;
-  if ($('scorecard').classList.contains('hidden')) leaguesUI.toggle(false);   // one panel mid-screen at a time
+  if ($('scorecard').classList.contains('hidden')) {   // one panel mid-screen at a time
+    leaguesUI.toggle(false);
+    $('games-menu').classList.add('hidden');
+    $('btn-games').classList.remove('active');
+  }
   $('scorecard').classList.toggle('hidden');
   $('btn-score').classList.toggle('active', !$('scorecard').classList.contains('hidden'));
   if (state) buildScorecard(state);
@@ -802,14 +796,19 @@ $('btn-changecourse').onclick = () => { $('scorecard').classList.add('hidden'); 
 $('btn-practice').onclick = () => $('practice').classList.toggle('hidden');
 $('btn-course').onclick = () => { closeMenu(); openCourseModal(); };
 
-// menu (top right) and the panels' close buttons
-function closeMenu() { $('main-menu').classList.add('hidden'); $('btn-menu').setAttribute('aria-expanded', 'false'); }
+// the menu (top right): a settings drawer from the right edge; the panels' close buttons
+function setMenu(open) {
+  $('main-menu').classList.toggle('open', open);
+  $('main-menu').setAttribute('aria-hidden', open ? 'false' : 'true');
+  $('menu-scrim').classList.toggle('open', open);
+  $('btn-menu').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function closeMenu() { setMenu(false); }
 $('btn-menu').onclick = (e) => {
   e.stopPropagation();
-  const open = $('main-menu').classList.contains('hidden');
-  $('main-menu').classList.toggle('hidden', !open);
-  $('btn-menu').setAttribute('aria-expanded', open ? 'true' : 'false');
+  setMenu(!$('main-menu').classList.contains('open'));
 };
+$('menu-close').onclick = closeMenu;
 document.addEventListener('pointerdown', (e) => {
   if (!$('main-menu').contains(e.target) && !$('btn-menu').contains(e.target)) closeMenu();
 });
@@ -1059,10 +1058,12 @@ window.addEventListener('keydown', (e) => {
   const k = String(e.key || '');
   if (k === 'Escape') {
     closeMenu();
+    lineup.openDock(false);
     for (const id of ['conditions', 'practice', 'games-menu', 'scorecard', 'league-panel', 'player-menu']) $(id).classList.add('hidden');
     leaguesUI.closeResult();
     $('btn-score').classList.remove('active');
     $('btn-league').classList.remove('active');
+    $('btn-games').classList.remove('active');
     return;
   }
   if (k.toLowerCase() === 'f') { if (!animating && scene.flyover.start()) e.preventDefault(); return; }
