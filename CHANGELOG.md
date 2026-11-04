@@ -5,6 +5,21 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **The camera flies with the ball** — a new shot camera, now the default: at impact the ball gets away,
+  the camera chases it along its own flight, catches it up and rides behind it looking where it's going (on
+  a drive it closes from about 30 m behind to about 18 m), then eases off behind the ball for the bounce
+  and the roll and comes to rest there. It sets off from the address camera with no kick, its push changes
+  smoothly from frame to frame, it never passes the ball, the ball stays near the middle of the frame, and
+  it rises smoothly over rising ground and tree crowns (`render/flight-camera.js` `followCamera`; chips and
+  putts keep the address camera). The broadcast-style camera stays as Settings → Shot camera → TV (saved
+  per browser; `?shotcam=tv` for a session).
+- **The ball moves like a ball** — it is drawn dimpled, with an alignment line and a logo, and turns as a
+  real one does: backspin about the right axis in the air (tilted by the spin axis on a draw or a fade,
+  shown at up to 6 turns a second so a 60 Hz frame doesn't strobe it) and a true roll on the ground, as
+  fast as it covers the ground (`render/ball.js`). Between the server's 20 ms samples its path is a smooth
+  curve in the air instead of a corner at each sample, while bounces stay sharp (`flight-profile.js`
+  `smoothPointAt`). It also sits on the turf at its drawn size: drawn larger than life for readability, it
+  used to sink about half into the green (`scene.js` `_seatBall`).
 - **Pick the gimme** — a menu setting for how close a putt has to stop to be given (holed, plus one stroke):
   off, 2, 3, 5, 8 or 10 ft. It was fixed at 8 ft. The choice is kept across restarts in
   `BIRDIE_DATA_DIR/settings.json`, and `POST /api/settings` now checks what it is sent (`lib/settings.js`;

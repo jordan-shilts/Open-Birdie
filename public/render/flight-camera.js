@@ -1,6 +1,13 @@
-// Shot-replay camera: broadcast-style coverage of the flight in one continuous move (no
-// cuts), framed so the ball's height reads. Pure (sim coordinates, no three) so the
-// framing is unit-tested (test/flight-camera.test.mjs).
+// Shot-replay camera, two ways, both one continuous move from the address camera (no
+// cuts). Pure (sim coordinates, no three) so the framing is unit-tested
+// (test/flight-camera.test.mjs).
+//
+// 'follow' (the default in the game): the camera flies with the ball. The ball gets away
+// at impact, the camera chases it along its own flight, catches it up and rides with it,
+// looking where it is going, then eases off behind it for the bounce and the roll and
+// comes to rest there (followCamera below).
+//
+// 'tv': broadcast-style coverage, framed so the ball's height reads.
 //
 // Off the wide address lens a 20 m apex 120 m out is ~6° of a 58° frame, and a camera
 // that pitches to keep the ball centred hides even that: the flight reads flat. So:
@@ -12,10 +19,12 @@
 //    little short of the landing area, so the ball drops out of the sky across the frame
 //    and the bounce and roll-out happen in view; the lens closes in on the drop.
 // Short shots (chips, putts) never move the camera or the lens.
-import { flightMarkers, pointAt } from './flight-profile.js';
+import { flightMarkers, pointAt, smoothPointAt } from './flight-profile.js';
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
+// the same with no kick in its acceleration at either end (for a camera that sets off)
+const smoother = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * t * (t * (6 * t - 15) + 10); };
 const lerp = (a, b, f) => a + (b - a) * f;
 const D2R = Math.PI / 180;
 
@@ -27,6 +36,22 @@ const CLIMB_FRAME = 0.32;             // through the climb the ball rides this f
 const LEASH = 0.62;                   // ...and never strays further than this from the middle, whatever the framing
 const GLIDE_SAMPLES = 64;             // the glide's tree-clearance profile
 const TREE_CLIMB_DEG = 25;            // the steepest the glide climbs to clear a tree line
+// the follow camera
+export const FOLLOW_BACK_M = 9;       // what it chases: this far behind the ball, along its flight...
+export const FOLLOW_UP_M = 2.4;       // ...and this far above it
+const FOLLOW_LOOK_AHEAD_M = 6;        // looks this far ahead of the ball, along its flight
+const FOLLOW_DT = 1 / 120;            // the camera path is worked out at this step (s)
+const FOLLOW_OMEGA = 4.5;             // rad/s: the critically damped chase
+const FOLLOW_MATCH = 0.6;             // how much of what it chases' own speed it matches outright
+const FOLLOW_TAKE_UP_S = 0.6;         // the chase's pull, taken up from nothing at impact
+const FOLLOW_MATCH_IN_S = 0.3;        // the speed match, taken up over this
+const FOLLOW_HEADSTART_M = 10;        // at impact it chases a point this much further back than the address camera
+const FOLLOW_CATCH_UP_S = 2.5;        // ...closing to FOLLOW_BACK_M over this
+export const FOLLOW_TAIL_S = 0.8;     // after the ball stops, the camera comes to rest over this
+const FOLLOW_LOOK_IN_S = 0.45;        // the look leaves the address framing over this
+const FOLLOW_SETTLE_S = 0.9;          // once the ball is down, what it chases moves behind it over this
+export const SETTLE_BACK_M = 11;      // the spot it settles on: behind the ball...
+const SETTLE_UP_M = 3.2;              // ...and above the ground under it
 
 // points: sim trajectory; startCam / startLook: the address camera and its look target
 // now (sim frame); groundAt(x,y) -> terrain height; treeTopAt(x,y) -> the height the
@@ -35,7 +60,7 @@ const TREE_CLIMB_DEG = 25;            // the steepest the glide climbs to clear 
 // would sit in a tree or look through one; fovDeg: the base (unzoomed) vertical lens.
 export function flightCameraPlan(points, {
   startCam, startLook = null, groundAt = () => 0, treeTopAt = null, flightTime = null,
-  isPutt = false, isClear = () => true, fovDeg = 58,
+  isPutt = false, isClear = () => true, fovDeg = 58, mode = 'tv',
 } = {}) {
   const p0 = points[0];
   const last = points[points.length - 1];
@@ -46,6 +71,12 @@ export function flightCameraPlan(points, {
   const start = startCam ? { ...startCam } : { x: p0.x, y: p0.y - 12, z: p0.z + 5 };
   const moves = !isPutt && carry >= 45;
   const apexH = apex ? Math.max(0, apex.z - Math.max(p0.z, land.z)) : 0;
+  if (moves && mode === 'follow') {
+    return followCamera(points, {
+      p0, apex, land, last, carry, flightTime: ft, start, moves, apexH, mode,
+      startLook: startLook ? { ...startLook } : null, groundAt, treeTopAt,
+    });
+  }
   const arc = moves ? clamp(apexH * 0.2, 1, 5) : 0;
   let end = { ...start };
   if (moves) {
@@ -151,8 +182,132 @@ function liftAt(plan, u) {
   return lerp(plan.lift[i], plan.lift[i + 1], f - i);
 }
 
+// The follow camera's path, worked out once per shot at FOLLOW_DT and running on
+// FOLLOW_TAIL_S past the ball's last sample. The camera chases a point on the ball's own
+// flight (by arc length, so the point slows as the ball does) FOLLOW_UP_M above it and,
+// behind the ball, FOLLOW_HEADSTART_M further back than the address camera stands at
+// impact (so the camera never backs up as it sets off), closing to FOLLOW_BACK_M over
+// FOLLOW_CATCH_UP_S (before the ball has gone that far, on the ground behind the ball's
+// start): the ball gets away, then the camera catches it up and rides with it. The chase is critically damped, matches FOLLOW_MATCH of the point's own speed
+// (steadied, and taken up over FOLLOW_MATCH_IN_S) outright, and its pull is taken up from
+// nothing at impact: no kick as it sets off, and it never overshoots what it chases, so
+// it never passes the ball. Once the
+// ball is down, what it chases moves over FOLLOW_SETTLE_S to a spot SETTLE_BACK_M behind
+// the ball and SETTLE_UP_M up, and over the tail the camera comes to rest there. It looks
+// just ahead of the ball along its flight (at the ball, steadied over the bounces, once
+// it's down); it leaves the address framing over FOLLOW_LOOK_IN_S; and it stays above the
+// ground and the tree crowns, lifted smoothly where it has to.
+function followCamera(points, plan) {
+  const { flightTime: ft, start, groundAt, treeTopAt } = plan;
+  const end = points[points.length - 1].t;
+  const B = (t) => smoothPointAt(points, t, ft);
+  const n = Math.max(1, Math.ceil((end + FOLLOW_TAIL_S) / FOLLOW_DT));
+  const T = [], S = [], P = [];
+  let s = 0, prev = B(0);
+  for (let i = 0; i <= n; i++) {
+    const t = i * FOLLOW_DT, p = B(Math.min(end, t));
+    s += Math.hypot(p.x - prev.x, p.y - prev.y, p.z - prev.z);
+    T.push(t); S.push(s); P.push(p); prev = p;
+  }
+  // the way the ball goes across the ground, carried back past its start (the chased
+  // point's first metres, at the start's height)
+  const dx0 = plan.land.x - plan.p0.x, dy0 = plan.land.y - plan.p0.y, d0 = Math.hypot(dx0, dy0) || 1;
+  const startBack = Math.max(FOLLOW_BACK_M, Math.hypot(start.x - P[0].x, start.y - P[0].y) + FOLLOW_HEADSTART_M);
+  const onFlight = (sBack) => {
+    if (sBack <= 0) return { x: P[0].x + dx0 / d0 * sBack, y: P[0].y + dy0 / d0 * sBack, z: P[0].z };
+    let lo = 0, hi = S.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (S[mid] <= sBack) lo = mid; else hi = mid; }
+    const f = (sBack - S[lo]) / Math.max(1e-9, S[hi] - S[lo]);
+    return { x: lerp(P[lo].x, P[hi].x, f), y: lerp(P[lo].y, P[hi].y, f), z: lerp(P[lo].z, P[hi].z, f) };
+  };
+  const dirAt = (i) => {
+    const a = P[Math.max(0, i - 5)], b = P[Math.min(n, i + 5)];
+    const v = [b.x - a.x, b.y - a.y, b.z - a.z], L = Math.hypot(...v);
+    return L > 1e-6 ? v.map((c) => c / L) : null;
+  };
+  let dir = [dx0 / d0, dy0 / d0, 0], flat = [dx0 / d0, dy0 / d0];
+  // what the camera chases (on the flight behind the ball, then the spot behind it on the
+  // ground) and where it looks, sample by sample
+  const goal = [], aim = [], downs = [];
+  for (let i = 0; i <= n; i++) {
+    const t = T[i], b = P[i];
+    const d = dirAt(i);
+    if (d) dir = d;
+    const hl = Math.hypot(dir[0], dir[1]);
+    if (hl > 0.05) flat = [dir[0] / hl, dir[1] / hl];
+    const back = lerp(startBack, FOLLOW_BACK_M, smoother(0, FOLLOW_CATCH_UP_S, t));
+    const a = onFlight(S[i] - back);
+    const down = smoother(ft, ft + FOLLOW_SETTLE_S, t);
+    goal.push({
+      x: lerp(a.x, b.x - flat[0] * SETTLE_BACK_M, down),
+      y: lerp(a.y, b.y - flat[1] * SETTLE_BACK_M, down),
+      z: lerp(a.z + FOLLOW_UP_M, b.z + SETTLE_UP_M, down),
+    });
+    downs.push(down);
+    const lead = FOLLOW_LOOK_AHEAD_M * (1 - down);
+    aim.push({ x: b.x + dir[0] * lead, y: b.y + dir[1] * lead, z: b.z + dir[2] * lead + 0.3 * down });
+  }
+  // its speed, steadied (the jolt of the ball meeting the ground taken out), matched in
+  // part outright through the flight and let go as the ball comes down
+  const vr = Math.round(0.05 / FOLLOW_DT), sr = Math.round(0.15 / FOLLOW_DT);
+  const goalV = ['x', 'y', 'z'].map((k) => boxFilter(boxFilter(goal.map((_, i) => {
+    const i0 = Math.max(0, i - vr), i1 = Math.min(n, i + vr);
+    return (goal[i1][k] - goal[i0][k]) / Math.max(FOLLOW_DT, (i1 - i0) * FOLLOW_DT);
+  }), sr), sr));
+  const pos = [];
+  const cam = { ...start }, camV = { x: 0, y: 0, z: 0 };
+  ['x', 'y', 'z'].forEach((k, j) => {
+    cam[k] = start[k];
+    camV[k] = 0;
+    for (let i = 0; i <= n; i++) {
+      const w = FOLLOW_OMEGA * smoother(0, FOLLOW_TAKE_UP_S, T[i]);
+      const match = FOLLOW_MATCH * smoother(0, FOLLOW_MATCH_IN_S, T[i]) * (1 - downs[i]) * goalV[j][i];
+      camV[k] += (w * w * (goal[i][k] - cam[k]) + 2 * w * (match - camV[k])) * FOLLOW_DT;
+      cam[k] += camV[k] * FOLLOW_DT;
+      if (!pos[i]) pos[i] = {};
+      pos[i][k] = cam[k];
+    }
+  });
+  // the look, steadied (a centred average: no lag, and the turn from the descent to the
+  // roll and the bounces smoothed out), eased out of the address framing
+  const r = Math.round(0.12 / FOLLOW_DT);
+  const steady = ['x', 'y', 'z'].map((k) => boxFilter(boxFilter(aim.map((q) => q[k]), r), r));
+  const sl = plan.startLook || P[0];
+  const look = aim.map((_, i) => {
+    const w = smoother(0, FOLLOW_LOOK_IN_S, T[i]);
+    return { x: lerp(sl.x, steady[0][i], w), y: lerp(sl.y, steady[1][i], w), z: lerp(sl.z, steady[2][i], w) };
+  });
+  // the tail: onto the spot behind the resting ball, arriving still
+  const restAt = goal[n], from = Math.max(ft + 0.3, end + FOLLOW_TAIL_S - 1.1);
+  for (let i = 0; i <= n; i++) {
+    const a = smoother(from, end + FOLLOW_TAIL_S, T[i]);
+    if (a <= 0) continue;
+    for (const k of ['x', 'y', 'z']) pos[i][k] = lerp(pos[i][k], restAt[k], a);
+  }
+  // above the ground and the tree crowns, lifted smoothly (and not at all at impact)
+  const need = pos.map((c, i) => {
+    let top = groundAt(c.x, c.y) + CAM_CLEARANCE_M;
+    if (treeTopAt) top = Math.max(top, treeTopAt(c.x, c.y));
+    return Math.max(0, top - c.z) * smoother(0, FOLLOW_TAKE_UP_S, T[i]);
+  });
+  if (need.some((v) => v > 0)) {
+    const rr = Math.round(0.25 / FOLLOW_DT);
+    const lift = boxFilter(maxFilter(need, rr), rr);
+    pos.forEach((c, i) => { c.z += lift[i]; });
+  }
+  return { ...plan, end: pos[pos.length - 1], tail: FOLLOW_TAIL_S, path: { dt: FOLLOW_DT, pos, look }, zoom: 1 };
+}
+
+function followAt(plan, t) {
+  const { dt, pos, look } = plan.path;
+  const f = clamp(t / dt, 0, pos.length - 1), i = Math.min(pos.length - 2, Math.floor(f)), u = f - i;
+  const at = (a) => (a.length < 2 ? { ...a[0] } : { x: lerp(a[i].x, a[i + 1].x, u), y: lerp(a[i].y, a[i + 1].y, u), z: lerp(a[i].z, a[i + 1].z, u) });
+  return { pos: at(pos), look: at(look), zoom: 1 };
+}
+
 // Camera position + look target + lens zoom at sim time t.
 export function flightCameraAt(plan, t, points) {
+  if (plan.mode === 'follow') return followAt(plan, t);
   const u = plan.moves ? smooth(plan.glideStart, plan.glideEnd, t) : 0;
   const pos = glidePos(plan, u);
   const ball = pointAt(points, t) || plan.last;

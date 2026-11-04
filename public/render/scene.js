@@ -31,7 +31,8 @@ import { ShotTracer, makeGlow, makeLandingRing, makeBallShadow, makeDropLine } f
 import { LineupFx } from './lineup-fx.js';
 import { isNearGreen } from '../map-frame.mjs';
 import { makePin, makeTeeMarkers } from './pin-flag.js';
-import { flightMarkers } from './flight-profile.js';
+import { flightMarkers, smoothPointAt } from './flight-profile.js';
+import { ballTurn, makeBallTexture } from './ball.js';
 import { flightCameraPlan, flightCameraAt } from './flight-camera.js';
 import { resolveQuality, autoDownshiftVerdict, renderPixelRatio, DYNAMIC_RES, dynamicResolutionStep } from './quality.js';
 import { COLORS, DRY_PALETTE, courseDryFor, blendPalette } from './course-character.js';
@@ -47,6 +48,11 @@ import { HoleFlyover, treeCeiling } from './flyover.js';
 import { GoogleTiles } from './google-tiles.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, z, -y); // sim -> three
+const _turnAxis = new THREE.Vector3(), _turnQ = new THREE.Quaternion();
+// The ball is drawn larger than life (BALL_R, and more at a distance: ballReadScale), so
+// it sits on the turf by its drawn radius, nestled a little into the grass, not by a
+// fixed few centimetres (which left a scaled-up ball half sunk).
+const BALL_R = 0.085, BALL_SEAT = 0.9;
 
 // RENDER_CONFIG knobs the quality preset scales (course-content budgets). The base
 // values are captured once so Low -> High restores them exactly.
@@ -103,8 +109,9 @@ function hexToLinearRGB(hex) {
 // palette (this._pal) at load — see below.
 
 export class GolfScene {
-  constructor(container, { quality = 'auto', autoQuality = true, sky = 'midday' } = {}) {
+  constructor(container, { quality = 'auto', autoQuality = true, sky = 'midday', shotCam = 'follow' } = {}) {
     this.container = container;
+    this.shotCam = shotCam === 'tv' ? 'tv' : 'follow';   // the replay camera (flight-camera.js)
     this.skySetting = parseSkySetting(sky);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -138,9 +145,13 @@ export class GolfScene {
     this._setupSkyAndLights();
 
     // gameplay objects
+    // the ball (ball.js): dimpled, with a line and a logo that show it spin and roll
+    const ballTex = new THREE.CanvasTexture(makeBallTexture());
+    ballTex.colorSpace = THREE.SRGBColorSpace;
+    ballTex.anisotropy = 4;
     this.ball = new THREE.Mesh(
-      new THREE.SphereGeometry(0.085, 18, 14),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 })
+      new THREE.SphereGeometry(BALL_R, 32, 20),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, map: ballTex, roughness: 0.35 })
     );
     // the soft contact shadow (shot-fx ballShadow) grounds the ball; leaving it out of the
     // shadow map is what lets the map be cached (a moving caster forced a redraw a frame)
@@ -1501,8 +1512,16 @@ export class GolfScene {
   setBall(p) {
     this.ballSim = { x: p.x, y: p.y };
     const z = this.hAt(p.x, p.y);
-    this.ball.position.copy(V(p.x, p.y, z + 0.06));
+    this._ballBase = z;
+    this.ball.position.copy(V(p.x, p.y, z));
+    this._seatBall();
     this._buildMarkers();
+  }
+
+  // the ball's height: its bottom on the ground (or where the flight has it), at its drawn size
+  _seatBall() {
+    if (this._ballBase == null) return;   // no ball placed yet
+    this.ball.position.y = this._ballBase + BALL_SEAT * BALL_R * this.ball.scale.x;
   }
 
   // Floating yardage markers every 50y down the ball->pin line, drawn as DOM
@@ -1556,6 +1575,9 @@ export class GolfScene {
 
   // ---------- lining up ----------
   // The predicted shot for the club in hand (lib/predict.js), or null to clear it.
+  // the shot-replay camera: 'follow' flies with the ball, 'tv' covers it broadcast-style
+  setShotCam(mode) { this.shotCam = mode === 'tv' ? 'tv' : 'follow'; }
+
   setLineup(pred) {
     this._lineupPred = pred || null;
     // round the green the overlay goes bare and the cup is marked (none in flight)
@@ -1710,6 +1732,10 @@ export class GolfScene {
       onDone,
       onProgress: opts.onProgress || null,
       isPutt,
+      // the ball's spin, to turn it by (ball.js); the launch monitor's numbers when known
+      spinRps: Number.isFinite(opts.spinRpm) ? opts.spinRpm / 60 : isPutt ? 0 : 45,
+      spinAxisDeg: Number.isFinite(opts.spinAxisDeg) ? opts.spinAxisDeg : 0,
+      lastP: points[0],
     };
     // Camera: a smooth follow (flight-camera.js) that starts exactly at the address
     // camera and glides to a landing-area vantage during the descent.
@@ -1737,7 +1763,7 @@ export class GolfScene {
     const l = this.lookCur;
     this.anim.plan = flightCameraPlan(points, {
       startCam: { x: c.x, y: -c.z, z: c.y }, startLook: { x: l.x, y: -l.z, z: l.y },
-      flightTime: ft, isPutt, fovDeg: this._baseFov,
+      flightTime: ft, isPutt, fovDeg: this._baseFov, mode: this.shotCam,
       groundAt: (x, y) => this.hAt(x, y), treeTopAt: this._treeTop, isClear,
     });
     this.camMode = 'static';
@@ -1777,28 +1803,37 @@ export class GolfScene {
     a.t += dt * a.speed;
     const pts = a.points;
     while (a.i < pts.length - 1 && pts[a.i + 1].t <= a.t) a.i++;
-    let p;
-    if (a.i >= pts.length - 1) {
-      p = pts[pts.length - 1];
-    } else {
-      const p0 = pts[a.i], p1 = pts[a.i + 1];
-      const f = Math.min(1, (a.t - p0.t) / Math.max(1e-6, p1.t - p0.t));
-      p = { x: p0.x + (p1.x - p0.x) * f, y: p0.y + (p1.y - p0.y) * f, z: p0.z + (p1.z - p0.z) * f };
-    }
+    // a smooth curve through the samples in the air, straight lines over the bounces
+    const p = a.i >= pts.length - 1 ? pts[pts.length - 1] : smoothPointAt(pts, a.t, a.flightTime);
     this.ballSim = { x: p.x, y: p.y };
-    this.ball.position.copy(V(p.x, p.y, p.z + 0.06));
+    // on the ground it rolls on the turf as drawn (never through it)
+    this._ballBase = a.t < a.flightTime && !a.isPutt ? p.z : Math.max(p.z, this.hAt(p.x, p.y));
+    this.ball.position.copy(V(p.x, p.y, this._ballBase));
+    this._seatBall();
     this._ballZ = p.z;
+    // and it turns: backspin in the air, a roll on the ground (ball.js)
+    const turn = ballTurn(a.lastP, p, dt * a.speed, {
+      air: !a.isPutt && a.t < a.flightTime, spinRps: a.spinRps, spinAxisDeg: a.spinAxisDeg,
+      radius: BALL_R * this.ball.scale.x,
+    });
+    if (turn) {
+      _turnAxis.set(turn.axis[0], turn.axis[2], -turn.axis[1]);   // sim -> three
+      this.ball.quaternion.premultiply(_turnQ.setFromAxisAngle(_turnAxis, turn.angle));
+    }
+    a.lastP = p;
 
     // follow camera (targets; _frame smooths them)
+    // the follow camera runs a short tail past the ball's last sample, coming to rest
+    const end = a.dur + (a.plan?.tail || 0);
     if (a.plan) {
-      const cam = flightCameraAt(a.plan, Math.min(a.t, a.dur), pts);
+      const cam = flightCameraAt(a.plan, Math.min(a.t, end), pts);
       this.camPosT.copy(V(cam.pos.x, cam.pos.y, cam.pos.z));
       this.lookT.copy(V(cam.look.x, cam.look.y, cam.look.z));
       this._flightZoom = cam.zoom ?? 1;
     }
     a.onProgress?.(Math.min(a.t, a.dur));
 
-    if (a.t >= a.dur) {
+    if (a.t >= end) {
       const done = a.onDone;
       this.anim = null;
       if (this._fx) this._fx.lingerStart = this.clock.elapsedTime;
@@ -1806,7 +1841,7 @@ export class GolfScene {
         this.camMode = 'idle';
         if (this.aimLine) this.aimLine.visible = true;
         done?.();
-      }, 900);
+      }, Math.max(100, 900 - (a.plan?.tail || 0) * 1000));   // the tail was part of the hold
     }
   }
 
@@ -1995,6 +2030,7 @@ export class GolfScene {
     // survey/overview/beauty shots don't get a 26x ball reading as a debug billboard
     const bd = this.camera.position.distanceTo(this.ball.position);
     this.ball.scale.setScalar(ballReadScale(bd, this.camMode, this.anim));
+    this._seatBall();
     const pd = this.camera.position.distanceTo(this.pin.position);
     this.pin.scale.setScalar(pinReadScale(pd, this.camMode, this.anim));
     for (const f of this._practiceFlags || []) {
