@@ -9,6 +9,18 @@ All notable changes to Open-Birdie are documented here.
   off, 2, 3, 5, 8 or 10 ft. It was fixed at 8 ft. The choice is kept across restarts in
   `BIRDIE_DATA_DIR/settings.json`, and `POST /api/settings` now checks what it is sent (`lib/settings.js`;
   the setting is `gimmeFt`, and the old `gimmeYd`, which always held feet, is still read).
+- **The sea, and the great lakes** — OpenStreetMap draws a coast as a line, not an area, so no course carried
+  its sea, and Carmel Bay at Pebble Beach or Lake Michigan at Whistling Straits drew as grass under haze. The
+  sea is now read from the terrain itself: lidar elevation stores open water as one flat level (or a thin band
+  of survey noise round it), so the lowest dense band of heights, flooded in from the edge of the terrain
+  grid, is the water, outside the course's own ponds and never over its tees, fairways or greens
+  (`render/sea.js`). It draws as one plane out to the horizon: swell and chop running with the day's wind,
+  the sky in the waves, a deep blue body that clears over the sand near the shore, broken lines of surf
+  running in to the waterline, whitecaps in a strong wind, and the sun's glitter (`water.js`). The sea
+  floor is carved under it (render-only, like the pond beds) and the countryside past the course edge
+  runs down under the water instead of rising out of it (`horizon.js`). Found on Pebble Beach, Whistling
+  Straits and Bandon Dunes; none on Sawgrass or Hazeltine. About 0.5 ms a frame with the sea filling half
+  the view.
 
 ### Changed
 - **Round the green, the hole is easy to find** — inside 40 yd (and on the green) the overhead map frames the
@@ -26,6 +38,16 @@ All notable changes to Open-Birdie are documented here.
   number is gone (a hole's number on the scorecard reviews it instead); the Menu is a settings drawer that
   slides in from the right; and Range & Games (the top button now says Games) is a screen of its own with the
   driving range up top and a card for each game.
+- **Calmer water** — the ponds' ripples run at half the speed, and their size follows the day's wind: on a
+  calm day a pond lies still and holds its reflection; the sea's waves and surf slow down too. Moving
+  water pulled the eye off the shot.
+- **At address, the hole gets the frame** — the address camera pitches so the ball sits about three quarters
+  of the way down the view and the pin about 40% down, instead of a level look that gave the top half to
+  the sky, and a full shot tightens the lens from 58 to about 46 degrees. A green 350 m off had been about
+  a pixel deep; the far end of the hole now reads about 1.4 times larger. Chips and putts keep the wide
+  lens, and the lens eases into the flight camera's at impact.
+- **Less haze across the playing distance** — the aerial perspective's linear term is lighter (about 5%
+  haze at 350 m, from 6.6%), so the green and flag read at address; the horizon still closes in haze.
 - **The overhead map shows the hole you're on, and only that hole** — course surfaces carry no hole of
   their own, so each now goes to the hole whose line of play runs nearest it: this hole's tees, fairway,
   green and hazards are drawn in full, every other hole's fade into the rough, and a soft light along this

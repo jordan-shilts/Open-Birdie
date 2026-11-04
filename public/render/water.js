@@ -20,14 +20,14 @@ import { RENDER_CONFIG } from './config.js';
 // amplitudes) so the plane reads as calm pond water, not surf. Directions fan out by
 // the golden angle so no two waves align (aligned waves read as a mechanical
 // crosshatch); frequencies grow by a non-integer ratio (no harmonic moire), from
-// ~15 m swells down to ~1 m chop.
+// ~15 m swells down to ~1 m chop. Slow: water that moves pulls the eye off the shot.
 const RIPPLE = `
   vec3 rippleNormal(vec2 p, float t, float chop) {
     vec2 g = vec2(0.0);
     float freq = 0.42, amp = 0.085, ang = 0.0;
     for (int i = 0; i < 8; i++) {
       vec2 d = vec2(cos(ang), sin(ang));
-      float ph = dot(d, p) * freq + t * (0.6 + freq * 0.45);
+      float ph = dot(d, p) * freq + t * (0.3 + freq * 0.22);
       g += amp * freq * d * cos(ph);   // dh/dp = A * f * d * cos(phase)
       ang  += 2.39996;
       freq *= 1.53;
@@ -174,18 +174,172 @@ function skyPond(geom, shared) {
   return new THREE.Mesh(geom, m);
 }
 
+// ---------------------------------------------------------------- the sea
+// The sea or great lake round a coastal course (sea.js findSea): one plane at its water
+// line from the course out to the horizon, cut to the sea by a mask of the terrain grid
+// (R: sea, G: metres to land), which past the grid's edge carries on outward, as the
+// ground apron does. No mirror: open water mostly shows the sky. Swell and chop run
+// with the wind at deep water's speed and fade out as they get finer than a few pixels
+// (they would only shimmer), roughening the surface instead; Schlick Fresnel at water's
+// 2%; a deep blue body whose wave faces scatter blue-green; shallows that clear over
+// sand near the shore; lines of surf running in to the waterline and a wash along it;
+// whitecaps in a strong wind; the sun's glitter.
+const SHORE_STEP_M = 0.5;   // metres per step of the mask's shore channel (to 127 m)
+
+const SEA_VERT = /* glsl */`
+  varying vec3 vWorldPos;
+  varying float vEye;
+  #include <common>
+  #include <fog_pars_vertex>
+  #include <logdepthbuf_pars_vertex>
+  void main() {
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWorldPos = wp.xyz;
+    vec4 mvPosition = viewMatrix * wp;
+    vEye = -mvPosition.z;
+    gl_Position = projectionMatrix * mvPosition;
+    #include <logdepthbuf_vertex>
+    #include <fog_vertex>
+  }`;
+
+const SEA_FRAG = /* glsl */`
+  uniform float uTime, uWind;
+  uniform vec2 uWindDir;          // sim (east, north) the wind blows toward
+  uniform vec3 uSunDir, uSunColor, uSeaDeep, uSeaScatter, uSeaShallow;
+  uniform sampler2D uSky, uSeaMask;
+  uniform vec4 uMaskRect;         // grid corner (sim m, less half a cell); 1 / its width, height
+  varying vec3 vWorldPos;
+  varying float vEye;
+  #include <common>
+  #include <fog_pars_fragment>
+  #include <logdepthbuf_pars_fragment>
+  float seaHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float seaNoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(seaHash(i), seaHash(i + vec2(1.0, 0.0)), f.x), mix(seaHash(i + vec2(0.0, 1.0)), seaHash(i + vec2(1.0, 1.0)), f.x), f.y);
+  }
+  vec3 seaSky(vec3 d) { d.y = abs(d.y); return texture2D(uSky, equirectUv(normalize(d))).rgb; }
+  void main() {
+    #include <logdepthbuf_fragment>
+    vec2 sim = vec2(vWorldPos.x, -vWorldPos.z);
+    vec2 uv = (sim - uMaskRect.xy) * uMaskRect.zw;
+    vec4 m = texture2D(uSeaMask, clamp(uv, 0.0, 1.0));
+    if (m.r < 0.5) discard;
+    // past the grid the shore only gets farther
+    float shore = m.g * 255.0 * ${SHORE_STEP_M.toFixed(2)} + length(max(max(-uv, uv - 1.0), 0.0) / uMaskRect.zw);
+    vec3 V = normalize(cameraPosition - vWorldPos);
+    // a pixel's footprint on the water, stretched where the view grazes it
+    float foot = vEye * 0.0012 / max(0.05, V.y);
+    float wind = clamp(uWind, 0.0, 1.0);
+    // swell and chop: waves within about 70 degrees of the wind, longest first, at deep
+    // water's speed (w = sqrt(g k)); the chop grows with the wind; each fades out as it
+    // gets finer than a few pixels, and what fades roughens the surface instead
+    vec2 g = vec2(0.0);
+    float rough = 0.0, crest = 0.0, k = 0.09, s = 0.026;
+    float base = atan(uWindDir.y, uWindDir.x);
+    for (int i = 0; i < 12; i++) {
+      float a = base + (fract(float(i) * 0.618034) - 0.5) * 2.4;
+      vec2 d = vec2(cos(a), sin(a));
+      float ph = dot(d, sim) * k - uTime * 0.7 * sqrt(9.81 * k);
+      float amp = s * (i < 3 ? 1.0 : 0.5 + 1.1 * wind);
+      float fade = 1.0 - smoothstep(0.8, 2.0, k * foot);
+      g += amp * fade * d * cos(ph);
+      crest += amp * fade * sin(ph);
+      rough += amp * (1.0 - fade);
+      k *= 1.42;
+      s *= 0.93;
+    }
+    vec3 N = normalize(vec3(-g.x, 1.0, g.y));   // sim north is world -z
+    // Fresnel, less of it where sub-pixel chop shadows and masks the facets
+    float F = (0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0)) * (1.0 - 0.45 * clamp(rough * 6.0, 0.0, 1.0));
+    // the sky in the waves, softened where the chop is finer than a pixel
+    vec3 R = reflect(-V, N);
+    vec3 T = normalize(cross(R, vec3(0.0, 1.0, 0.0)) + vec3(1e-4));
+    float spread = clamp(rough * 3.0, 0.0, 0.5);
+    vec3 sky = (seaSky(R) + seaSky(R + T * spread) + seaSky(R - T * spread + vec3(0.0, spread * 0.5, 0.0))) / 3.0;
+    float day = 0.35 + 0.65 * clamp(uSunDir.y * 1.6, 0.0, 1.0);
+    // the body: deep blue, the faces of the waves scattering blue-green, clearing over
+    // the sand within a few tens of metres of the shore
+    vec3 body = uSeaDeep * day + uSeaScatter * day * smoothstep(-0.02, 0.1, crest) * 0.45;
+    body = mix(body, uSeaShallow * day, exp(-shore / 14.0) * 0.85);
+    vec3 col = mix(body, sky, F);
+    // the sun's glitter: sharp on near water, a broad sheen where the chop is sub-pixel
+    vec3 H = normalize(uSunDir + V);
+    float shin = mix(1400.0, 90.0, clamp(rough * 8.0, 0.0, 1.0));
+    col += uSunColor * pow(max(dot(N, H), 0.0), shin) * (0.002 * shin + 0.3) * step(0.0, uSunDir.y);
+    // surf: broken lines running in to the waterline (bands of shore distance moving
+    // shoreward), a wash along it, and whitecaps on the crests in a strong wind
+    float zone = 1.0 - smoothstep(2.0, 22.0 + 25.0 * wind, shore);
+    float run = sin(shore * 0.5 + uTime * 0.9 + seaNoise(sim * 0.05) * 3.0);
+    float br = seaNoise(sim * 0.35 + vec2(uTime * 0.08, 0.0)) * 0.6 + seaNoise(sim * 1.1 - uTime * 0.1) * 0.4;
+    float lines = smoothstep(0.86, 0.99, run) * smoothstep(0.45, 0.8, br);
+    float wash = (1.0 - smoothstep(0.2, 1.3, shore)) * smoothstep(0.35, 0.7, br);
+    float caps = smoothstep(0.45, 1.0, wind) * smoothstep(0.03, 0.09, crest) * smoothstep(0.62, 0.8, seaNoise(sim * 0.09 - uWindDir * uTime * 0.8));
+    float foam = clamp(max(max(lines * zone, wash), caps), 0.0, 1.0) * (1.0 - smoothstep(600.0, 2500.0, vEye));
+    col = mix(col, vec3(0.82, 0.86, 0.88) * day, foam * 0.8);
+    gl_FragColor = vec4(col, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+    #include <fog_fragment>
+  }`;
+
+// sea: sea.js findSea; shared: buildWater's live uniforms (time, sun, sky);
+// center: sim { x, y } the plane is centred on.
+function buildSea(sea, shared, center) {
+  const n = sea.nx * sea.ny;
+  const data = new Uint8Array(n * 4);
+  const half = sea.cellM / 2;
+  for (let k = 0; k < n; k++) {
+    data[k * 4] = sea.mask[k] ? 255 : 0;
+    // the shoreline lies half a cell short of the nearest land cell's centre
+    data[k * 4 + 1] = Math.min(255, Math.round(Math.max(0, sea.shoreM[k] - half) / SHORE_STEP_M));
+    data[k * 4 + 3] = 255;
+  }
+  const mask = new THREE.DataTexture(data, sea.nx, sea.ny, THREE.RGBAFormat, THREE.UnsignedByteType);
+  mask.magFilter = mask.minFilter = THREE.LinearFilter;
+  mask.wrapS = mask.wrapT = THREE.ClampToEdgeWrapping;
+  mask.generateMipmaps = false;
+  mask.needsUpdate = true;
+  const uniforms = {
+    ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+    uTime: shared.uTime, uSunDir: shared.uSunDir, uSunColor: shared.uSunColor, uSky: shared.uSky,
+    uWind: { value: 0.3 },
+    uWindDir: { value: new THREE.Vector2(0, 1) },
+    uSeaDeep: { value: new THREE.Color(0x1d5486).convertSRGBToLinear() },
+    uSeaScatter: { value: new THREE.Color(0x2c8f94).convertSRGBToLinear() },
+    uSeaShallow: { value: new THREE.Color(0x4f9f98).convertSRGBToLinear() },
+    uSeaMask: { value: mask },
+    uMaskRect: { value: new THREE.Vector4(sea.minX - half, sea.minY - half, 1 / (sea.nx * sea.cellM), 1 / (sea.ny * sea.cellM)) },
+  };
+  const mat = new THREE.ShaderMaterial({ name: 'Sea', uniforms, vertexShader: SEA_VERT, fragmentShader: SEA_FRAG, fog: true });
+  mat.userData.disposeTextures = [mask];
+  // out past the horizon haze band (9.5 km), inside the camera's far plane
+  const mesh = new THREE.Mesh(new THREE.CircleGeometry(9000, 96), mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(center.x, sea.level + 0.02, -center.y);
+  mesh.receiveShadow = false;
+  mesh.name = 'sea';
+  // wind: { mph, toDeg } (compass heading it blows toward)
+  const setWind = ({ mph = 0, toDeg = 0 } = {}) => {
+    uniforms.uWind.value = Math.min(1, mph / 25);
+    uniforms.uWindDir.value.set(Math.sin(toDeg * Math.PI / 180), Math.cos(toDeg * Math.PI / 180));
+  };
+  return { mesh, setWind };
+}
+
 // ponds: water-shore.js coursePonds (grown outline + water level per pond);
-// sunDir: world Vector3 toward the sun; depth: the terrain depth pre-pass or null.
-// Returns { meshes, waterMeshes, waterUpdate, setFoamDepth, setMirrorSkip }.
-export function buildWater(ponds, sunDir, depth) {
+// sunDir: world Vector3 toward the sun; depth: the terrain depth pre-pass or null;
+// sea: sea.js findSea, with seaCenter the sim { x, y } to centre it on, or null.
+// Returns { meshes, waterMeshes, sea, waterUpdate, setFoamDepth, setMirrorSkip, setWind }.
+export function buildWater(ponds, sunDir, depth, sea = null, seaCenter = null) {
   const meshes = [];
   const mirrorSkip = [];   // objects left out of the live mirrors (setMirrorSkip)
   const mirrorOnly = [];   // objects drawn only inside them
   const reflect = RENDER_CONFIG.waterReflect;
   const shared = {
     uTime: { value: 0 },
-    uChop: { value: 0.45 },
-    uDistort: { value: 0.09 },
+    uChop: { value: 0.16 },      // calm until the day's wind says otherwise (setWind)
+    uDistort: { value: 0.06 },
     uSunDir: { value: sunDir.clone().normalize() },
     uSunColor: { value: new THREE.Color(1.0, 0.95, 0.84) },
     uDeep: { value: new THREE.Color(0x14261f).convertSRGBToLinear() },
@@ -197,6 +351,9 @@ export function buildWater(ponds, sunDir, depth) {
     uCamNear: { value: 0.3 },
     uCamFar: { value: 12000 },
   };
+  const open = sea
+    ? buildSea(sea, shared, seaCenter || { x: sea.minX + (sea.nx * sea.cellM) / 2, y: sea.minY + (sea.ny * sea.cellM) / 2 })
+    : null;
 
   for (const p of ponds) {
     // shape in sim (x, y); a -90deg turn about x maps it to three (x, 0, -y) —
@@ -261,6 +418,12 @@ export function buildWater(ponds, sunDir, depth) {
   };
   return {
     meshes, waterMeshes: meshes,
+    sea: open ? open.mesh : null,
+    // the day's wind ({ mph, toDeg }): ponds ruffle with it, the sea runs downwind
+    setWind: (wind) => {
+      shared.uChop.value = 0.16 + 0.32 * Math.min(1, (wind?.mph || 0) / 25);
+      open?.setWind(wind);
+    },
     waterUpdate: (t) => { shared.uTime.value = t; },
     setSun: (dir) => shared.uSunDir.value.copy(dir).normalize(),
     setSky: (tex) => { shared.uSky.value = tex; },

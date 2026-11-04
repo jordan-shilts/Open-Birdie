@@ -90,6 +90,7 @@ export const RENDER_CONFIG = {
   water: true, // animated water: analytic ripples + fresnel + sun glitter (else static plane)
   waterFoam: true, // shoreline foam via a depth pre-pass (wet line where water meets terrain)
   waterReflect: true, // per-pond planar reflection (trees/banks mirror in the water; frustum-culled)
+  sea: true, // the sea or a great lake round a coastal course, read from the terrain (sea.js): waves, surf, shallows to the horizon
   dof: false,
   volumetricClouds: false,
 };

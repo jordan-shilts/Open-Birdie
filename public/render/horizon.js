@@ -42,8 +42,11 @@ function fbm(x, y) {
 // last row meets the apron and the camera may be close), sparse far out.
 const RINGS = [0, 25, 60, 120, 220, 380, 650, 1100, 1800, 2900, 4500, 7000];
 
-// bounds: course rect (sim m); hAt(x,y) -> height; baseColor: THREE.Color (linear).
-export function buildGroundApron({ bounds, hAt, baseColor, segments = 192 }) {
+// bounds: course rect (sim m); hAt(x,y) -> height; baseColor: THREE.Color (linear);
+// sea: { level, isSea(x, y) } (sea.js) or null. Where the course edge is sea the apron
+// runs down under the water line instead of rising into countryside, so the sea plane
+// carries on to the horizon; its edges ease over a few segments into the land's.
+export function buildGroundApron({ bounds, hAt, baseColor, segments = 192, sea = null }) {
   const cx = (bounds.minX + bounds.maxX) / 2, cy = (bounds.minY + bounds.maxY) / 2;
   const hw = (bounds.maxX - bounds.minX) / 2, hh = (bounds.maxY - bounds.minY) / 2;
   // edge heights + a robust "countryside" base level (median of the edge)
@@ -53,9 +56,16 @@ export function buildGroundApron({ bounds, hAt, baseColor, segments = 192 }) {
     const dx = Math.cos(th), dy = Math.sin(th);
     const t = Math.min(hw / Math.max(1e-9, Math.abs(dx)), hh / Math.max(1e-9, Math.abs(dy)));
     const ex = cx + dx * t, ey = cy + dy * t;
-    edge.push({ dx, dy, ex, ey, h: hAt(ex, ey) });
+    edge.push({ dx, dy, ex, ey, h: hAt(ex, ey), sea: sea && sea.isSea(ex - dx * 4, ey - dy * 4) ? 1 : 0 });
   }
-  const sorted = edge.map((e) => e.h).sort((a, b) => a - b);
+  const wet = edge.map((_, i) => {
+    let s = 0;
+    for (let d = -4; d <= 4; d++) s += edge[(i + d + segments) % segments].sea;
+    return Math.min(1, (s / 9) * 1.6);
+  });
+  // (the land's edge only: the sea's would sink the countryside to the water line)
+  const land = edge.filter((e) => !e.sea);
+  const sorted = (land.length ? land : edge).map((e) => e.h).sort((a, b) => a - b);
   const base = sorted[sorted.length >> 1] - 1.5;
   const nR = RINGS.length;
   const pos = new Float32Array(segments * nR * 3);
@@ -70,7 +80,9 @@ export function buildGroundApron({ bounds, hAt, baseColor, segments = 192 }) {
       const amp = Math.min(38, 0.6 + d * 0.011);               // hills grow with distance
       const hills = (fbm(x * 0.0016 + 3.1, y * 0.0016 - 7.7) - 0.47) * 2.0 * amp
         + (fbm(x * 0.006, y * 0.006) - 0.47) * Math.min(4, d * 0.02);
-      const h = r === 0 ? e.h - 0.04 : e.h + (base - e.h) * ease + hills * ease;
+      let h = r === 0 ? e.h - 0.04 : e.h + (base - e.h) * ease + hills * ease;
+      // under the sea: down from the water line, never up out of it
+      if (r > 0 && wet[i] > 0) h += (Math.min(h, sea.level - 1.5 - d * 0.004) - h) * wet[i];
       const k = (i * nR + r) * 3;
       pos[k] = x; pos[k + 1] = h; pos[k + 2] = -y;
     }
