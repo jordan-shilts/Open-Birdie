@@ -110,6 +110,14 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **A ball over the cliff is dropped at the top** — the sea's penalty area was the water alone, so a drive
+  into the bay off Pebble Beach's 18th tee was dropped on the rocks at the waterline, 0.7 m above the water,
+  where the ball last flew over playable ground. The penalty area is now the water and its foreshore, as the
+  coasts are staked: the beach, the rocks at the waterline and the cliff faces the shore classifier draws
+  (`render/sea.js` `penaltyArea`, used by the server and by the yardages). That drive is now dropped at the
+  edge of the tee box, 3 m up, and a wedge into the ocean off the 7th at the cliff top, 16 m up. Off the
+  course's own surfaces only; within 15 m of a fairway, green or tee it covers 0.7 ha at Pebble Beach (the
+  cliff edges the real red lines follow), 0.1 ha at Whistling Straits and none at Bandon Dunes.
 - **No failed draws when the graphics level changes** — when Auto dropped to Low (a slow machine, or a busy
   one just after start-up) or the level was changed by hand, about 230 draws a switch failed with a GL error,
   the pin, buildings and ground among them. The level change drops the sun's shadow map to resize it, and the
