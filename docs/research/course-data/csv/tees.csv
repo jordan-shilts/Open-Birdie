@@ -1,0 +1,62 @@
+course,tee,sex,total_yards,par,rating,slope
+chambers-bay,Black,M,7158,72,74.4,138
+chambers-bay,Black/Blue,M,6961,72,73.4,136
+chambers-bay,Blue,M,6748,72,72.4,134
+chambers-bay,Blue/Sand,M,6542,72,71.5,132
+chambers-bay,Sand,M,6345,72,70.6,130
+chambers-bay,Sand/White,M,6093,72,69.3,126
+chambers-bay,White,M,5822,72,68.0,122
+chambers-bay,White,F,5822,72,73.6,129
+chambers-bay,White/Teal,M,5299,72,65.8,117
+chambers-bay,White/Teal,F,5299,72,71.0,122
+chambers-bay,Teal,M,4708,72,63.0,109
+chambers-bay,Teal,F,4708,72,67.8,113
+st-andrews-old,Black,M,6670,72,73.4,136
+st-andrews-old,Blue,M,6359,72,71.8,133
+st-andrews-old,Green,M,6044,72,70.2,127
+st-andrews-old,Black,F,6670,76,79.8,148
+st-andrews-old,Blue,F,6359,76,78.2,143
+st-andrews-old,Green,F,6044,76,76.5,140
+pebble-beach,Blue,M,6802,72,74.9,144
+pebble-beach,Gold,M,6472,72,73.4,137
+pebble-beach,Gold/White,M,6242,72,,
+pebble-beach,White,M,6083,72,71.7,135
+pebble-beach,White/Green,M,5834,72,,
+pebble-beach,Green,M,5547,72,68.7,126
+pebble-beach,Green/Red,M,5416,72,,
+pebble-beach,Red,M,5125,72,67.3,124
+pebble-beach,Gold,F,6472,72,78.2,146
+pebble-beach,White,F,6083,72,76.2,139
+pebble-beach,Green,F,5547,72,72.9,134
+pebble-beach,Red,F,5125,72,71.7,132
+pebble-beach,AT&T Pro-Am 2026,M,6989,72,,
+pebble-beach,U.S. Open 2019,M,7075,71,,
+pebble-beach,U.S. Women's Open 2023,F,6505,72,79.5,152
+bandon-dunes,Tournament,M,7212,72,,
+bandon-dunes,Black,M,6732,72,74.1,143
+bandon-dunes,Green,M,6221,72,71.4,133
+bandon-dunes,Green,F,6221,72,76.8,137
+bandon-dunes,Gold,M,5716,72,69.5,133
+bandon-dunes,Gold,F,5716,72,74.7,133
+bandon-dunes,Orange,M,5072,72,66.6,126
+bandon-dunes,Orange,F,5072,72,72.4,128
+bandon-dunes,Royal Blue,M,3945,72,61.5,101
+bandon-dunes,Royal Blue,F,3945,72,64.9,109
+tpc-sawgrass,The Players,M,7352,72,76.8,155
+tpc-sawgrass,Blue,M,6670,72,73.9,148
+tpc-sawgrass,B&W Blended,M,6396,72,72.3,144
+tpc-sawgrass,White,M,6086,72,70.8,138
+tpc-sawgrass,White,F,6086,72,77.4,149
+tpc-sawgrass,W&G Blended,M,5509,72,68.1,126
+tpc-sawgrass,W&G Blended,F,5509,72,74.0,141
+tpc-sawgrass,Green,M,5019,72,65.8,116
+tpc-sawgrass,Green,F,5019,72,71.1,134
+tpc-sawgrass,PLAYERS Championship 2026,M,7352,72,,
+whistling-straits,Black,M,7790,72,77.2,152
+whistling-straits,Blue,M,7142,72,74.2,145
+whistling-straits,Green,M,6663,72,71.9,141
+whistling-straits,Green,F,6663,72,79.4,143
+whistling-straits,White,M,6360,72,70.4,137
+whistling-straits,White,F,6360,72,76.9,137
+whistling-straits,Red,M,5564,72,66.4,129
+whistling-straits,Red,F,5564,72,,129

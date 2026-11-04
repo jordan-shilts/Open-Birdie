@@ -18,20 +18,24 @@ import { buildWater } from './water.js';
 import { buildBuildings } from './buildings.js';
 import { SKY_PRESETS, parseSkySetting } from './sky-presets.js';
 import { coursePonds, carveBeds } from './water-shore.js';
+import { findSea, carveSea, seaAt, playPoints, shoreGround, penaltyArea } from './sea.js';
 import { makeWaterDepth } from './water-depth.js';
 import { makeTurfMaterial, makeSandMaterial } from './turf.js';
 import { srgbToLinear, averageLinearColor } from './macro-tint.js';
 import { densifyRing, drapeRing } from './drape.js';
-import { buildHdTerrain, buildCoarseTerrain } from './hd-terrain.js';
+import { buildHdTerrainLod, buildCoarseTerrainLod, updateTerrainLod } from './hd-terrain.js';
 import { makeTerrainSampler, smoothGridNormals } from './terrain-grid.js';
 import { repairGridEdges } from './grid-repair.js';
 import { RENDER_CONFIG } from './config.js';
 import { isPlayFraming, ballReadScale, pinReadScale } from './framing.js';
 import { ShotTracer, makeGlow, makeLandingRing, makeBallShadow, makeDropLine } from './shot-fx.js';
+import { LineupFx } from './lineup-fx.js';
+import { isNearGreen } from '../map-frame.mjs';
 import { makePin, makeTeeMarkers } from './pin-flag.js';
-import { flightMarkers } from './flight-profile.js';
+import { flightMarkers, smoothPointAt } from './flight-profile.js';
+import { ballTurn, makeBallTexture } from './ball.js';
 import { flightCameraPlan, flightCameraAt } from './flight-camera.js';
-import { resolveQuality, autoDownshiftVerdict, renderPixelRatio } from './quality.js';
+import { resolveQuality, autoDownshiftVerdict, renderPixelRatio, DYNAMIC_RES, dynamicResolutionStep } from './quality.js';
 import { COLORS, DRY_PALETTE, courseDryFor, blendPalette } from './course-character.js';
 import { fillShapesBlurred, paintSurfaceMask, RAW_SURFACE_COLORS } from './surface-mask.js';
 import { smoothClassmapTexture } from './classmap-smoothing.js';
@@ -41,10 +45,15 @@ import {
   disjointQueryDisposition,
   normalizePerformanceRequest,
 } from './capture-performance.js';
-import { HoleFlyover } from './flyover.js';
+import { HoleFlyover, treeCeiling } from './flyover.js';
 import { GoogleTiles } from './google-tiles.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, z, -y); // sim -> three
+const _turnAxis = new THREE.Vector3(), _turnQ = new THREE.Quaternion();
+// The ball is drawn larger than life (BALL_R, and more at a distance: ballReadScale), so
+// it sits on the turf by its drawn radius, nestled a little into the grass, not by a
+// fixed few centimetres (which left a scaled-up ball half sunk).
+const BALL_R = 0.085, BALL_SEAT = 0.9;
 
 // RENDER_CONFIG knobs the quality preset scales (course-content budgets). The base
 // values are captured once so Low -> High restores them exactly.
@@ -101,13 +110,21 @@ function hexToLinearRGB(hex) {
 // palette (this._pal) at load — see below.
 
 export class GolfScene {
-  constructor(container, { quality = 'auto', autoQuality = true, sky = 'midday' } = {}) {
+  constructor(container, { quality = 'auto', autoQuality = true, sky = 'midday', shotCam = 'follow' } = {}) {
     this.container = container;
+    this.shotCam = shotCam === 'tv' ? 'tv' : 'follow';   // the replay camera (flight-camera.js)
     this.skySetting = parseSkySetting(sky);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.shadowMap.enabled = true;
+    // Cached shadows: the sun is fixed and almost every caster is static, so the shadow
+    // map is redrawn only when the casters can have changed (see _frame) — the hole fit,
+    // the sky, a scenery rebuild, the tree set re-bucketed as the camera moves — instead
+    // of re-rendering every tree into a 4096 map every frame.
+    this.renderer.shadowMap.autoUpdate = false;
+    this._shadowsDirty = true;
+    this._shadowAt = -Infinity;
     // PCF with a per-light radius (quality.js shadowRadius) is the soft-shadow path
     // in current three; PCFSoftShadowMap is deprecated and silently mapped to it.
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -118,6 +135,9 @@ export class GolfScene {
     this.scene = new THREE.Scene();
     // fog is set once the HDRI horizon color is known (see _setupSkyAndLights)
     this.camera = new THREE.PerspectiveCamera(58, container.clientWidth / container.clientHeight, 0.3, 12000);
+    this._baseFov = this.camera.fov;   // the flight camera zooms from this lens and back (_frame)
+    this._zoom = 1;
+    this._flightZoom = 1;
     this.camera.position.set(0, 30, 60);
 
     // Install before HDRI/texture requests begin so capture readiness observes
@@ -126,11 +146,17 @@ export class GolfScene {
     this._setupSkyAndLights();
 
     // gameplay objects
+    // the ball (ball.js): dimpled, with a line and a logo that show it spin and roll
+    const ballTex = new THREE.CanvasTexture(makeBallTexture());
+    ballTex.colorSpace = THREE.SRGBColorSpace;
+    ballTex.anisotropy = 4;
     this.ball = new THREE.Mesh(
-      new THREE.SphereGeometry(0.085, 18, 14),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 })
+      new THREE.SphereGeometry(BALL_R, 32, 20),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, map: ballTex, roughness: 0.35 })
     );
-    this.ball.castShadow = true;
+    // the soft contact shadow (shot-fx ballShadow) grounds the ball; leaving it out of the
+    // shadow map is what lets the map be cached (a moving caster forced a redraw a frame)
+    this.ball.castShadow = false;
     this.scene.add(this.ball);
 
     // pin + cloth flag (pin-flag.js) and the current hole's tee markers
@@ -180,6 +206,10 @@ export class GolfScene {
     this.markerLayer.className = 'dist-markers';
     container.appendChild(this.markerLayer);
     this.markers = [];
+    // lining up: yardage arcs, the predicted flight and landing zone (lineup-fx.js)
+    this.lineupFx = new LineupFx(this.scene, this.markerLayer, { hAt: (x, y) => this.hAt(x, y), V });
+    this.lineupFx.setFlag(this.pin);
+    this._lineupPred = null;
     // shot callouts (apex height / carry) projected like the yardage markers
     this.shotLabels = {
       apex: Object.assign(document.createElement('div'), { className: 'shot-label apex' }),
@@ -199,6 +229,9 @@ export class GolfScene {
     this._frameIntervals = [];
     this._qualityHoldUntil = 0;
     this._downshifted = false;
+    this._resScale = 1;          // dynamic resolution (quality.js DYNAMIC_RES)
+    this._resIntervals = [];
+    this._resCalm = 0;
     this.setQuality(quality, { rebuild: false });
     this.flyover = new HoleFlyover(this); // hole flyover camera (flyover.js)
     this.googleTiles = new GoogleTiles(this); // optional Google 3D tiles around the course (google-tiles.js; inert without a key)
@@ -237,8 +270,13 @@ export class GolfScene {
       if (sh.mapSize.x !== p.shadowMapSize) {
         sh.mapSize.set(p.shadowMapSize, p.shadowMapSize);
         if (sh.map) { sh.map.dispose(); sh.map = null; }
+        // the very next draw must run the shadow pass (shadows otherwise redraw on
+        // request): with no map, three binds a depth texture never put on the GPU to
+        // every lit material, and the rebuild's warm-up draw failed on each of them
+        this.renderer.shadowMap.needsUpdate = true;
       }
       sh.radius = p.shadowRadius;
+      this._shadowsDirty = true;
     }
     this.postfx?.setQuality({ gtao: p.gtao, bloom: p.bloom, aoScale: p.aoScale ?? 1 });
     if (this.container) this.resize();
@@ -262,10 +300,26 @@ export class GolfScene {
 
   // Feed one live frame interval to the 'auto' monitor (ignores hidden/stalled frames).
   _trackFrameRate(dtMs) {
-    if (!this._autoQuality || !this.quality || this.quality.setting !== 'auto' || this.quality.level !== 'high') return;
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
     const now = performance.now();
     if (now < this._qualityHoldUntil || !(dtMs > 0) || dtMs > 250) return;
+    // dynamic resolution first, at every level: it trades pixels for frame rate long
+    // before Auto gives up on High
+    const ri = this._resIntervals;
+    ri.push(dtMs);
+    if (ri.length >= DYNAMIC_RES.windowFrames) {
+      const r = dynamicResolutionStep({ scale: this._resScale, intervalsMs: ri, calmWindows: this._resCalm });
+      ri.length = 0;
+      this._resCalm = r.calmWindows;
+      if (r.changed) {
+        // a resize reallocates every full-screen target (~0.5 s at 4K): never mid-shot
+        // or mid-flyover — hold it until the camera is back at address (see _frame)
+        this._resPending = r.scale;
+        return;
+      }
+    }
+    if (!this._autoQuality || !this.quality || this.quality.setting !== 'auto' || this.quality.level !== 'high') return;
+    if (this._resScale > DYNAMIC_RES.min || this._resPending != null) return;   // Auto drops to Low only once the scale is spent
     const xs = this._frameIntervals;
     xs.push(dtMs);
     if (xs.length > 240) xs.shift();
@@ -282,8 +336,17 @@ export class GolfScene {
     const w = this.container.clientWidth, h = this.container.clientHeight;
     const p = this.quality?.preset;
     if (p) {
-      const pr = renderPixelRatio({ dpr: window.devicePixelRatio || 1, width: w, height: h, cap: p.pixelRatioCap, maxPixels: p.maxPixels });
+      const full = renderPixelRatio({ dpr: window.devicePixelRatio || 1, width: w, height: h, cap: p.pixelRatioCap, maxPixels: p.maxPixels });
+      // a big screen starts near ~1080p worth of pixels; dynamic resolution climbs from
+      // there if the GPU has room (starting at native 4K made the first seconds crawl)
+      if (!this._resScaleSet && w * h > 0) {
+        this._resScaleSet = true;
+        this._resScale = Math.min(1, Math.max(DYNAMIC_RES.min, Math.sqrt(2.4e6 / (w * h * full * full))));
+      }
+      const pr = Math.max(0.5, Math.round(full * (this._resScale ?? 1) * 100) / 100);
       if (pr !== this.renderer.getPixelRatio()) this.renderer.setPixelRatio(pr);
+      // sharpen in proportion to how far the frame is upscaled to the display
+      this.postfx?.setSharpness(Math.min(0.6, Math.max(0.15, 1 - pr / (window.devicePixelRatio || 1))));
     }
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -410,7 +473,7 @@ export class GolfScene {
       revision: this._visualCaptureCourseRevision,
     };
     this._treeWind = this._grassWind = this._waterUpdate = this._waterMeshList = this._terrain = null; // drop stale per-course refs
-    this._waterMirrors = this._waterSetSky = this._waterSetSun = null;
+    this._waterMirrors = this._waterSetSky = this._waterSetSun = this._waterSetWind = null;
     this._foamOn = false;
     this._treeField = null; this._placedTrees = null; this._allTreeSpots = null; this._grassField = null;
     this._fairwayGrassMesh = this._fairwayGrassWind = this._fairwayGrassCenter = this._fgGeo = this._fgGroup = this._fairwayZoneColorFn = null;
@@ -555,13 +618,36 @@ export class GolfScene {
     const lakes = (geo.sceneryWater || []).map((w) => ({ kind: 'water', poly: w.poly }));
     this._lakes = lakes;
     this._ponds = RENDER_CONFIG.water ? coursePonds([...(geo.surfaces || []), ...lakes], (x, y) => this.hAt(x, y)) : [];
+    // the sea or a great lake round a coastal course, read from the terrain (sea.js);
+    // the terrain mesh carves its floor too
+    this._sea = null;
+    if (RENDER_CONFIG.water && RENDER_CONFIG.sea && this.elev) {
+      try { this._sea = findSea(this.elev, { ponds: this._ponds, play: playPoints(geo.surfaces) }); }
+      catch (e) { console.warn('[render] sea skipped:', e && e.message); }
+      if (this._sea) console.log(`[render] sea at ${this._sea.level.toFixed(2)} m, ${Math.round(this._sea.frac * 100)}% of the terrain grid`);
+    }
+    // the ground the sea meets (sand, rock, wet), painted by the turf shader
+    this._shore = null;
+    this._seaPenalty = null;
+    if (this._sea) {
+      const sg = shoreGround(this.elev, this._sea);
+      this._seaPenalty = penaltyArea(this._sea, sg);   // what the server plays as water (lib/course.js)
+      const tex = new THREE.DataTexture(sg.data, sg.nx, sg.ny, THREE.RGBAFormat, THREE.UnsignedByteType);
+      tex.magFilter = tex.minFilter = THREE.LinearFilter;
+      tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.generateMipmaps = false;
+      tex.needsUpdate = true;
+      const half = sg.cellM / 2;
+      this._shore = { tex, offset: [b.minX - (sg.minX - half), b.minY - (sg.minY - half)], size: [sg.nx * sg.cellM, sg.ny * sg.cellM] };
+    }
     const terrain = this._terrainMesh(b);
     group.add(terrain);
     // countryside past the course edge (no more floating slab); purely visual
     if (RENDER_CONFIG.groundApron) {
       try {
         const base = new THREE.Color(this._pal.base).multiplyScalar(0.92); // sits a touch under the lit turf
-        const apron = buildGroundApron({ bounds: b, hAt: (x, y) => this.hAt(x, y), baseColor: base });
+        const sea = this._sea ? { level: this._sea.level, isSea: (x, y) => seaAt(this._sea, x, y) } : null;
+        const apron = buildGroundApron({ bounds: b, hAt: (x, y) => this.hAt(x, y), baseColor: base, sea });
         group.add(apron.mesh);
         this._apronBase = apron.baseHeight;
         this._haze?.setBase(apron.baseHeight);
@@ -572,10 +658,17 @@ export class GolfScene {
     this._addTrees(geo, group);
     try { this._addBuildings(geo, group); }
     catch (e) { console.warn('[render] buildings skipped:', e && e.message); }
+    const groundCoverFrom = group.children.length;
     this._addGrass(geo, group);
     this._addFlowers(geo, group);
     this._addGrassField(group);
     this._addFairwayGrass(geo, group);
+    // the pond mirrors leave out ground cover (they can't show it; the camera grass field
+    // alone is ~100k instances) and swap the full terrain for a 6 m stand-in
+    const groundCover = group.children.slice(groundCoverFrom);
+    const mirrorGround = this._waterSetMirrorSkip ? this._mirrorTerrainMesh(b) : null;
+    if (mirrorGround) group.add(mirrorGround);
+    this._waterSetMirrorSkip?.([...groundCover, ...(mirrorGround ? [terrain] : [])], mirrorGround ? [mirrorGround] : []);
     // LIDAR green meshes are a visual enhancement — never let a bug here break
     // the course load (the picker, physics, base render must still work). With an
     // HD bundle the high-res terrain + aerial already supply the greens, and
@@ -599,7 +692,69 @@ export class GolfScene {
 
     this.courseGroup = group;
     this.scene.add(group);
+    this._shadowsDirty = true;
+    this._warmShaders();
     this.googleTiles.setCourse(geo); // re-fit (or drop) Google's surroundings for this course
+  }
+
+  // Compile every program the course can need before play starts, in parallel where the
+  // driver allows. The shot presentation (tracer, glows, apex drop line, landing ring)
+  // only draws mid-flight, so its first frames used to compile right then: ~0.45 s
+  // stalls at launch, apex and landing (ANGLE/Metal compiles are slow). Each shot also
+  // disposed its tracer's material, which released the program and recompiled it on the
+  // next shot — one tracer material kept alive (never drawn) keeps that program cached.
+  _warmShaders() {
+    if (!this._warmTracer) {
+      this._warmTracer = new ShotTracer([V(0, 0, 0), V(0, 0, 1)], [0, 1]);
+      this._warmTracer.mesh.visible = false;
+      this.scene.add(this._warmTracer.mesh);
+    }
+    const fx = [this._warmTracer.mesh, this.ballShadow, this.headGlow, this.apexGlow, this.dropLine, this.landRing];
+    const was = fx.map((o) => o.visible);
+    fx.forEach((o) => { o.visible = true; });
+    // Compile against the composer's HDR target: a program's variant depends on where it
+    // draws (an offscreen target means linear output, no tone mapping), so warming for
+    // the screen built programs the frame never uses. compileAsync gathers the visible
+    // materials synchronously, then waits on the driver.
+    const prevTarget = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(this.postfx?.composer?.readBuffer || null);
+    const done = this.renderer.compileAsync(this.scene, this.camera);
+    this.renderer.setRenderTarget(prevTarget);
+    fx.forEach((o, i) => { o.visible = was[i]; });
+    this._warmTerrain();
+    // A compiled program isn't the whole cost: the first DRAW of each blend/target
+    // combination builds its GPU pipeline (on Metal ~0.45 s each). So once the programs
+    // are ready, draw every effect for one frame, sub-millimetre, just ahead of the camera.
+    done.then(() => {
+      if (this.anim || !this.postfx) return;   // a shot already started: nothing to protect
+      const at = this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3).add(this.camera.position);
+      const saved = fx.map((o) => ({ vis: o.visible, pos: o.position.clone(), scale: o.scale.clone() }));
+      fx.forEach((o) => { o.visible = true; o.position.copy(at); o.scale.setScalar(1e-3); });
+      try { this.postfx.render(); } finally {
+        fx.forEach((o, i) => { o.visible = saved[i].vis; o.position.copy(saved[i].pos); o.scale.copy(saved[i].scale); });
+      }
+    }).catch((e) => console.warn('[render] shader warm-up:', e && e.message));
+  }
+
+  // Upload every terrain level's buffers while the course loads: a level first drawn
+  // mid-flight (the camera nearing a tile switches it to full detail) uploaded its
+  // megabytes right then — a ~0.3 s stall. One draw of the whole scene into a 1x1
+  // target with every terrain mesh forced on (and unculled) does it up front.
+  _warmTerrain() {
+    if (!this._terrain) return;
+    const touched = [];
+    this._terrain.traverse((o) => {
+      if (o.isMesh) { touched.push([o, o.visible, o.frustumCulled]); o.visible = true; o.frustumCulled = false; }
+    });
+    const target = this._warmTarget || (this._warmTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }));
+    // no shadow map yet (a quality change just dropped it): this draw makes one first
+    if (this.sun?.castShadow && !this.sun.shadow.map) this.renderer.shadowMap.needsUpdate = true;
+    const prev = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(target);
+    try { this.renderer.render(this.scene, this.camera); } finally {
+      this.renderer.setRenderTarget(prev);
+      for (const [o, vis, culled] of touched) { o.visible = vis; o.frustumCulled = culled; }
+    }
   }
 
   async compileVisualCaptureShaders() {
@@ -645,9 +800,11 @@ export class GolfScene {
 
     // render-only pond beds: physics keeps the lidar surface (water is a hazard by
     // surface type, not depth)
-    const heights = g && this._ponds?.length
+    let heights = g && this._ponds?.length
       ? carveBeds(g.heights, { nx, ny, minX, minY, cellM: g.cellM }, this._ponds)
       : g?.heights;
+    // and the sea floor (sea.js), render-only the same way
+    if (g && this._sea) heights = carveSea(heights, { nx, ny, minX, minY, cellM: g.cellM }, this._sea);
     const pos = new Float32Array(nx * ny * 3);
     const uv = new Float32Array(nx * ny * 2);
     for (let j = 0; j < ny; j++) {
@@ -712,6 +869,7 @@ export class GolfScene {
       surfaceMaskRaw: maskRawTex, // P2a: crisp fwidth edge source (R=mown/G=green/B=bunker)
       hq: this.quality?.level !== 'low', // Low graphics skips the rough/first-cut taps
       sunDir: this.sunDir,             // live HDRI sun (bunker-lip shading)
+      shore: this._shore,              // sand and rock where the ground meets the sea (sea.js shoreGround)
       // P2a: per-surface palette (linear) so the shader can composite the base colour
       // per-fragment with a crisp fwidth mask, overriding the soft splat/tint/collar.
       pal: {
@@ -719,6 +877,7 @@ export class GolfScene {
       },
     };
     const turfMat = makeTurfMaterial(this._turfInputs);
+    this._turfMat = turfMat;   // shared by the mirrors' terrain stand-in
     if (this._hdPatches.length) {
       // Unified terrain: a coarse mesh with EVERY HD rect cut out + one HD mesh per
       // patch filling the cutouts, sharing boundaries with zero positive-area overlap.
@@ -728,11 +887,24 @@ export class GolfScene {
       // z-fight — same precedence the height sampler uses.
       const cutouts = this._hdMacros.map((m) => m.bounds);
       const grp = new THREE.Group();
-      // the pond beds are carved into the 1 m patches too (render-only, as above)
-      const carve = (grid) => (this._ponds?.length ? { ...grid, heights: carveBeds(grid.heights, grid, this._ponds) } : grid);
-      grp.add(buildCoarseTerrain({ grid: this._ponds?.length ? { ...this.elev, heights } : this.elev, cutouts, material: turfMat }));
+      // the pond beds and the sea floor are carved into the 1 m patches too (render-only,
+      // as above)
+      const carve = (grid) => {
+        let h = grid.heights;
+        if (this._ponds?.length) h = carveBeds(h, grid, this._ponds);
+        if (this._sea) h = carveSea(h, grid, this._sea);
+        return h === grid.heights ? grid : { ...grid, heights: h };
+      };
+      // detail by distance (hd-terrain.js): coarse tiles and HD patches carry levels
+      // that _frame picks per camera (updateTerrainLod), with skirts that close seams
+      const coarse = heights !== this.elev.heights ? { ...this.elev, heights } : this.elev;
+      const shadeM = RENDER_CONFIG.terrainShadeSmoothM ?? 0;
+      grp.add(buildCoarseTerrainLod({
+        grid: coarse, cutouts, material: turfMat,
+        normals: smoothGridNormals(coarse.heights, coarse.nx, coarse.ny, coarse.cellM, shadeM),
+      }));
       this._hdPatches.forEach((patch, k) => {
-        grp.add(buildHdTerrain({ grid: carve(patch), material: turfMat, uvBounds: b, skipBounds: cutouts.slice(0, k) }));
+        grp.add(buildHdTerrainLod({ grid: carve(patch), material: turfMat, uvBounds: b, skipBounds: cutouts.slice(0, k) }));
       });
       return grp;
     }
@@ -902,6 +1074,42 @@ export class GolfScene {
     return cv;
   }
 
+  // The terrain as the pond mirrors draw it: a 6 m grid of the ground the turf shows
+  // (hAt, HD patches included) in the turf's own material, visible only while a mirror
+  // renders. A reflection shows banks and the course beyond, where 1 m relief can't
+  // read, and re-drawing the full terrain (~3.7 M triangles on an HD course) was most
+  // of a mirror's cost.
+  _mirrorTerrainMesh(b) {
+    if (!this._turfMat) return null;
+    const step = 6, extX = b.maxX - b.minX, extY = b.maxY - b.minY;
+    const nx = Math.max(2, Math.ceil(extX / step) + 1), ny = Math.max(2, Math.ceil(extY / step) + 1);
+    const pos = new Float32Array(nx * ny * 3), uv = new Float32Array(nx * ny * 2);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const x = b.minX + Math.min(i * step, extX), y = b.minY + Math.min(j * step, extY), k = j * nx + i;
+        pos[k * 3] = x; pos[k * 3 + 1] = this.hAt(x, y); pos[k * 3 + 2] = -y;
+        uv[k * 2] = (x - b.minX) / extX; uv[k * 2 + 1] = (y - b.minY) / extY;
+      }
+    }
+    const idx = new Uint32Array((nx - 1) * (ny - 1) * 6);
+    let n = 0;
+    for (let j = 0; j < ny - 1; j++) {
+      for (let i = 0; i < nx - 1; i++) {
+        const a = j * nx + i, c = a + nx;
+        idx[n++] = a; idx[n++] = a + 1; idx[n++] = c; idx[n++] = a + 1; idx[n++] = c + 1; idx[n++] = c;
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    g.setIndex(new THREE.BufferAttribute(idx, 1));
+    g.computeVertexNormals();
+    const mesh = new THREE.Mesh(g, this._turfMat);
+    mesh.name = 'mirrorTerrain';
+    mesh.visible = false;
+    return mesh;
+  }
+
   // Channel mask over the terrain for the given surface kinds — black elsewhere.
   // Default: white inside the polygons (the shipping single-channel behavior).
   // With a `colors` map, each kind fills with its own color so one canvas can pack
@@ -930,16 +1138,23 @@ export class GolfScene {
       const depth = foamEnabled
         ? { depthTexture: this.waterDepth.depthTexture, resolution: this.waterDepth.resolution, near: this.camera.near, far: this.camera.far }
         : null;
-      const { meshes, waterMeshes, waterUpdate, setSun, setSky, updateMirrors } = buildWater(this._ponds || [], this.sunDir, depth);
+      const b = this.bounds;
+      const { meshes, waterMeshes, sea, waterUpdate, setSun, setSky, updateMirrors, setMirrorSkip, setWind } = buildWater(
+        this._ponds || [], this.sunDir, depth, this._sea, b ? { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 } : null);
+      this._waterSetMirrorSkip = setMirrorSkip;
       setSky(this._equirect || null);
       this._waterSetSky = setSky;
       this._waterMirrors = updateMirrors;
       this._foamOn = foamEnabled && !!(waterMeshes && waterMeshes.length);
       meshes.forEach((m) => group.add(m));
+      if (sea) group.add(sea);
+      this._waterSetWind = setWind;
+      if (this._wind) setWind(this._wind);
       this._waterUpdate = waterUpdate;
       this._waterSetSun = setSun;
       this._waterMeshList = waterMeshes;
     } else {
+      this._waterSetMirrorSkip = null;
       this._waterMeshes(geo).forEach((m) => group.add(m));
     }
   }
@@ -1066,47 +1281,109 @@ export class GolfScene {
     if (count) console.log(`[render] buildings: ${count}/${list.length}`);
   }
 
-  // Clumped scatter across rough polygons. Real fescue grows in dense patches
-  // with bare gaps, not an even thin spread — so we drop clump centers on the
-  // rough, then cluster tufts around each (center-biased disc, trimmed at the
-  // rough edge so a clump never spills onto a mown surface). Same tuft budget as
-  // a uniform scatter, but it reads far fuller where the grass actually is.
+  // Clumped scatter of fescue. Real fescue grows in dense patches with bare gaps,
+  // not an even thin spread — so we drop clump centers on open ground, then cluster
+  // tufts around each (center-biased disc, trimmed where the open ground ends so a
+  // clump never spills onto a mown surface). Same tuft budget as a uniform scatter,
+  // but it reads far fuller where the grass actually is.
+  //
+  // Where: the native ground a links leaves unmown, anywhere within 70 m of a hole's
+  // line (where the player looks; the whole course's rough thinned the budget to lone
+  // clumps on painted ground), off the fairways, greens and tees and the 6 m of first cut
+  // mown round them, and never in sand or water (it runs right up to a bunker's lip).
   _grassSpots(geo) {
-    if (!RENDER_CONFIG.groundGrass) return [];
-    const rough = (geo.surfaces || []).filter((s) => s.kind === 'rough' && s.poly && s.poly.length >= 3);
-    if (!rough.length) return [];
-    const onRough = (x, y) => { for (const s of rough) if (pointInPoly(x, y, s.poly)) return true; return false; };
-    // Bunkers (and water) often sit as islands inside a rough polygon, so "on rough"
-    // is true inside them — exclude those so fescue never sprouts in the sand.
-    // also mown ground: OSM rough polygons often enclose the fairway/green, and the
-    // physics surface priority puts those ABOVE rough — so no fescue on them
-    const blocked = (geo.surfaces || []).filter((s) => ['bunker', 'water', 'fairway', 'green', 'tee'].includes(s.kind) && s.poly && s.poly.length >= 3);
-    const onBlocked = (x, y) => { for (const s of blocked) if (pointInPoly(x, y, s.poly)) return true; return false; };
-    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
-    for (const s of rough) for (const [x, y] of s.poly) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    if (!RENDER_CONFIG.groundGrass || !this.bounds) return [];
+    const b = this.bounds, CELL = 4, CORRIDOR_M = 70, CUT_M = 6;
+    const nx = Math.max(1, Math.ceil((b.maxX - b.minX) / CELL)), ny = Math.max(1, Math.ceil((b.maxY - b.minY) / CELL));
+    const cellOf = (x, y) => {
+      const i = Math.floor((x - b.minX) / CELL), j = Math.floor((y - b.minY) / CELL);
+      return i >= 0 && i < nx && j >= 0 && j < ny ? j * nx + i : -1;
+    };
+    // 1: mown, 2: sand or water, then 3: the first cut round the mown
+    const ground = new Uint8Array(nx * ny);
+    const paint = (poly, v) => {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+      const i0 = Math.max(0, Math.floor((x0 - b.minX) / CELL)), i1 = Math.min(nx - 1, Math.floor((x1 - b.minX) / CELL));
+      const j0 = Math.max(0, Math.floor((y0 - b.minY) / CELL)), j1 = Math.min(ny - 1, Math.floor((y1 - b.minY) / CELL));
+      for (let j = j0; j <= j1; j++) {
+        for (let i = i0; i <= i1; i++) {
+          if (pointInPoly(b.minX + (i + 0.5) * CELL, b.minY + (j + 0.5) * CELL, poly)) ground[j * nx + i] = Math.max(ground[j * nx + i], v);
+        }
+      }
+    };
+    for (const s of geo.surfaces || []) {
+      if (!s.poly || s.poly.length < 3) continue;
+      if (s.kind === 'fairway' || s.kind === 'green' || s.kind === 'tee') paint(s.poly, 1);
+      else if (s.kind === 'bunker' || s.kind === 'water') paint(s.poly, 2);
+    }
+    const r = Math.ceil(CUT_M / CELL);
+    const cut = Uint8Array.from(ground);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        if (ground[j * nx + i] !== 1) continue;
+        for (let dj = -r; dj <= r; dj++) {
+          for (let di = -r; di <= r; di++) {
+            const ii = i + di, jj = j + dj;
+            if (ii >= 0 && ii < nx && jj >= 0 && jj < ny && !cut[jj * nx + ii]) cut[jj * nx + ii] = 3;
+          }
+        }
+      }
+    }
+    // the corridor cells (within CORRIDOR_M of a hole's line) that fescue may fill
+    const open = [];
+    const near = new Uint8Array(nx * ny);
+    for (const h of geo.holes || []) {
+      const L = Array.isArray(h.line) && h.line.length > 1 ? h.line : [h.tee, h.pin];
+      for (let s = 1; s < L.length; s++) {
+        const [ax, ay] = L[s - 1], [bx, by] = L[s];
+        const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
+        const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - CORRIDOR_M - b.minX) / CELL)), i1 = Math.min(nx - 1, Math.floor((Math.max(ax, bx) + CORRIDOR_M - b.minX) / CELL));
+        const j0 = Math.max(0, Math.floor((Math.min(ay, by) - CORRIDOR_M - b.minY) / CELL)), j1 = Math.min(ny - 1, Math.floor((Math.max(ay, by) + CORRIDOR_M - b.minY) / CELL));
+        for (let j = j0; j <= j1; j++) {
+          for (let i = i0; i <= i1; i++) {
+            const k = j * nx + i;
+            if (near[k] || cut[k]) continue;
+            const px = b.minX + (i + 0.5) * CELL, py = b.minY + (j + 0.5) * CELL;
+            const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L2));
+            if (Math.hypot(ax + t * dx - px, ay + t * dy - py) <= CORRIDOR_M) { near[k] = 1; open.push(k); }
+          }
+        }
+      }
+    }
+    if (!open.length) return [];
     const spots = [], rnd = mulberry32(8080), CAP = RENDER_CONFIG.grassCap;
     let att = 0;
     while (spots.length < CAP && att++ < CAP * 6) {
-      const cx = minX + rnd() * (maxX - minX), cy = minY + rnd() * (maxY - minY);
-      if (!onRough(cx, cy)) continue;
+      const k = open[(rnd() * open.length) | 0];
+      const cx = b.minX + ((k % nx) + rnd()) * CELL, cy = b.minY + (Math.floor(k / nx) + rnd()) * CELL;
       const R = 1.0 + rnd() * 2.5;             // clump radius (m) — tight, bushy patches
       const K = 10 + ((rnd() * rnd() * 26) | 0); // tufts/clump, skewed toward small patches
-      for (let k = 0; k < K && spots.length < CAP; k++) {
+      for (let n = 0; n < K && spots.length < CAP; n++) {
         const ang = rnd() * Math.PI * 2, rad = Math.pow(rnd(), 0.7) * R; // center-biased
         const x = cx + Math.cos(ang) * rad, y = cy + Math.sin(ang) * rad;
-        if (onRough(x, y) && !onBlocked(x, y)) spots.push({ x, y, s: 0.7 + rnd() * 0.7 });
+        const c = cellOf(x, y);
+        if (c >= 0 && near[c]) spots.push({ x, y, s: 0.7 + rnd() * 0.7 });
       }
     }
     return spots;
   }
 
   // Real grass blades around the camera on every mown and rough surface (grass-field.js).
+  // On a links (dry enough to grow fescue, as _addGrass) the field runs even with the
+  // blades off, for the fescue alone: tall wispy straw on the open ground round the
+  // camera, where the static tufts are too thin to cover it. High graphics only: Low is
+  // the weak-GPU setting (Auto drops a laptop GPU like the sim PC's UHD 630 to it).
   _addGrassField(group) {
-    if (!RENDER_CONFIG.grassField || !this.elev || !this._turfInputs) return;
+    const fescue = Math.min(1, Math.max(0, ((this._courseDry || 0) - 0.4) / 0.4));
+    const fescueOnly = !RENDER_CONFIG.grassField;
+    const linksFescue = RENDER_CONFIG.linksFescue && fescue > 0 && this.quality?.level !== 'low';
+    if ((fescueOnly && !linksFescue) || !this.elev || !this._turfInputs) return;
     try {
       const hdBounds = this._hdPatches.map((p) => ({ minX: p.minX, minY: p.minY, maxX: p.minX + (p.nx - 1) * p.cellM, maxY: p.minY + (p.ny - 1) * p.cellM }));
       this._grassField = new GrassField({
-        turf: this._turfInputs, elev: this.elev, hAt: (x, y) => this.hAt(x, y), hdBounds,
+        turf: this._turfInputs, elev: this.elev, hAt: (x, y) => this.hAt(x, y), hdBounds, sunDir: this.sunDir,
+        fescue, fescueOnly,
         scale: Math.min(1, (this.quality?.preset?.grassScale ?? 0.5) * 2),
       });
       // the course teardown disposes materials' userData textures
@@ -1119,12 +1396,12 @@ export class GolfScene {
   }
 
   _addGrass(geo, group) {
+    // golden-tipped fescue belongs on links; watered parkland rough is mown, so its tall
+    // tufts stood alone in the rough as stray wisps (and cost ~0.1-0.6 ms): none there
+    if ((this._courseDry || 0) < 0.5) return;
     const spots = this._grassSpots(geo);
     if (!spots.length) return;
-    // golden-tipped fescue belongs on links; watered parkland rough is green to the tip
-    const parkland = (this._courseDry || 0) < 0.5;
-    const { mesh, windUpdate } = buildGrass(spots, (x, y) => this.hAt(x, y), V,
-      parkland ? { colorBase: 0x40602c, colorTip: 0x86964f } : {});
+    const { mesh, windUpdate } = buildGrass(spots, (x, y) => this.hAt(x, y), V);
     if (mesh) { group.add(mesh); this._grassWind = windUpdate; }
   }
 
@@ -1320,6 +1597,11 @@ export class GolfScene {
     }
   }
 
+  // The sea round the course (sea.js), as the yardage marks measure it: its penalty area,
+  // the water and the beach, rocks and cliffs down to it, as the server plays it.
+  hasSea() { return !!this._seaPenalty; }
+  isSea(x, y) { return !!this._seaPenalty && seaAt(this._seaPenalty, x, y); }
+
   // ---------- gameplay state ----------
   setHole(hole, ballPos, aimDeg) {
     this.pinSim = { x: hole.pin[0], y: hole.pin[1] };
@@ -1342,8 +1624,16 @@ export class GolfScene {
   setBall(p) {
     this.ballSim = { x: p.x, y: p.y };
     const z = this.hAt(p.x, p.y);
-    this.ball.position.copy(V(p.x, p.y, z + 0.06));
+    this._ballBase = z;
+    this.ball.position.copy(V(p.x, p.y, z));
+    this._seatBall();
     this._buildMarkers();
+  }
+
+  // the ball's height: its bottom on the ground (or where the flight has it), at its drawn size
+  _seatBall() {
+    if (this._ballBase == null) return;   // no ball placed yet
+    this.ball.position.y = this._ballBase + BALL_SEAT * BALL_R * this.ball.scale.x;
   }
 
   // Floating yardage markers every 50y down the ball->pin line, drawn as DOM
@@ -1352,7 +1642,8 @@ export class GolfScene {
     if (!this.markerLayer) return;
     for (const m of this.markers) m.el.remove();
     this.markers = [];
-    if (!this.geo) return;
+    this._lineupArcs();
+    if (!this.geo || this.lineupFx) return;   // the lineup's yardage arcs replace the bubbles
     const bx = this.ballSim.x, by = this.ballSim.y;
     const dx = this.pinSim.x - bx, dy = this.pinSim.y - by;
     const distM = Math.hypot(dx, dy);
@@ -1391,6 +1682,50 @@ export class GolfScene {
   setAim(aimDeg) {
     this.aimDeg = aimDeg;
     this._aimLineUpdate();
+    this._lineupArcs();
+  }
+
+  // ---------- lining up ----------
+  // The predicted shot for the club in hand (lib/predict.js), or null to clear it.
+  // the shot-replay camera: 'follow' flies with the ball, 'tv' covers it broadcast-style
+  setShotCam(mode) { this.shotCam = mode === 'tv' ? 'tv' : 'follow'; }
+
+  setLineup(pred) {
+    this._lineupPred = pred || null;
+    // round the green the overlay goes bare and the cup is marked (none in flight)
+    const pinM = Math.hypot(this.pinSim.x - this.ballSim.x, this.pinSim.y - this.ballSim.y);
+    const near = !!this._lineupPred && isNearGreen(pinM / 0.9144, this._lineupPred.isPutt);
+    this.lineupFx?.setPrediction(this._lineupPred, { near });
+    this.lineupFx?.setCup(near ? { x: this.pinSim.x, y: this.pinSim.y, ft: pinM / 0.3048 } : null);
+    this._lineupArcs();
+  }
+
+  // Bunkers and water to tag with their front and back yardages (public/yardages.mjs).
+  setHazardMarks(list) {
+    this.lineupFx?.setHazards(list || []);
+  }
+
+  // Yardage arcs out past the pin or the club's total, whichever is farther (no arcs
+  // on the green or when nothing is loaded).
+  _lineupArcs() {
+    if (!this.lineupFx) return;
+    if (!this.geo || !this.ballSim) { this.lineupFx.setArcs({}); return; }
+    const pinYd = Math.hypot(this.pinSim.x - this.ballSim.x, this.pinSim.y - this.ballSim.y) / 0.9144;
+    const p = this._lineupPred;
+    const reach = Math.min(340, Math.max(Math.min(pinYd + 12, 340), p && !p.isPutt ? p.totalYd + 25 : 0));
+    this.lineupFx.setArcs({ ball: this.ballSim, aimDeg: this.aimDeg, reachYd: pinYd < 40 ? 0 : reach });
+  }
+
+  // Today's wind (lib/conditions.js): the flag streams downwind and stiffens, the
+  // crowns sway harder, the sea runs downwind and whitens.
+  setWind({ mph = 0, fromDeg = 0 } = {}) {
+    const to = fromDeg + 180;
+    // the flag cloth lies along +x; turning it by 90 deg - heading points it downwind
+    this._pinFlag.setWindHeading((90 - to) * Math.PI / 180);
+    const k = Math.min(1, mph / 25);
+    if (this._treeField?.shared?.uWindAmp) this._treeField.shared.uWindAmp.value = 0.008 + k * 0.05;
+    this._wind = { mph, toDeg: to };
+    this._waterSetWind?.(this._wind);
   }
 
   // ---------- range & games ----------
@@ -1446,10 +1781,12 @@ export class GolfScene {
   }
 
   _fitShadows(hole) {
-    const cx = (hole.tee[0] + hole.pin[0]) / 2, cy = (hole.tee[1] + hole.pin[1]) / 2;
+    this._shadowsDirty = true;
+    const tee = hole.tee || hole.pin;   // the putting and chipping games have no tee
+    const cx = (tee[0] + hole.pin[0]) / 2, cy = (tee[1] + hole.pin[1]) / 2;
     const cz = this.hAt(cx, cy);
     const center = V(cx, cy, cz);
-    const span = Math.hypot(hole.pin[0] - hole.tee[0], hole.pin[1] - hole.tee[1]) * 0.62 + 70;
+    const span = Math.hypot(hole.pin[0] - tee[0], hole.pin[1] - tee[1]) * 0.62 + 70;
     this.sun.position.copy(center).addScaledVector(this.sunDir, 700);
     this.sun.target.position.copy(center);
     const c = this.sun.shadow.camera;
@@ -1470,9 +1807,15 @@ export class GolfScene {
     }
     if (pts.length < 2) return;
     const g = new THREE.BufferGeometry().setFromPoints(pts);
-    this.aimLine = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, dashSize: 2.2, gapSize: 2.2 }));
+    this.aimLine = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, dashSize: 2.2, gapSize: 2.2 }));
     this.aimLine.computeLineDistances();
     this.scene.add(this.aimLine);
+  }
+
+  // Wipe the last shot off the course (tracer, apex and landing callouts): a mulligan
+  // takes it back. The aim line returns with the address framing on its own.
+  clearShot() {
+    if (!this.anim) this._clearTrail();
   }
 
   _clearTrail() {
@@ -1503,6 +1846,10 @@ export class GolfScene {
       onDone,
       onProgress: opts.onProgress || null,
       isPutt,
+      // the ball's spin, to turn it by (ball.js); the launch monitor's numbers when known
+      spinRps: Number.isFinite(opts.spinRpm) ? opts.spinRpm / 60 : isPutt ? 0 : 45,
+      spinAxisDeg: Number.isFinite(opts.spinAxisDeg) ? opts.spinAxisDeg : 0,
+      lastP: points[0],
     };
     // Camera: a smooth follow (flight-camera.js) that starts exactly at the address
     // camera and glides to a landing-area vantage during the descent.
@@ -1521,9 +1868,17 @@ export class GolfScene {
       }
       return true;
     };
+    // the glide stays above tree crowns: one height lookup per tree set, built on its
+    // first shot rather than per shot (a course has thousands of trees)
+    if (this._treeTopFor !== trees) {
+      this._treeTopFor = trees;
+      this._treeTop = trees.length ? treeCeiling(trees, (x, y) => this.hAt(x, y), { marginM: 2 }) : null;
+    }
+    const l = this.lookCur;
     this.anim.plan = flightCameraPlan(points, {
-      startCam: { x: c.x, y: -c.z, z: c.y }, flightTime: ft, isPutt,
-      groundAt: (x, y) => this.hAt(x, y), isClear,
+      startCam: { x: c.x, y: -c.z, z: c.y }, startLook: { x: l.x, y: -l.z, z: l.y },
+      flightTime: ft, isPutt, fovDeg: this._baseFov, mode: this.shotCam,
+      groundAt: (x, y) => this.hAt(x, y), treeTopAt: this._treeTop, isClear,
     });
     this.camMode = 'static';
     // Tracer ribbon over the AIR phase (to first contact), plus apex/landing markers.
@@ -1562,27 +1917,37 @@ export class GolfScene {
     a.t += dt * a.speed;
     const pts = a.points;
     while (a.i < pts.length - 1 && pts[a.i + 1].t <= a.t) a.i++;
-    let p;
-    if (a.i >= pts.length - 1) {
-      p = pts[pts.length - 1];
-    } else {
-      const p0 = pts[a.i], p1 = pts[a.i + 1];
-      const f = Math.min(1, (a.t - p0.t) / Math.max(1e-6, p1.t - p0.t));
-      p = { x: p0.x + (p1.x - p0.x) * f, y: p0.y + (p1.y - p0.y) * f, z: p0.z + (p1.z - p0.z) * f };
-    }
+    // a smooth curve through the samples in the air, straight lines over the bounces
+    const p = a.i >= pts.length - 1 ? pts[pts.length - 1] : smoothPointAt(pts, a.t, a.flightTime);
     this.ballSim = { x: p.x, y: p.y };
-    this.ball.position.copy(V(p.x, p.y, p.z + 0.06));
+    // on the ground it rolls on the turf as drawn (never through it)
+    this._ballBase = a.t < a.flightTime && !a.isPutt ? p.z : Math.max(p.z, this.hAt(p.x, p.y));
+    this.ball.position.copy(V(p.x, p.y, this._ballBase));
+    this._seatBall();
     this._ballZ = p.z;
+    // and it turns: backspin in the air, a roll on the ground (ball.js)
+    const turn = ballTurn(a.lastP, p, dt * a.speed, {
+      air: !a.isPutt && a.t < a.flightTime, spinRps: a.spinRps, spinAxisDeg: a.spinAxisDeg,
+      radius: BALL_R * this.ball.scale.x,
+    });
+    if (turn) {
+      _turnAxis.set(turn.axis[0], turn.axis[2], -turn.axis[1]);   // sim -> three
+      this.ball.quaternion.premultiply(_turnQ.setFromAxisAngle(_turnAxis, turn.angle));
+    }
+    a.lastP = p;
 
     // follow camera (targets; _frame smooths them)
+    // the follow camera runs a short tail past the ball's last sample, coming to rest
+    const end = a.dur + (a.plan?.tail || 0);
     if (a.plan) {
-      const cam = flightCameraAt(a.plan, Math.min(a.t, a.dur), pts);
+      const cam = flightCameraAt(a.plan, Math.min(a.t, end), pts);
       this.camPosT.copy(V(cam.pos.x, cam.pos.y, cam.pos.z));
       this.lookT.copy(V(cam.look.x, cam.look.y, cam.look.z));
+      this._flightZoom = cam.zoom ?? 1;
     }
     a.onProgress?.(Math.min(a.t, a.dur));
 
-    if (a.t >= a.dur) {
+    if (a.t >= end) {
       const done = a.onDone;
       this.anim = null;
       if (this._fx) this._fx.lingerStart = this.clock.elapsedTime;
@@ -1590,7 +1955,7 @@ export class GolfScene {
         this.camMode = 'idle';
         if (this.aimLine) this.aimLine.visible = true;
         done?.();
-      }, 900);
+      }, Math.max(100, 900 - (a.plan?.tail || 0) * 1000));   // the tail was part of the hold
     }
   }
 
@@ -1672,15 +2037,26 @@ export class GolfScene {
     this.camera.lookAt(this.lookCur);
   }
 
+  // At address: behind the ball down the line, framed to read the hole. The pitch puts
+  // the ball about three quarters of the way down the frame and the pin about 40% down
+  // (the depression angles to each, weighted), so the far end of the hole gets the
+  // frame instead of the sky; a full shot also tightens the lens to ~46 degrees
+  // (_addressZoom), where at 58 a green 350 m off was a pixel deep. Chips and putts keep
+  // the wide lens.
   _idleTargets() {
     const rad = (this.aimDeg + this.orbit.yaw) * Math.PI / 180;
     const dx = Math.sin(rad), dy = Math.cos(rad);
     const bx = this.ballSim.x, by = this.ballSim.y;
     const bz = this.hAt(bx, by);
     const cx = bx - dx * this.orbit.dist, cy = by - dy * this.orbit.dist;
-    this.camPosT.copy(V(cx, cy, Math.max(this.hAt(cx, cy) + 1.7, bz + this.orbit.height)));
-    const lookAhead = Math.min(Math.hypot(this.pinSim.x - bx, this.pinSim.y - by), 130);
-    this.lookT.copy(V(bx + dx * lookAhead * 0.45, by + dy * lookAhead * 0.45, bz + 2));
+    const cz = Math.max(this.hAt(cx, cy) + 1.7, bz + this.orbit.height);
+    this.camPosT.copy(V(cx, cy, cz));
+    const pinD = Math.hypot(this.pinSim.x - bx, this.pinSim.y - by);
+    const toBall = Math.atan2(cz - bz, this.orbit.dist);
+    const toPin = Math.atan2(cz - this.hAt(this.pinSim.x, this.pinSim.y), this.orbit.dist + Math.max(pinD, 1));
+    const pitch = toPin + 0.285 * (toBall - toPin);
+    this.lookT.copy(V(cx + dx * 80, cy + dy * 80, cz - Math.tan(pitch) * 80));
+    this._addressZoom = 1 + 0.31 * THREE.MathUtils.smoothstep(pinD, 60, 160);
   }
 
   // ---- free-roam "course creator" camera ----
@@ -1736,6 +2112,12 @@ export class GolfScene {
     const rawDt = fixed ? 0 : this.clock.getDelta();
     const dt = fixed ? Math.max(0, Number(capture.fixedDelta) || 0) : Math.min(rawDt, 0.05);
     if (!fixed) this._trackFrameRate(rawDt * 1000);
+    if (this._resPending != null && !this.anim && this.camMode !== 'flyover') {
+      this._resScale = this._resPending;
+      this._resPending = null;
+      this.resize();
+      this._qualityHoldUntil = performance.now() + 600;   // let the new size settle before judging it
+    }
     if (this._pendingRebuild && !this.anim) this._rebuildScenery();
     const frameTime = fixed ? (Number(capture.fixedTime) || 0) : this.clock.elapsedTime;
     this._captureFixedTime = fixed ? frameTime : null;
@@ -1748,20 +2130,33 @@ export class GolfScene {
     else if (this.camMode === 'free') { this._freeStep(dt); this._freeTargets(); }
     this.flyover.update(dt); // owns the camera while camMode === 'flyover'
 
-    // The flight camera's targets are already smooth (flight-camera.js), so track them
-    // tighter than the address/orbit easing — a loose look-lerp lets a 70 m/s ball
-    // run out ahead of frame.
+    // The flight camera's path, look and lens are already smooth (flight-camera.js) and
+    // start exactly where the address camera is, so a replay follows them exactly: any
+    // easing on top drags the camera behind its framing (a 0.3 s lag is 20 m at glide
+    // speed) and lets a 70 m/s ball run out of a telephoto frame.
     const flying = this.camMode === 'static' && this.anim && this.anim.plan;
-    const k = capture?.snapCamera ? 1 : 1 - Math.exp(-(flying ? 3.2 : 4.2) * dt);
-    const kLook = capture?.snapCamera ? 1 : 1 - Math.exp(-(flying ? 9.0 : 4.2) * dt);
+    const k = capture?.snapCamera || flying ? 1 : 1 - Math.exp(-4.2 * dt);
+    const kLook = capture?.snapCamera || flying ? 1 : 1 - Math.exp(-4.2 * dt);
     this.camera.position.lerp(this.camPosT, k);
     this.lookCur.lerp(this.lookT, kLook);
     this.camera.lookAt(this.lookCur);
+    // lens: the flight camera zooms in on the drop (flight-camera.js); address frames a
+    // full shot a little tighter (_idleTargets); everything else flies the base lens.
+    // Eased both ways, so the lens never jumps at impact
+    const zoomT = flying ? this._flightZoom : this.camMode === 'idle' ? (this._addressZoom || 1) : 1;
+    if (zoomT !== 1 || this._zoom !== 1) {
+      this._zoom += (zoomT - this._zoom) * (capture?.snapCamera ? 1 : 1 - Math.exp(-6 * dt));
+      if (Math.abs(this._zoom - 1) < 1e-3 && zoomT === 1) this._zoom = 1;
+      const half = THREE.MathUtils.degToRad(this._baseFov / 2);
+      this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(half) / this._zoom));
+      this.camera.updateProjectionMatrix();
+    }
 
     // keep ball & pin readable at distance — but ONLY in a play framing, so
     // survey/overview/beauty shots don't get a 26x ball reading as a debug billboard
     const bd = this.camera.position.distanceTo(this.ball.position);
     this.ball.scale.setScalar(ballReadScale(bd, this.camMode, this.anim));
+    this._seatBall();
     const pd = this.camera.position.distanceTo(this.pin.position);
     this.pin.scale.setScalar(pinReadScale(pd, this.camMode, this.anim));
     for (const f of this._practiceFlags || []) {
@@ -1770,12 +2165,14 @@ export class GolfScene {
     }
     // gameplay aim line is an address-view aid — never in non-play framings
     if (this.aimLine) this.aimLine.visible = isPlayFraming(this.camMode, this.anim);
+    this.lineupFx?.update(this.camera, this.container, isPlayFraming(this.camMode, this.anim));
 
     this._updateMarkers();
     this._updateShotFx(frameTime);
     this._haze?.update(this.camera);
     if (this._treeWind) this._treeWind(frameTime);
-    if (this._treeField) this._treeField.update(this.camera, frameTime);
+    const treesMoved = this._treeField ? this._treeField.update(this.camera, frameTime) : false;
+    updateTerrainLod(this._terrain, this.camera);   // terrain detail for this camera
     if (this._grassField) this._grassField.update(this.camera, frameTime);
     if (this.scene.fog && this._fogDensity) {
       // haze lies in the low air: looking down from a flyover or overview the light
@@ -1792,9 +2189,20 @@ export class GolfScene {
     if (this._fairwayGrassWind) this._fairwayGrassWind(frameTime);
     if (this._flagU) this._flagU.value = frameTime;
     if (this._waterUpdate) this._waterUpdate(frameTime);
-    const pondsInView = this._waterMirrors ? this._waterMirrors(this.camera) : 1;
-    if (this.waterDepth && this._foamOn && this._terrain && pondsInView) this.waterDepth.prepass(this._terrain, this.camera);
+    // the terrain depth pre-pass (pond shallows) only runs with a pond near enough to show them
+    const pondsNear = this._waterMirrors ? this._waterMirrors(this.camera) : 1;
+    if (this.waterDepth && this._foamOn && this._terrain && pondsNear) this.waterDepth.prepass(this._terrain, this.camera);
     this.googleTiles.update(); // Google tile LOD/visibility for the camera just placed
+    // Redraw the cached shadow map when its casters can have changed: at once for a new
+    // hole / sky / scenery, at most ~10x a second while the tree set follows a moving
+    // camera (a tree crossing the near-LOD ring 200 m out can wait 0.1 s for its shadow),
+    // and twice a second regardless (swaying crowns, the flag). Stills always redraw.
+    const nowS = performance.now() / 1000;
+    if (fixed || this._shadowsDirty || (treesMoved && nowS - this._shadowAt > 0.1) || nowS - this._shadowAt > 0.5) {
+      this.renderer.shadowMap.needsUpdate = true;
+      this._shadowsDirty = false;
+      this._shadowAt = nowS;
+    }
     this.postfx.render();
     if (fixed) {
       this._lastVisualCapture = {

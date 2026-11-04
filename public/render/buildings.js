@@ -53,16 +53,25 @@ function wallMaterial() {
           float far = smoothstep(0.08, 0.3, fwidth(w.x) + fwidth(w.y));
           vec3 sid = diffuseColor.rgb * (1.0 - 0.07 * smoothstep(0.82, 1.0, fract(w.y / 0.21)) * (1.0 - win));
           vec3 facade = mix(sid, vec3(0.86), win - pane);                      // white frames
-          facade = mix(facade, vec3(0.035, 0.04, 0.045), pane);                // glass
+          // glass: a dark room behind a sky-blue sheen, a few rooms with the blinds down
+          // or the lights on, so a facade isn't a grid of identical black holes
+          float room = bHash(bay * 3.0 + fl * 17.0 + w.z * 0.11);
+          vec3 glass = mix(vec3(0.05, 0.06, 0.07), vec3(0.20, 0.23, 0.26), smoothstep(0.55, 1.0, fv / 2.2));
+          glass = mix(glass, vec3(0.42, 0.36, 0.27), step(0.82, room));        // blinds / curtains
+          glass = mix(glass, vec3(0.62, 0.52, 0.34), step(0.95, room));        // a lit room
+          facade = mix(facade, glass, pane);
           vec3 avg = diffuseColor.rgb * 0.8;
           diffuseColor.rgb = mix(facade, avg, far);
           diffuseColor.rgb *= mix(0.52, 1.0, smoothstep(0.25, 0.45, w.y));   // foundation band
           gGlass = pane * (1.0 - far);
         }`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.06, gGlass);')
-      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.55, gGlass);');
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.55, gGlass);')
+      // windows mirror the sky: lift the image-based reflection on the glass only (the
+      // scene's sky fill is kept low for the turf, which left every pane black)
+      .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\n#if defined( RE_IndirectSpecular )\nradiance *= 1.0 + 3.0 * gGlass;\n#endif');
   };
-  m.customProgramCacheKey = () => 'building-walls-v1';
+  m.customProgramCacheKey = () => 'building-walls-v2';
   return m;
 }
 

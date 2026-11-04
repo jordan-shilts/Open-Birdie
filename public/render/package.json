@@ -1,4 +1,4 @@
 {
-  "comment": "Marks the browser renderer modules as ESM for Node tooling (node --test). Inert for the running app: these files are only loaded by the browser via the importmap; the CommonJS server/electron code never requires them.",
+  "comment": "Marks the browser renderer modules as ESM for Node tooling (node --test). The browser loads them via the importmap; the CommonJS server requires only the pure sea.js and grid-repair.js (lib/course.js, through require(esm), so the sea it plays as water is the sea that is drawn).",
   "type": "module"
 }
