@@ -76,7 +76,7 @@ export const RENDER_CONFIG = {
   // own (divots, crisp tee box, mown rough). true brings back real blades around the camera on
   // every mown + rough surface (grass-field.js), drawn only where the camera looks.
   grassField: false,
-  linksFescue: true,      // on a links the field still draws its fescue (tall straw, no short blades)
+  linksFescue: true,      // on a links the field still draws its fescue (tall straw, no short blades), High graphics only
   foregroundGrass: false, // the older ball patch below, off with the field (quality presets set it)
   foregroundGrassRadius: 18,    // m — patch radius around the ball/address point (tight = dense)
   foregroundGrassCap: 24000,    // spot clumps (× ~4 blades); the fade culls everything far

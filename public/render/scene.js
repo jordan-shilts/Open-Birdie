@@ -1372,11 +1372,13 @@ export class GolfScene {
   // Real grass blades around the camera on every mown and rough surface (grass-field.js).
   // On a links (dry enough to grow fescue, as _addGrass) the field runs even with the
   // blades off, for the fescue alone: tall wispy straw on the open ground round the
-  // camera, where the static tufts are too thin to cover it.
+  // camera, where the static tufts are too thin to cover it. High graphics only: Low is
+  // the weak-GPU setting (Auto drops a laptop GPU like the sim PC's UHD 630 to it).
   _addGrassField(group) {
     const fescue = Math.min(1, Math.max(0, ((this._courseDry || 0) - 0.4) / 0.4));
     const fescueOnly = !RENDER_CONFIG.grassField;
-    if ((fescueOnly && !(RENDER_CONFIG.linksFescue && fescue > 0)) || !this.elev || !this._turfInputs) return;
+    const linksFescue = RENDER_CONFIG.linksFescue && fescue > 0 && this.quality?.level !== 'low';
+    if ((fescueOnly && !linksFescue) || !this.elev || !this._turfInputs) return;
     try {
       const hdBounds = this._hdPatches.map((p) => ({ minX: p.minX, minY: p.minY, maxX: p.minX + (p.nx - 1) * p.cellM, maxY: p.minY + (p.ny - 1) * p.cellM }));
       this._grassField = new GrassField({
