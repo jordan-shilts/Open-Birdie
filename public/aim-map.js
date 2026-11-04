@@ -52,6 +52,10 @@ export class AimMap {
     this.onAimEnd = onAimEnd;
     this.onPlan = onPlan;    // ({x, y}) while the lay-up target is dragged
     this.plan = null;        // shot-plan.mjs shotPlan()
+    // yardage details (menu, off by default): the distance rings, the hazards' and the
+    // green's numbers on a full shot. Off, a full shot is just its plan: the target, the
+    // pin, the legs and their lengths.
+    this.details = false;
     this.geo = null;
     this.hole = null;        // { ball: {x,y}, pin: [x,y], baseAimDeg, line }
     this.aimOffset = 0;
@@ -85,6 +89,9 @@ export class AimMap {
   setShot(points) { this.shot = points && points.length > 1 ? points : null; this.draw(); }
   setYardages(marks) { this.marks = marks; this.draw(); }
   setPlan(plan) { this.plan = plan || null; this.draw(); }
+  setDetails(on) { this.details = !!on; this.draw(); }
+  // a full shot's yardage details are drawn (menu option, or no plan to stand for them)
+  _detailsFor(view) { return this.details || view.near || !this._planFor(view); }
   // the plan drawn for this view: a full shot's, not round the green
   _planFor(view) {
     const p = this.plan;
@@ -148,15 +155,17 @@ export class AimMap {
     if (key !== this._staticKey) { this._drawStatic(view, W, H, dpr, w, h); this._staticKey = key; }
     ctx.drawImage(this._static, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this._drawArcs(ctx, view, w, h, ui);
+    if (this._detailsFor(view)) this._drawArcs(ctx, view, w, h, ui);
     const aimBox = this._drawAim(ctx, view, w, h, ui);
     // label boxes so far: the aim's, the prediction's carry, stop and legs, then the
     // green's front and back, then the hazards by importance; each later label steers
     // clear of the earlier
     const placed = this._drawPrediction(ctx, view, ui);
     if (aimBox) placed.push(aimBox);
-    this._drawGreenMarks(ctx, view, w, h, ui, placed);
-    this._drawHazards(ctx, view, w, h, ui, placed);
+    if (this._detailsFor(view)) {
+      this._drawGreenMarks(ctx, view, w, h, ui, placed);
+      this._drawHazards(ctx, view, w, h, ui, placed);
+    }
     this._drawShot(ctx, view, ui);
     this._drawPinBall(ctx, view, ui);
     this._drawWind(ctx, w, h, ui, view);

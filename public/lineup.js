@@ -41,6 +41,11 @@ const SPREAD_KEY = 'open-birdie.spread';
 const AUTO_CLUB_KEY = 'open-birdie.autoClub';
 export const readAutoClub = () => { try { return localStorage.getItem(AUTO_CLUB_KEY) !== '0'; } catch { return true; } };
 export const writeAutoClub = (on) => { try { localStorage.setItem(AUTO_CLUB_KEY, on ? '1' : '0'); } catch { /* private mode */ } };
+// Yardage details: the distance rings and the hazards' and the green's numbers, on the
+// course and the map. Off by default: a full shot shows its target and the pin.
+const DETAILS_KEY = 'open-birdie.yardageDetails';
+export const readDetails = () => { try { return localStorage.getItem(DETAILS_KEY) === '1'; } catch { return false; } };
+export const writeDetails = (on) => { try { localStorage.setItem(DETAILS_KEY, on ? '1' : '0'); } catch { /* private mode */ } };
 const SPREAD = { tight: 0.5, generous: 1 };
 const readSpread = () => { try { return SPREAD[localStorage.getItem(SPREAD_KEY)] ? localStorage.getItem(SPREAD_KEY) : 'generous'; } catch { return 'generous'; } };
 
@@ -94,6 +99,9 @@ export class Lineup {
     this._predT = null;
     this.spread = readSpread();
     this.autoClub = readAutoClub();
+    this.details = readDetails();
+    this.aimMap.setDetails(this.details);
+    this.scene.setYardageDetails?.(this.details);
     this._pickPending = false;   // a new lie still waiting for its auto club pick
     // A full shot starts aimed where AUTO aims (the green when this club gets there,
     // else the fairway it lands on), not down the line to the pin, which on a dogleg or
@@ -397,12 +405,22 @@ export class Lineup {
     else if (!this.autoSpot) { this.autoSpot = spot; this.aimMap.setAuto(spot); }
   }
 
-  // The hazards worth a tag in the 3D view: the ones this shot can find at the spread
-  // drawn (yardages.mjs hazardsInPlay, the same ones the map numbers). None round the
-  // green, where the cup is the mark.
+  // Yardage details on or off (menu): the rings and the hazard and green numbers.
+  setDetails(on) {
+    this.details = !!on;
+    writeDetails(this.details);
+    this.aimMap.setDetails(this.details);
+    this.scene.setYardageDetails?.(this.details);
+    this._hazKey = null;
+    this._tagHazards(this.pred);
+  }
+
+  // The hazards worth a tag in the 3D view, with yardage details on: the ones this shot
+  // can find at the spread drawn (yardages.mjs hazardsInPlay, the same ones the map
+  // numbers). None round the green, where the cup is the mark.
   _tagHazards(p) {
     const near = isNearGreen(this.state?.distToPinYd ?? Infinity, !!p?.isPutt);
-    const pick = near ? [] : hazardsInPlay(this.marks, p);
+    const pick = near || !this.details ? [] : hazardsInPlay(this.marks, p);
     const key = pick.map((hz) => `${hz.at[0].toFixed(1)},${hz.at[1].toFixed(1)}`).join('|');
     if (key === this._hazKey) return;
     this._hazKey = key;

@@ -254,17 +254,8 @@ export class LineupFx {
     // landing zone: a soft gold patch inside the dispersion outline, draped on the ground
     // (not round the green, where it would sit on the cup)
     const outline = !near && p.dispersion && p.dispersion.land;
+    // (no outline round it: the target's crosshair is the mark there)
     if (p.land && outline && outline.length >= 6) this.pred.add(this._patch(p.land, outline));
-    if (outline && outline.length >= 6) {
-      const ring = [...outline, outline[0]].flatMap((q, i, arr) => {
-        if (i === 0) return [[q.x, q.y]];
-        const a = arr[i - 1], out = [];
-        const n = Math.max(1, Math.ceil(Math.hypot(q.x - a.x, q.y - a.y) / 1.5));
-        for (let k = 1; k <= n; k++) out.push([a.x + (q.x - a.x) * k / n, a.y + (q.y - a.y) * k / n]);
-        return out;
-      });
-      this.pred.add(lineMesh(this._drape(ring, 0.16), { color: 0xffd21f, alpha: 0.85, px: 2, order: 11 }));
-    }
     if (near && p.land) {
       // round the green: a small gold ring where it lands (the white ring is the cup's)
       const pts = [];

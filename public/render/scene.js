@@ -1705,11 +1705,17 @@ export class GolfScene {
     this.lineupFx?.setHazards(list || []);
   }
 
+  // Yardage details (the menu's option): the 3D distance rings ahead of the ball.
+  setYardageDetails(on) {
+    this._yardageDetails = !!on;
+    this._lineupArcs();
+  }
+
   // Yardage arcs out past the pin or the club's total, whichever is farther (no arcs
-  // on the green or when nothing is loaded).
+  // on the green, when nothing is loaded, or with yardage details off).
   _lineupArcs() {
     if (!this.lineupFx) return;
-    if (!this.geo || !this.ballSim) { this.lineupFx.setArcs({}); return; }
+    if (!this.geo || !this.ballSim || !this._yardageDetails) { this.lineupFx.setArcs({}); return; }
     const pinYd = Math.hypot(this.pinSim.x - this.ballSim.x, this.pinSim.y - this.ballSim.y) / 0.9144;
     const p = this._lineupPred;
     const reach = Math.min(340, Math.max(Math.min(pinYd + 12, 340), p && !p.isPutt ? p.totalYd + 25 : 0));
