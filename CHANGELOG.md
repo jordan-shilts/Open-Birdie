@@ -156,6 +156,11 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **HD ground by default** — a course with HD holes plays its HD ground from the moment it loads when the
+  game runs on its own (`node server.js`, opened in a browser or on the LAN). It used to ignore launch-monitor
+  shots for 15 s after every course load, waiting for an acknowledgement only the desktop app can send, and then
+  played the coarse base grid under the HD picture. The desktop app still reports which ground it drew; if it
+  never answers, the HD ground plays (`server.js`).
 - **A ball over the cliff is dropped at the top** — the sea's penalty area was the water alone, so a drive
   into the bay off Pebble Beach's 18th tee was dropped on the rocks at the waterline, 0.7 m above the water,
   where the ball last flew over playable ground. The penalty area is now the water and its foreshore, as the
