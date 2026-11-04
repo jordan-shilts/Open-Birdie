@@ -12,6 +12,8 @@ the cloud course service (`cloud/`) uses them. Shipping (v0.8.0).
 - **`docs/TODO.md`** — live backlog / resolved items.
 - **`docs/research/course-data/`** — researched per-hole yardages, par, handicap, elevation, OB, penalty
   areas and green data for the five featured courses, with a source for every fact.
+- **`docs/machines.md`** — the dev Mac (M3 Pro, where perf is measured) vs the sim PC (a laptop that
+  renders on Intel UHD 630). Say which machine a frame rate came from.
 - Current feature branch: `claude/hd-discovery-plan4` (base `main`). Most realism work lives here.
 
 ## Dev essentials

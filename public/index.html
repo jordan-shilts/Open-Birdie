@@ -27,7 +27,7 @@
     <div class="avatar" id="player-avatar" aria-hidden="true">P1</div>
     <div class="round-meta">
       <div class="player-name" id="player-name">Player 1</div>
-      <div id="course-name" class="course-name">no course loaded</div>
+      <button id="course-name" class="course-name" type="button" title="Switch course">no course loaded</button>
       <button id="league-chip" class="league-chip hidden" title="League round in play: open the league"></button>
     </div>
     <div id="score-chip" class="score-chip" title="Score to par">E</div>
@@ -236,7 +236,7 @@
     <button id="aim-right" class="aim-step" title="Aim right (→)" aria-label="Aim right">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg>
     </button>
-    <button id="aim-auto" class="aim-auto" title="Aim for the safe spot: the middle of the green when this club gets there, else the middle of the fairway, allowing for the wind and your shape (A)">AUTO</button>
+    <button id="aim-auto" class="aim-auto" title="Aim for the safe spot, where every full shot starts: the middle of the green when this club gets there, else the middle of the fairway, allowing for the wind and your shape. Moving the aim takes over until the next shot (A)">AUTO</button>
     <button id="aim-reset" class="aim-auto ghost" title="Back to the default line (0)">0</button>
   </div>
   <div class="bb-side bb-right">
@@ -389,24 +389,20 @@
 <div id="toast" class="hidden" role="status" aria-live="polite"></div>
 </div>
 
+<!-- the course picker: every course at a glance, filtered as you type, one click to play -->
 <div id="course-modal" class="modal">
-  <div class="modal-box">
-    <span class="lbl">CHOOSE A COURSE</span>
-    <h2>Play a real course</h2>
-    <p class="muted">Any course mapped with hole lines in OpenStreetMap is playable. Famous links are usually the best mapped.</p>
-    <div class="row">
-      <input id="course-q" type="text" placeholder="Search: e.g. St Andrews Old Course" autofocus>
-      <button id="course-search" class="btn primary">Search</button>
+  <div class="modal-box course-box" role="dialog" aria-labelledby="course-title">
+    <header class="cm-head">
+      <div><span class="lbl">COURSES</span><h2 id="course-title">Where are we playing?</h2></div>
+      <button id="course-close" class="panel-x hidden" aria-label="Close" title="Close (Esc)">×</button>
+    </header>
+    <div class="row cm-find">
+      <input id="course-q" type="text" placeholder="Type to filter your courses, or to search any course in the world" autocomplete="off" spellcheck="false" autofocus>
+      <button id="course-search" class="btn">Search the map</button>
     </div>
-    <div class="chips">
-      <button class="chip" data-q="Old Course St Andrews">St Andrews (Old)</button>
-      <button class="chip" data-q="Pebble Beach Golf Links">Pebble Beach</button>
-      <button class="chip" data-q="Bandon Dunes Golf Course">Bandon Dunes</button>
-      <button class="chip" data-q="Whistling Straits">Whistling Straits</button>
-    </div>
-    <div id="course-results"></div>
-    <div id="course-cached"></div>
     <div id="course-msg" class="muted"></div>
+    <div id="course-results"></div>
+    <div id="course-lib" class="cm-lib" aria-label="Courses"></div>
   </div>
 </div>
 

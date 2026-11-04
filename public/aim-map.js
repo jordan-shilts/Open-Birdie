@@ -13,7 +13,7 @@
 // keeps the eye on it; a neighbouring tee or green never reads as part of this hole.
 //
 // Sim coordinates: metres, x east, y north. Compass headings clockwise from north.
-import { greenFor, hazardText, holeSurfaces } from './yardages.mjs';
+import { greenFor, hazardsInPlay, hazardText, holeSurfaces } from './yardages.mjs';
 import { frameMap } from './map-frame.mjs';
 
 const YD = 0.9144, FT = 0.3048;
@@ -135,10 +135,12 @@ export class AimMap {
     ctx.drawImage(this._static, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this._drawArcs(ctx, view, w, h, ui);
-    this._drawAim(ctx, view, w, h, ui);
-    // label boxes so far: the prediction's carry and stop, then the green's front and
-    // back, then the hazards by importance; each later label steers clear of the earlier
+    const aimBox = this._drawAim(ctx, view, w, h, ui);
+    // label boxes so far: the aim's, the prediction's carry, stop and legs, then the
+    // green's front and back, then the hazards by importance; each later label steers
+    // clear of the earlier
     const placed = this._drawPrediction(ctx, view, ui);
+    if (aimBox) placed.push(aimBox);
     this._drawGreenMarks(ctx, view, w, h, ui, placed);
     this._drawHazards(ctx, view, w, h, ui, placed);
     this._drawShot(ctx, view, ui);
@@ -399,21 +401,18 @@ export class AimMap {
     ctx.restore();
   }
 
-  // Front and back of every bunker and water hazard near the line (yardages.mjs), the
-  // way a yardage book marks them: a thin bracket down the hazard's outer side from its
-  // front to its back, and the two numbers beside it. Where two would overlap, the one
-  // nearer this club's carry keeps its numbers.
+  // Front and back of the hazards this shot can find (yardages.mjs hazardsInPlay, the
+  // ones the 3D view tags), the way a yardage book marks them: a thin bracket down the
+  // hazard's outer side from its front to its back, and the two numbers beside it, clear
+  // of the labels already placed. None round the green, where the green fills the map.
   _drawHazards(ctx, view, w, h, ui, placed) {
-    const list = (this.marks && this.marks.hazards) || [];
+    const list = view.near ? [] : hazardsInPlay(this.marks, this.pred);
     if (!list.length) return;
-    const p = this.pred && !this.pred.isPutt ? this.pred : null;
-    const mid = (hz) => (hz.frontYd + hz.backYd) / 2;
-    const ranked = p ? [...list].sort((a, b) => Math.abs(mid(a) - p.carryYd) - Math.abs(mid(b) - p.carryYd)) : list;
     ctx.save();
     ctx.font = `800 ${9.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
     ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
     const th = 12 * ui;
-    for (const hz of ranked) {
+    for (const hz of list) {
       const yF = view.toPx(hz.front[0], hz.front[1])[1], yB = view.toPx(hz.back[0], hz.back[1])[1];
       // a carry over water the line crosses is bracketed just right of the line
       const edge = hz.onLine ? view.ox + 10 * ui : view.ox + (hz.side > 0 ? hz.uMax : hz.uMin) * view.s + hz.side * 3 * ui;
@@ -493,6 +492,7 @@ export class AimMap {
     ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(txt, bx + 5 * ui, ty + 0.5);
     ctx.restore();
+    return { x: bx, y: by, w: tw, h: th };
   }
 
   // the pin's distance from the ball (yd)
@@ -562,14 +562,57 @@ export class AimMap {
       ctx.fillStyle = '#15130a'; ctx.fill(); ctx.strokeStyle = '#ffd21f'; ctx.lineWidth = 2.2 * ui; ctx.stroke();
       label(X, Y, `${Math.round(p.carryYd)}`, true);
     }
+    const legs = p.rest && !p.isPutt && !view.near;
     if (p.rest && p.totalYd - p.carryYd > 3) {
       const [X, Y] = view.toPx(p.rest.x, p.rest.y);
       ctx.beginPath(); ctx.arc(X, Y, 3.6 * ui, 0, Math.PI * 2);
       ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#15130a'; ctx.lineWidth = 1.4 * ui; ctx.stroke();
-      label(X - 2 * ui, Y - 15 * ui, `${Math.round(p.totalYd)}`, false);
+      if (!legs) label(X - 2 * ui, Y - 15 * ui, `${Math.round(p.totalYd)}`, false);
     }
+    if (legs) this._drawLegs(ctx, view, ui, p, boxes);
     ctx.restore();
     return boxes;
+  }
+
+  // The shot in two legs, as a GPS card breaks it down: how far this one goes (ball to
+  // where it stops) and what it leaves to the pin, each in a quiet round bubble beside
+  // its leg, the second leg a faint line on to the pin. Pushes the bubbles' boxes.
+  _drawLegs(ctx, view, ui, p, boxes) {
+    const { ball, pin } = this.hole;
+    const B = view.toPx(ball.x, ball.y), R = view.toPx(p.rest.x, p.rest.y), P = view.toPx(pin[0], pin[1]);
+    const leftYd = Math.hypot(pin[0] - p.rest.x, pin[1] - p.rest.y) / YD;
+    const bubble = (A, Z, yd) => {
+      const L = Math.hypot(Z[0] - A[0], Z[1] - A[1]);
+      if (L < 40 * ui) return;   // too short a leg to sit beside
+      // beside the leg's middle, on its left (the stop's and the hazards' labels go right)
+      const nx = (Z[1] - A[1]) / L, ny = -(Z[0] - A[0]) / L;
+      const num = `${Math.round(yd)}`;
+      ctx.font = `800 ${11 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+      const tw = ctx.measureText(num).width;
+      ctx.font = `700 ${7.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+      const uw = ctx.measureText('y').width;
+      const r = Math.max(13 * ui, (tw + uw) / 2 + 5 * ui);
+      const X = (A[0] + Z[0]) / 2 + nx * (r + 8 * ui), Y = (A[1] + Z[1]) / 2 + ny * (r + 8 * ui);
+      ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(14,16,18,0.78)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+      const x0 = X - (tw + uw) / 2, base = Y + 4 * ui;
+      ctx.font = `800 ${11 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+      ctx.fillText(num, x0, base);
+      ctx.font = `700 ${7.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillText('y', x0 + tw + 0.5 * ui, base);
+      boxes.push({ x: X - r, y: Y - r, w: 2 * r, h: 2 * r });
+    };
+    if (leftYd >= 15) {
+      ctx.setLineDash([2 * ui, 4 * ui]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.2 * ui;
+      ctx.beginPath(); ctx.moveTo(R[0], R[1]); ctx.lineTo(P[0], P[1]); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    bubble(B, R, p.totalYd);
+    if (leftYd >= 15) bubble(R, P, leftYd);
   }
 
   _drawShot(ctx, view, ui) {
