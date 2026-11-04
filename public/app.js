@@ -26,7 +26,12 @@ let gfxSetting = parseQualitySetting(query.get('gfx') || (visualCaptureEnabled ?
 const SKY_KEY = 'open-birdie.sky';
 const readSky = () => { try { return localStorage.getItem(SKY_KEY); } catch { return null; } };
 let skySetting = parseSkySetting(query.get('sky') || (visualCaptureEnabled ? 'midday' : readSky()));
-const scene = new GolfScene($('scene'), { quality: gfxSetting, autoQuality: !visualCaptureEnabled, sky: skySetting });
+// The shot camera: 'follow' flies with the ball (the default), 'tv' covers it from the
+// tee and the landing area (render/flight-camera.js); ?shotcam= overrides the saved one.
+const SHOTCAM_KEY = 'open-birdie.shotcam';
+const readShotCam = () => { try { return localStorage.getItem(SHOTCAM_KEY); } catch { return null; } };
+let shotCam = (query.get('shotcam') || readShotCam()) === 'tv' ? 'tv' : 'follow';
+const scene = new GolfScene($('scene'), { quality: gfxSetting, autoQuality: !visualCaptureEnabled, sky: skySetting, shotCam });
 const flightView = new FlightView($('flightview'));
 const leaguesUI = new LeaguesUI({
   toast: (main, sub) => showToast(main, sub),
@@ -71,6 +76,12 @@ segmented($('seg-gfx'), [['auto', 'Auto'], ['high', 'High'], ['low', 'Low']], gf
 });
 scene.onQualityChange = showGfx;
 showGfx(scene.quality);
+segmented($('seg-shotcam'), [['follow', 'Follow the ball'], ['tv', 'TV']], shotCam, (v) => {
+  shotCam = v === 'tv' ? 'tv' : 'follow';
+  try { localStorage.setItem(SHOTCAM_KEY, shotCam); } catch { /* private mode */ }
+  scene.setShotCam(shotCam);
+  markSeg($('seg-shotcam'), shotCam);
+});
 segmented($('seg-sky'), SKY_ORDER.map((k) => [k, k === 'golden' ? 'Golden' : SKY_PRESETS[k].label]), skySetting, (v) => {
   skySetting = parseSkySetting(v);
   try { localStorage.setItem(SKY_KEY, skySetting); } catch { /* private mode */ }
@@ -403,6 +414,7 @@ es.addEventListener('shot', (e) => {
       if (i - shown >= 6 || (i === pts.length && shown !== i)) { shown = i; aimMap.setShot(pts.slice(0, i)); }
     },
     isPutt: !!shot.sim.isPutt,
+    spinRpm: shot.launch?.totalSpin, spinAxisDeg: shot.launch?.spinAxis,
   });
 });
 
@@ -1016,7 +1028,7 @@ async function replaySaved(id) {
     if (replay !== token) return;
     flightView.finish();
     token.doneTimer = setTimeout(() => { if (replay === token) endReplay(); }, 1600);
-  }, { onProgress: (t) => flightView.setTime(t), isPutt: !!r.isPutt });
+  }, { onProgress: (t) => flightView.setTime(t), isPutt: !!r.isPutt, spinRpm: rec.launch?.totalSpin, spinAxisDeg: rec.launch?.spinAxis });
 }
 function endReplay() {
   const r = replay;

@@ -1,7 +1,10 @@
 // Shot-replay follow camera framing (public/render/flight-camera.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { flightCameraPlan, flightCameraAt, CAM_CLEARANCE_M, DROP_ZOOM, MAX_CLIMB_ZOOM } from '../public/render/flight-camera.js';
+import {
+  flightCameraPlan, flightCameraAt, CAM_CLEARANCE_M, DROP_ZOOM, MAX_CLIMB_ZOOM, FOLLOW_BACK_M, SETTLE_BACK_M,
+} from '../public/render/flight-camera.js';
+import { pointAt } from '../public/render/flight-profile.js';
 
 // 200 m drive due north, 30 m apex, lands at t = 4 s, rolls to t = 5 s, drifting right.
 function drive() {
@@ -209,4 +212,143 @@ test('putts keep the base lens', () => {
   const pts = drive();
   const putt = flightCameraPlan(pts, { startCam, groundAt: flat, flightTime: 4, isPutt: true });
   for (const t of [0, 2, 4, 5]) assert.equal(flightCameraAt(putt, t, pts).zoom, 1);
+});
+
+// ---- the follow camera: it flies with the ball ----
+const follow = (pts, extra = {}) => flightCameraPlan(pts, {
+  startCam, startLook: { x: 0, y: 58, z: 2 }, groundAt: flat, flightTime: 4, mode: 'follow', ...extra,
+});
+// the drive again, but the roll slows to a stop (18 m/s to rest over 2 s), then a second at rest
+function driveStops() {
+  const pts = [];
+  for (let i = 0; i <= 350; i++) {
+    const t = i * 0.02, air = Math.min(t, 4) / 4, r = Math.min(Math.max(0, t - 4), 2);
+    pts.push({ t, x: 12 * air * air + 2 * r - 0.5 * r * r, y: 200 * air + 18 * r - 4.5 * r * r, z: t < 4 ? 120 * air * (1 - air) : 0 });
+  }
+  return pts;
+}
+// a wedge: 110 m carry, 30 m apex, down at 5 s, checking up in 0.6 s
+function wedgeChecks() {
+  const pts = [];
+  for (let i = 0; i <= 300; i++) {
+    const t = i * 0.02, air = Math.min(t, 5) / 5, r = Math.min(Math.max(0, t - 5), 0.6);
+    pts.push({ t, x: 0, y: 110 * air + 6 * r - 5 * r * r, z: t < 5 ? 120 * air * (1 - air) : 0 });
+  }
+  return pts;
+}
+const lastT = (plan, pts) => pts[pts.length - 1].t + (plan.tail || 0);
+
+test('follow: leaves exactly from the address camera, looking where it looked', () => {
+  const pts = drive();
+  const c = flightCameraAt(follow(pts), 0, pts);
+  assert.ok(Math.hypot(c.pos.x - startCam.x, c.pos.y - startCam.y, c.pos.z - startCam.z) < 1e-9);
+  assert.ok(Math.hypot(c.look.x - 0, c.look.y - 58, c.look.z - 2) < 1e-9);
+  assert.equal(c.zoom, 1);
+});
+
+test('follow: the ball gets away, then the camera catches it up and rides with it', () => {
+  const pts = drive();
+  const plan = follow(pts);
+  const at = (t) => flightCameraAt(plan, t, pts).pos;
+  const gap = (t) => { const c = at(t), b = pointAt(pts, t); return Math.hypot(b.x - c.x, b.y - c.y, b.z - c.z); };
+  for (let t = 1; t < 4; t += 0.25) assert.ok(gap(t) > FOLLOW_BACK_M && gap(t) < 35, `t=${t}: ${gap(t).toFixed(1)} m behind`);
+  assert.ok(gap(3.5) < gap(1) - 5, 'closes in as the flight goes on');
+  // from two seconds on it moves with the ball: the same way, near the same speed
+  for (let t = 2; t < 3.9; t += 0.25) {
+    const c0 = at(t - 0.05), c1 = at(t + 0.05), b0 = pointAt(pts, t - 0.05), b1 = pointAt(pts, t + 0.05);
+    const cv = [c1.x - c0.x, c1.y - c0.y, c1.z - c0.z], bv = [b1.x - b0.x, b1.y - b0.y, b1.z - b0.z];
+    const cs = Math.hypot(...cv), bs = Math.hypot(...bv);
+    const cos = (cv[0] * bv[0] + cv[1] * bv[1] + cv[2] * bv[2]) / (cs * bs);
+    assert.ok(cos > 0.9 && cs / bs > 0.8 && cs / bs < 1.4, `t=${t}: cos ${cos.toFixed(2)}, speed ${(cs / bs).toFixed(2)} of the ball's`);
+  }
+});
+
+test('follow: it never passes the ball, through the flight, the bounces and the roll', () => {
+  for (const [pts, ft] of [[driveStops(), 4], [wedgeChecks(), 5]]) {
+    const plan = follow(pts, { flightTime: ft });
+    for (let t = 0.3; t <= lastT(plan, pts); t += 1 / 60) {
+      const c = flightCameraAt(plan, t, pts).pos, b = pointAt(pts, t);
+      assert.ok(b.y - c.y > 5, `t=${t.toFixed(2)}: ${(b.y - c.y).toFixed(1)} m behind`);
+    }
+  }
+});
+
+test('follow: no jolts, from impact to rest: its push changes smoothly frame to frame', () => {
+  for (const [pts, ft] of [[driveStops(), 4], [wedgeChecks(), 5]]) {
+    const plan = follow(pts, { flightTime: ft });
+    const h = 1 / 60, at = (t) => flightCameraAt(plan, t, pts);
+    const dir = (c) => { const v = [c.look.x - c.pos.x, c.look.y - c.pos.y, c.look.z - c.pos.z]; const l = Math.hypot(...v); return v.map((x) => x / l); };
+    let prevAcc = null, prevSpeed = 0;
+    for (let t = h; t <= lastT(plan, pts) - h; t += h) {
+      const a = at(t - h).pos, b = at(t).pos, c = at(t + h).pos;
+      assert.ok(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) < 1.6, `jump at t=${t.toFixed(2)}`);
+      if (t < 0.5) {   // it sets off forward only, from standing
+        assert.ok(b.y - a.y >= -1e-6, `backs up at t=${t.toFixed(2)}`);
+        const speed = Math.hypot(c.x - b.x, c.y - b.y, c.z - b.z) / h;
+        assert.ok(speed >= prevSpeed - 0.5, `stalls at t=${t.toFixed(2)}`);
+        prevSpeed = speed;
+      }
+      const acc = [c.x - 2 * b.x + a.x, c.y - 2 * b.y + a.y, c.z - 2 * b.z + a.z].map((v) => v / (h * h));
+      if (prevAcc) {
+        const jolt = Math.hypot(acc[0] - prevAcc[0], acc[1] - prevAcc[1], acc[2] - prevAcc[2]);
+        assert.ok(jolt < 30, `a jolt of ${jolt.toFixed(1)} m/s2 in one frame at t=${t.toFixed(2)}`);
+      }
+      prevAcc = acc;
+      const d0 = dir(at(t - h)), d1 = dir(at(t));
+      const turn = Math.acos(Math.min(1, d0[0] * d1[0] + d0[1] * d1[1] + d0[2] * d1[2])) * 180 / Math.PI;
+      assert.ok(turn < 2.5, `the view swung ${turn.toFixed(2)} deg at t=${t.toFixed(2)}`);
+    }
+  }
+});
+
+test('follow: the ball stays near the middle of the frame through the replay', () => {
+  for (const [pts, ft] of [[driveStops(), 4], [wedgeChecks(), 5]]) {
+    const plan = follow(pts, { flightTime: ft });
+    for (let t = 0.5; t <= lastT(plan, pts); t += 1 / 30) {
+      const p = ndc(flightCameraAt(plan, t, pts), pointAt(pts, t));
+      assert.ok(p.depth > 0 && Math.abs(p.x) < 0.5 && Math.abs(p.y) < 0.6, `t=${t.toFixed(2)} ndc (${p.x.toFixed(2)}, ${p.y.toFixed(2)})`);
+    }
+  }
+});
+
+test('follow: once the ball stops the camera comes to rest behind it, over a short tail', () => {
+  for (const [pts, ft] of [[driveStops(), 4], [wedgeChecks(), 5]]) {
+    const plan = follow(pts, { flightTime: ft });
+    assert.ok(plan.tail > 0 && plan.tail <= 1);
+    const last = pts[pts.length - 1], T = lastT(plan, pts);
+    const end = flightCameraAt(plan, T, pts).pos, before = flightCameraAt(plan, T - 0.2, pts).pos;
+    const back = Math.hypot(last.x - end.x, last.y - end.y);
+    assert.ok(Math.abs(back - SETTLE_BACK_M) < 1, `${back.toFixed(1)} m back`);
+    assert.ok(last.y - end.y > 0, 'behind the ball');
+    assert.ok(Math.hypot(end.x - before.x, end.y - before.y, end.z - before.z) < 0.1, 'at rest');
+  }
+});
+
+test('follow: over rising ground and through trees the camera keeps its clearance', () => {
+  const pts = drive();
+  const hill = (x, y) => (y > 100 ? 40 : 0);
+  const plan = follow(pts, { groundAt: hill });
+  for (let t = 0.6; t <= lastT(plan, pts); t += 0.05) {
+    const p = flightCameraAt(plan, t, pts).pos;
+    assert.ok(p.z >= hill(p.x, p.y) + CAM_CLEARANCE_M - 1e-6, `t=${t.toFixed(2)} z ${p.z.toFixed(2)}`);
+  }
+  // a wood just behind the landing: the camera lifts over its crowns, smoothly
+  const crowns = (x, y) => (y > 150 && y < 200 ? 18 : -Infinity);
+  const wood = follow(pts, { treeTopAt: crowns });
+  let prev = null;
+  for (let t = 0.6; t <= lastT(wood, pts); t += 1 / 60) {
+    const p = flightCameraAt(wood, t, pts).pos;
+    assert.ok(p.z >= Math.max(crowns(p.x, p.y), CAM_CLEARANCE_M) - 1e-6, `t=${t.toFixed(2)} in the trees`);
+    if (prev) assert.ok(Math.abs(p.z - prev) < 1.2, `t=${t.toFixed(2)} jumped up`);
+    prev = p.z;
+  }
+});
+
+test('follow: putts and short chips keep the address camera', () => {
+  const pts = drive();
+  const putt = follow(pts, { isPutt: true });
+  assert.notEqual(putt.mode, 'follow');
+  assert.deepEqual(flightCameraAt(putt, 4.5, pts).pos, startCam);
+  const chip = [{ t: 0, x: 0, y: 0, z: 0 }, { t: 1, x: 0, y: 15, z: 5 }, { t: 2, x: 0, y: 30, z: 0 }];
+  assert.equal(follow(chip, { flightTime: 2 }).moves, false);
 });
