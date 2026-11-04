@@ -16,6 +16,11 @@ All notable changes to Open-Birdie are documented here.
   long view that was mostly water (`public/map-frame.mjs`, `aim-map.js`). In 3D the wide landing arcs, the
   gold landing patch and the hazard tags step aside for a chip: the line, a small landing ring and the roll
   stay, and the cup gets a ring on the ground and its distance over the flag (`lineup-fx.js` `setCup`).
+- **Numbers only on the hazards in play** — the 3D view and the overhead map number just the bunkers and
+  water this shot can finish in: where it can come down and roll out at the spread shown (Tight or
+  Generous), with a few yards to spare, and water across the line that a short one would find. Three at most,
+  water first, then the nearest to where it lands (`yardages.mjs` `hazardsInPlay`). The 3D view used to tag
+  up to six, and the map numbered every bunker near the line, more than twenty on a busy hole.
 - **A tidier HUD** — the club dock is one button with the club in hand and its carry, and the whole bag opens
   over it on a click; the aim control sits in the middle of the screen; the row of hole dots under the hole
   number is gone (a hole's number on the scorecard reviews it instead); the Menu is a settings drawer that

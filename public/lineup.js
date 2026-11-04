@@ -4,7 +4,7 @@
 // shot card (to the pin, the green's front and back, plays like, why), the planner (side
 // view + overhead aim map + carry / total / where it ends), and the 3D view (predicted
 // arc, landing zone, and the front and back of the hazards the club can reach).
-import { aimWords, yardageMarks } from './yardages.mjs';
+import { aimWords, hazardsInPlay, yardageMarks } from './yardages.mjs';
 import { isNearGreen } from './map-frame.mjs';
 
 const $ = (id) => document.getElementById(id);
@@ -337,21 +337,16 @@ export class Lineup {
     this.aimMap.setPrediction(drawn);
     this.flightView.showPrediction(pred);
     this.scene.setLineup?.(this.flying ? null : drawn);
-    this._tagHazards(pred);
+    this._tagHazards(drawn);
     this.conditions?.setEffects(pred);
   }
 
-  // The hazards worth a tag in the 3D view: every pond short of where this club stops
-  // (it has to be carried), and the bunkers around where it lands; water first, then
-  // nearest the carry, six at most. None round the green, where the cup is the mark.
+  // The hazards worth a tag in the 3D view: the ones this shot can find at the spread
+  // drawn (yardages.mjs hazardsInPlay, the same ones the map numbers). None round the
+  // green, where the cup is the mark.
   _tagHazards(p) {
-    const list = this.marks?.hazards || [];
-    const mid = (hz) => (hz.frontYd + hz.backYd) / 2;
     const near = isNearGreen(this.state?.distToPinYd ?? Infinity, !!p?.isPutt);
-    const pick = !p || p.isPutt || near ? [] : list
-      .filter((hz) => hz.frontYd <= p.totalYd + 30 && (hz.kind === 'water' || hz.backYd >= p.carryYd - 50))
-      .sort((a, b) => (a.kind === 'water') !== (b.kind === 'water') ? (a.kind === 'water' ? -1 : 1) : Math.abs(mid(a) - p.carryYd) - Math.abs(mid(b) - p.carryYd))
-      .slice(0, 6);
+    const pick = near ? [] : hazardsInPlay(this.marks, p);
     const key = pick.map((hz) => `${hz.at[0].toFixed(1)},${hz.at[1].toFixed(1)}`).join('|');
     if (key === this._hazKey) return;
     this._hazKey = key;

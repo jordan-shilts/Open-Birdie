@@ -179,10 +179,11 @@ export function hazardsAlong(geo, ball, aimDeg, { maxM = Infinity, step = 3 } = 
   return out.sort((p, q) => p.frontYd - q.frontYd);
 }
 
-// Everything the lineup marks for one lie: the green's front and back and the hazards
-// out to just past the pin. baseAimDeg is the default line of play.
+// Everything the lineup marks for one lie: the green's front and back, the hazards out
+// to just past the pin, and the line they are measured along (frame). baseAimDeg is the
+// default line of play.
 export function yardageMarks(geo, { ball, pin, baseAimDeg, practice = false }) {
-  if (!geo || !ball || !pin || practice) return { green: null, greenPoly: null, hazards: [] };
+  if (!geo || !ball || !pin || practice) return { green: null, greenPoly: null, hazards: [], frame: null };
   const greenPoly = greenFor(geo, pin);
   const a = baseAimDeg * DEG;
   const pinV = (pin[0] - ball.x) * Math.sin(a) + (pin[1] - ball.y) * Math.cos(a);
@@ -190,7 +191,40 @@ export function yardageMarks(geo, { ball, pin, baseAimDeg, practice = false }) {
     green: greenPoly ? greenFrontBack(ball, pin, greenPoly) : null,
     greenPoly,
     hazards: hazardsAlong(geo, ball, baseAimDeg, { maxM: pinV + 25 }),
+    frame: { ball: { x: ball.x, y: ball.y }, aimDeg: baseAimDeg },
   };
+}
+
+// The hazards this shot can find, the only ones the 3D view tags and the map numbers:
+// bunkers and water reaching into where it can come down and roll out (the prediction's
+// landing and resting areas as drawn, at the spread chosen, spareM to spare), and water
+// across the line short of there that a short one finds (within shortM). Water first,
+// then nearest where the ball comes down; max at most. None for a putt or without a
+// prediction.
+export function hazardsInPlay(marks, pred, { max = 3, spareM = 5, shortM = 27 } = {}) {
+  const list = marks?.hazards || [];
+  if (!list.length || !marks.frame || !pred || pred.isPutt || !pred.land) return [];
+  const { ball, aimDeg } = marks.frame;
+  const a = aimDeg * DEG;
+  const fx = Math.sin(a), fy = Math.cos(a), rx = Math.cos(a), ry = -Math.sin(a);
+  // a point along the line (v) and to its right (u), in metres, as hazardsAlong measures
+  const vu = (q) => { const dx = q.x - ball.x, dy = q.y - ball.y; return [dx * fx + dy * fy, dx * rx + dy * ry]; };
+  const d = pred.dispersion || {};
+  const area = [...(d.land?.length ? d.land : [pred.land]), ...(d.rest?.length ? d.rest : pred.rest ? [pred.rest] : [])];
+  let v0 = Infinity, v1 = -Infinity, u0 = Infinity, u1 = -Infinity;
+  for (const q of area) {
+    const [v, u] = vu(q);
+    v0 = Math.min(v0, v); v1 = Math.max(v1, v); u0 = Math.min(u0, u); u1 = Math.max(u1, u);
+  }
+  const front = (hz) => hz.frontYd * YD, back = (hz) => hz.backYd * YD;
+  const inPlay = (hz) => front(hz) <= v1 + spareM && (hz.onLine
+    ? back(hz) >= v0 - shortM
+    : back(hz) >= v0 - spareM && hz.uMin <= u1 + spareM && hz.uMax >= u0 - spareM);
+  const [lv, lu] = vu(pred.land);
+  const gap = (hz) => Math.hypot(Math.max(0, front(hz) - lv, lv - back(hz)), hz.onLine ? 0 : Math.max(0, hz.uMin - lu, lu - hz.uMax));
+  return list.filter(inPlay)
+    .sort((p, q) => ((p.kind === 'water') !== (q.kind === 'water') ? (p.kind === 'water' ? -1 : 1) : gap(p) - gap(q)))
+    .slice(0, max);
 }
 
 // how far from this hole's line a surface of each kind can be and still be this hole's

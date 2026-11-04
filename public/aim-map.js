@@ -13,7 +13,7 @@
 // keeps the eye on it; a neighbouring tee or green never reads as part of this hole.
 //
 // Sim coordinates: metres, x east, y north. Compass headings clockwise from north.
-import { greenFor, hazardText, holeSurfaces } from './yardages.mjs';
+import { greenFor, hazardsInPlay, hazardText, holeSurfaces } from './yardages.mjs';
 import { frameMap } from './map-frame.mjs';
 
 const YD = 0.9144, FT = 0.3048;
@@ -399,21 +399,18 @@ export class AimMap {
     ctx.restore();
   }
 
-  // Front and back of every bunker and water hazard near the line (yardages.mjs), the
-  // way a yardage book marks them: a thin bracket down the hazard's outer side from its
-  // front to its back, and the two numbers beside it. Where two would overlap, the one
-  // nearer this club's carry keeps its numbers.
+  // Front and back of the hazards this shot can find (yardages.mjs hazardsInPlay, the
+  // ones the 3D view tags), the way a yardage book marks them: a thin bracket down the
+  // hazard's outer side from its front to its back, and the two numbers beside it, clear
+  // of the labels already placed. None round the green, where the green fills the map.
   _drawHazards(ctx, view, w, h, ui, placed) {
-    const list = (this.marks && this.marks.hazards) || [];
+    const list = view.near ? [] : hazardsInPlay(this.marks, this.pred);
     if (!list.length) return;
-    const p = this.pred && !this.pred.isPutt ? this.pred : null;
-    const mid = (hz) => (hz.frontYd + hz.backYd) / 2;
-    const ranked = p ? [...list].sort((a, b) => Math.abs(mid(a) - p.carryYd) - Math.abs(mid(b) - p.carryYd)) : list;
     ctx.save();
     ctx.font = `800 ${9.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
     ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
     const th = 12 * ui;
-    for (const hz of ranked) {
+    for (const hz of list) {
       const yF = view.toPx(hz.front[0], hz.front[1])[1], yB = view.toPx(hz.back[0], hz.back[1])[1];
       // a carry over water the line crosses is bracketed just right of the line
       const edge = hz.onLine ? view.ox + 10 * ui : view.ox + (hz.side > 0 ? hz.uMax : hz.uMin) * view.s + hz.side * 3 * ui;

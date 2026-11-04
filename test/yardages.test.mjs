@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aimWords, greenFor, greenFrontBack, hazardsAlong, hazardText, holeSurfaces, yardageMarks, pointInPoly } from '../public/yardages.mjs';
+import { aimWords, greenFor, greenFrontBack, hazardsAlong, hazardsInPlay, hazardText, holeSurfaces, yardageMarks, pointInPoly } from '../public/yardages.mjs';
 
 const YD = 0.9144;
 const rect = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -116,6 +116,37 @@ test('one lie\'s marks: the green and the hazards out to just past the pin', () 
   near(m.green.frontYd, 290 / YD); near(m.green.backYd, 310 / YD);
   assert.equal(m.hazards.length, 1);
   assert.deepEqual(yardageMarks(geo, { ball: { x: 0, y: 0 }, pin: [0, 300], baseAimDeg: 0, practice: true }).hazards, []);
+});
+
+test('numbers only for the hazards this shot can finish in: water a short one finds, then nearest where it lands, three at most', () => {
+  // the line runs north; the shot comes down 200 m out and stops at 215
+  const geo = {
+    surfaces: [
+      { kind: 'green', poly: rect(-12, 225, 12, 250) },
+      { kind: 'water', poly: rect(-60, 160, 60, 172) },    // across the line just short: a short one finds it
+      { kind: 'water', poly: rect(-60, 100, 60, 108) },    // across the line well short: carried
+      { kind: 'bunker', poly: rect(8, 195, 18, 205) },     // right of where it lands
+      { kind: 'bunker', poly: rect(-16, 188, -9, 196) },   // left of where it lands
+      { kind: 'bunker', poly: rect(-20, 226, -12, 234) },  // left and long, by the green
+      { kind: 'bunker', poly: rect(-6, 120, 6, 130) },     // on the line, 70 m short: carried
+      { kind: 'bunker', poly: rect(30, 200, 40, 210) },    // well right of where it can finish
+      { kind: 'bunker', poly: rect(-4, 250, 4, 258) },     // past where it can stop
+    ],
+  };
+  const marks = yardageMarks(geo, { ball: { x: 0, y: 0 }, pin: [0, 240], baseAimDeg: 0 });
+  assert.equal(marks.hazards.length, 8);
+  const ellipse = (cx, cy, rx, ry) => Array.from({ length: 16 }, (_, i) => ({ x: cx + rx * Math.cos(i * Math.PI / 8), y: cy + ry * Math.sin(i * Math.PI / 8) }));
+  const pred = { land: { x: 0, y: 200 }, rest: { x: 0, y: 215 }, dispersion: { land: ellipse(0, 200, 12, 15), rest: ellipse(0, 215, 10, 10) } };
+  const at = (list) => list.map((hz) => `${hz.kind} ${Math.round(hz.frontYd * YD)}`);
+  assert.deepEqual(at(hazardsInPlay(marks, pred, { max: 10 })), ['water 160', 'bunker 195', 'bunker 188', 'bunker 226']);
+  assert.deepEqual(at(hazardsInPlay(marks, pred)), ['water 160', 'bunker 195', 'bunker 188']);
+  // at the tight spread the long one by the green is out of reach
+  const half = (pts, c) => pts.map((q) => ({ x: c.x + (q.x - c.x) / 2, y: c.y + (q.y - c.y) / 2 }));
+  const tight = { ...pred, dispersion: { land: half(pred.dispersion.land, pred.land), rest: half(pred.dispersion.rest, pred.rest) } };
+  assert.deepEqual(at(hazardsInPlay(marks, tight, { max: 10 })), ['water 160', 'bunker 195', 'bunker 188']);
+  // none for a putt, or without a prediction
+  assert.deepEqual(hazardsInPlay(marks, { ...pred, isPutt: true }), []);
+  assert.deepEqual(hazardsInPlay(marks, null), []);
 });
 
 // ---- the hole being played (holeSurfaces) and the aim in yards (aimWords) ----
