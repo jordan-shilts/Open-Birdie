@@ -1,7 +1,7 @@
 # Machines — where Open-Birdie is built, measured and played
 
 Two computers work on this repo, and they are not the same class of hardware: a frame rate measured on
-one says little about the other. Recorded 2026-11-02.
+one says little about the other. Recorded 2026-11-02; sim PC frame times added 2026-11-03.
 
 |  | Dev Mac | Sim PC |
 |---|---|---|
@@ -25,9 +25,28 @@ What follows from that:
   so High has to be picked by hand there.
 - **High tops out at 1080p on the sim PC, not 4K.** High renders up to native resolution, and the panel is
   1920x1080; dynamic resolution can step it down to half per axis (960x540) when frames run slow.
-- **Nothing has been measured on the sim PC yet.** The 2026-06-14 photoreal spec targets "the sim PC's
-  desktop GPU"; it has none. When a change claims a frame-rate win for the player, say which machine it was
-  measured on, and measure on the sim PC before calling a budget met.
+- **The sim PC has no desktop GPU.** The 2026-06-14 photoreal spec targets "the sim PC's desktop GPU"; it
+  has none. When a change claims a frame-rate win for the player, say which machine it was measured on, and
+  measure on the sim PC before calling a budget met (first numbers below).
+
+## Measured on the sim PC
+
+2026-11-03, on the newest build at the time (`feat/all-features` 1df4d85, which renders the same as `main`
+c21e95a): full screen at 1920x1080 in Edge, the same Chromium engine as the desktop app, with the desktop
+app idle (under 0.5% of the GPU). One 144 mph test drive from `/api/test-shot`, timed over the ball's
+flight and roll; the High run was the second shot, from the fairway.
+
+| Graphics | fps | median frame | p95 | worst | frames over 33 ms | canvas at the end |
+|---|---|---|---|---|---|---|
+| Auto (picks Low) | 39.7 | 16.8 ms | 33.5 ms | 66.9 ms | 160 | 768x432 |
+| High | 20.1 | 50.0 ms | 83.2 ms | 166.5 ms | 144 | 967x544 |
+
+- **GPU-bound at every setting.** The UHD 630's 3D engine sat at ~100% in both runs, and the desktop app on
+  `main` holds it at ~100% while just standing on a tee.
+- **Dynamic resolution is why High looks soft there.** It had reached its floor at Low (half of Low's
+  1520x855) and nearly reached it at High (half of 1920x1080).
+- **Same build on the dev Mac:** ~79–81 fps, p95 ~15.5 ms, at ~1080p internal (from `CHANGELOG.md`, not
+  re-measured): about 4x the pixels at 2–4x the frame rate.
 
 ## Rendering on the MX130 instead
 
