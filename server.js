@@ -17,6 +17,7 @@ const {
 } = require('./lib/cloud-client');
 const { createCourseActivationManager } = require('./lib/course-activation');
 const { createCourseCache } = require('./lib/course-cache');
+const { createCourseLibrary } = require('./lib/course-library');
 const {
   applySceneryUpdate,
   createSceneryEnricher,
@@ -57,6 +58,8 @@ const SCENERY_ENABLED = process.env.BIRDIE_ENRICH !== '0';
 // Bounded local course cache (BIRDIE_CACHE_MAX_MB, default 1024): least recently
 // played courses are deleted past the cap, never the active one.
 const courseCache = createCourseCache({ dataDir: DATA_DIR });
+// the course picker's list: every downloaded course and the featured ones (lib/course-library.js)
+const courseLibrary = createCourseLibrary();
 // Cloud course service (BIRDIE_CLOUD_URL): courses and their scenery are downloaded
 // as verified packages instead of being built here. Unset = no cloud request ever.
 const CLOUD = cloudConfigFromEnv(process.env, console, { file: path.join(DATA_DIR, 'cloud.json') });
@@ -435,6 +438,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/leagues' && req.method !== 'POST') return json(res, { ...leagues.state(), leagueRound: game.leagueRound });
     if (p === '/api/courses/cached') return json(res, listCached());
+    if (p === '/api/courses') {
+      return json(res, courseLibrary.list({ entries: courseCache.entries(), currentId: activationManager.current()?.courseId || null }));
+    }
     if (p === '/api/search') {
       // Raw query: appending " golf" made Nominatim match addresses like
       // "Golf Place" (St Andrews' starter hut) instead of the course itself.
@@ -850,6 +856,8 @@ async function bootstrap() {
       console.log(`[HTTP] Open-Birdie UI: http://localhost:${actualPort}` +
         (exposed ? `  (exposed on ${HTTP_HOST} — trusted networks only)` : '  (localhost only — set BIRDIE_HOST=0.0.0.0 to mirror on your LAN)'));
       resolve({ httpPort: actualPort });
+      // read the downloaded courses once now, so the course picker opens at once
+      setImmediate(() => { try { courseLibrary.list(); } catch (_) { /* listed on demand */ } });
     });
   });
 }

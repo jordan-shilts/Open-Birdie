@@ -5,6 +5,14 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **A course library to pick from** — the course picker opens on every course at once: your downloaded
+  courses as cards (the hole layout as a little map, where it is, holes, par and yardage, HD and scorecard
+  tags, when you last played it), the one you're playing first and the rest by when you last played them, then
+  the featured courses you haven't downloaded yet, one click away. Typing filters the cards as you go (by the
+  start of any word in the name or place); Up and Down pick one and Enter plays it; with nothing matching,
+  Enter searches the map. The course name at the top left opens it, and Esc or a click outside closes it.
+  The list comes from a new `GET /api/courses` (`lib/course-library.js`), which reads each course file once
+  (again only when it changes) and is warmed at start-up, so the picker opens at once.
 - **Pick the gimme** — a menu setting for how close a putt has to stop to be given (holed, plus one stroke):
   off, 2, 3, 5, 8 or 10 ft. It was fixed at 8 ft. The choice is kept across restarts in
   `BIRDIE_DATA_DIR/settings.json`, and `POST /api/settings` now checks what it is sent (`lib/settings.js`;
