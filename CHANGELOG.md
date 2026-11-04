@@ -5,6 +5,13 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Changed
+- **Whistling Straits is the Straits Course** — OpenStreetMap maps Whistling Straits as one 36-hole outline
+  holding both its courses, and with nothing to tell them apart the round was the one with the least walking
+  between holes: the Irish course (its 17th, Irish Mist, a par 4, where the Straits Course's is Pinched Nerve, a
+  par 3). A researched Straits Course scorecard (`docs/research/course-data/courses/whistling-straits.json`:
+  par, handicap and Black, Blue, Green, White and Red yardages per hole, hole names and short notes, with
+  sources) now picks its 18 holes the way Bandon Dunes' does, and is laid over the round: hole names, the
+  scorecard's tees and notes. A course already downloaded keeps its old holes until it is built again.
 - **The overhead map shows the hole you're on, and only that hole** — course surfaces carry no hole of
   their own, so each now goes to the hole whose line of play runs nearest it: this hole's tees, fairway,
   green and hazards are drawn in full, every other hole's fade into the rough, and a soft light along this

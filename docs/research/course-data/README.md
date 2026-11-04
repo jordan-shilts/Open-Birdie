@@ -1,6 +1,6 @@
 # Course reference data
 
-Researched hole-by-hole data for the five courses Open-Birdie features: Chambers Bay, the Old Course at St Andrews, Pebble Beach Golf Links, Bandon Dunes and the TPC Sawgrass Stadium Course. Gathered November 2026 from official scorecards, course and resort sites, USGA, R&A and PGA TOUR material, and golf publications.
+Researched hole-by-hole data for the six courses Open-Birdie features: Chambers Bay, the Old Course at St Andrews, Pebble Beach Golf Links, Bandon Dunes, the TPC Sawgrass Stadium Course and the Straits Course at Whistling Straits. Gathered November 2026 from official scorecards, course and resort sites, USGA, R&A and PGA TOUR material, and golf publications.
 
 Every fact names its source, and a field nobody publishes is `null`, never an estimate. Use it for scorecards, tee selection, par and handicap, hazard and OB placement, and as ground truth when checking what the sim derives from OpenStreetMap and elevation data.
 
