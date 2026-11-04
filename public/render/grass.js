@@ -74,11 +74,16 @@ function addBladeShader(material, refs, opts = {}) {
   material.customProgramCacheKey = () => `grass-up-${wind ? 'w' : ''}${fade ? 'f' : ''}`;
 }
 
-// spots: [{x,y,s}], hAt, V, opts. Returns { mesh, windUpdate }.
+// spots: [{x,y,s}], hAt, V, opts. Returns { mesh, windUpdate, cull }.
 // opts (all optional, defaults = the rough fescue): {perTuft, height, baseWidth,
-// segs, colorBase, colorTip, wind, jitter, seed}.
+// segs, colorBase, colorTip, wind, jitter, seed, cellM}.
+// cellM: split the tufts into square cells of that size, one instanced mesh each (mesh is
+// then a Group of them): three culls the cells off screen, and cull(camera, drawM) hides
+// the ones farther than drawM. As one mesh, every blade on the course went through the
+// vertex shader every frame: ~1 M triangles at Whistling Straits on Low graphics, as much
+// as all its trees, for blades a pixel tall a few hundred metres out.
 export function buildGrass(spots, hAt, V, opts = {}) {
-  if (!spots.length) return { mesh: null, windUpdate: () => {} };
+  if (!spots.length) return { mesh: null, windUpdate: () => {}, cull: () => {} };
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true, side: THREE.DoubleSide, roughness: 1.0, metalness: 0,
   });
@@ -95,29 +100,58 @@ export function buildGrass(spots, hAt, V, opts = {}) {
   const geoOpts = tint
     ? { ...opts, colorBase: new THREE.Color(0.86, 0.86, 0.86), colorTip: new THREE.Color(1.12, 1.12, 1.12) }
     : opts;
-  const mesh = new THREE.InstancedMesh(bladeGeometry(geoOpts), mat, spots.length * PER);
-  mesh.castShadow = false;   // blade shadows are expensive + low value at this density
-  mesh.receiveShadow = true;
+  const blade = bladeGeometry(geoOpts);
 
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), scaleVec = new THREE.Vector3();
   const rnd = mul32(opts.seed ?? 8081);
   const H = opts.height ?? RENDER_CONFIG.grassHeight;
   const jit = opts.jitter ?? 0.28;
-  let bi = 0;
-  for (const sp of spots) {
-    for (let k = 0; k < PER; k++) {
-      const x = sp.x + (rnd() - 0.5) * jit, y = sp.y + (rnd() - 0.5) * jit;
-      const h = hAt(x, y);
-      q.setFromAxisAngle(up, rnd() * Math.PI * 2);
-      const sc = H * (0.6 + rnd() * 0.9) * (sp.s || 1);
-      scaleVec.set(sc * (0.8 + rnd() * 0.5), sc, sc);
-      m4.compose(V(x, y, h), q, scaleVec);
-      mesh.setMatrixAt(bi, m4);
-      if (tint) { const c = tint(x, y); if (c) mesh.setColorAt(bi, c); }
-      bi++;
+  const cellM = opts.cellM > 0 ? opts.cellM : 0;
+  let buckets = [spots];
+  if (cellM) {
+    const byCell = new Map();
+    for (const sp of spots) {
+      const k = `${Math.floor(sp.x / cellM)},${Math.floor(sp.y / cellM)}`;
+      (byCell.get(k) || byCell.set(k, []).get(k)).push(sp);
     }
+    buckets = [...byCell.values()];
   }
-  mesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  return { mesh, windUpdate: (t) => { for (const u of refs) u.value = t; } };
+  const meshes = buckets.map((list) => {
+    const mesh = new THREE.InstancedMesh(blade, mat, list.length * PER);
+    mesh.castShadow = false;   // blade shadows are expensive + low value at this density
+    mesh.receiveShadow = true;
+    let bi = 0;
+    for (const sp of list) {
+      for (let k = 0; k < PER; k++) {
+        const x = sp.x + (rnd() - 0.5) * jit, y = sp.y + (rnd() - 0.5) * jit;
+        const h = hAt(x, y);
+        q.setFromAxisAngle(up, rnd() * Math.PI * 2);
+        const sc = H * (0.6 + rnd() * 0.9) * (sp.s || 1);
+        scaleVec.set(sc * (0.8 + rnd() * 0.5), sc, sc);
+        m4.compose(V(x, y, h), q, scaleVec);
+        mesh.setMatrixAt(bi, m4);
+        if (tint) { const c = tint(x, y); if (c) mesh.setColorAt(bi, c); }
+        bi++;
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingSphere();   // the cell's own bounds: off-screen cells are culled
+    return mesh;
+  });
+  let mesh = meshes[0];
+  if (meshes.length > 1) {
+    mesh = new THREE.Group();
+    mesh.name = 'grassCells';
+    meshes.forEach((m) => mesh.add(m));
+  }
+  const cull = (camera, drawM = Infinity) => {
+    if (meshes.length < 2) return;
+    const p = camera.position;
+    for (const m of meshes) {
+      const bs = m.boundingSphere;
+      m.visible = !bs || bs.center.distanceTo(p) - bs.radius < drawM;
+    }
+  };
+  return { mesh, windUpdate: (t) => { for (const u of refs) u.value = t; }, cull };
 }

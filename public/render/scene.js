@@ -13,6 +13,7 @@ import { buildGrounding } from './grounding.js';
 import { buildPineStraw, buildFlowers, vegetationTexturePixelChecksums } from './vegetation.js';
 import { buildRakes } from './props.js';
 import { buildGrass } from './grass.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GrassField } from './grass-field.js';
 import { buildWater } from './water.js';
 import { buildBuildings } from './buildings.js';
@@ -72,6 +73,7 @@ function applyContentQuality(p) {
   RENDER_CONFIG.treeCap = p.treeCap;
   RENDER_CONFIG.treeDensity = p.treeDensity;
   RENDER_CONFIG.treeNearM = p.treeNearM;
+  RENDER_CONFIG.treeMidM = p.treeMidM;
 }
 
 // deterministic PRNG so tree placement is stable between loads
@@ -472,7 +474,7 @@ export class GolfScene {
       state: 'pending',
       revision: this._visualCaptureCourseRevision,
     };
-    this._treeWind = this._grassWind = this._waterUpdate = this._waterMeshList = this._terrain = null; // drop stale per-course refs
+    this._treeWind = this._grassWind = this._grassCull = this._waterUpdate = this._waterMeshList = this._terrain = null; // drop stale per-course refs
     this._waterMirrors = this._waterSetSky = this._waterSetSun = this._waterSetWind = null;
     this._foamOn = false;
     this._treeField = null; this._placedTrees = null; this._allTreeSpots = null; this._grassField = null;
@@ -1247,7 +1249,7 @@ export class GolfScene {
     const hAt = (x, y) => this.hAt(x, y);
     if (RENDER_CONFIG.trees3d !== false) {
       // instanced 3D trees with near/mid/far LODs (trees.js)
-      this._treeField = new TreeField(spots, hAt, V, { nearM: RENDER_CONFIG.treeNearM ?? 150, sunDir: this.sunDir });
+      this._treeField = new TreeField(spots, hAt, V, { nearM: RENDER_CONFIG.treeNearM ?? 150, midM: RENDER_CONFIG.treeMidM, sunDir: this.sunDir });
       group.add(this._treeField.group);
     } else {
       const { meshes, windUpdate } = buildCardTrees(spots, hAt, V);
@@ -1401,8 +1403,8 @@ export class GolfScene {
     if ((this._courseDry || 0) < 0.5) return;
     const spots = this._grassSpots(geo);
     if (!spots.length) return;
-    const { mesh, windUpdate } = buildGrass(spots, (x, y) => this.hAt(x, y), V);
-    if (mesh) { group.add(mesh); this._grassWind = windUpdate; }
+    const { mesh, windUpdate, cull } = buildGrass(spots, (x, y) => this.hAt(x, y), V, { cellM: 120 });
+    if (mesh) { group.add(mesh); this._grassWind = windUpdate; this._grassCull = cull; }
   }
 
   // Foreground grass-object layer (see config.foregroundGrass). A camera-anchored patch of
@@ -1564,7 +1566,10 @@ export class GolfScene {
 
   // Render the given surface kinds (e.g. bunkers) as their own polygon meshes
   // draped on the terrain — the boundary becomes a crisp GEOMETRIC edge instead
-  // of a blurry low-res splat paint, sharp at any zoom. One shared material.
+  // of a blurry low-res splat paint, sharp at any zoom. One shared material, so the
+  // polygons are merged into one mesh per CELL_M square: a mesh each was a draw call
+  // each, 934 of them a frame from Whistling Straits' 3rd tee (1,371 bunkers), most of
+  // the frame's JavaScript; cells still let the ones off screen be culled.
   _addSurfacePatches(group, kinds, makeMat) {
     const surfs = (this.geo.surfaces || []).filter(
       (s) => kinds.includes(s.kind) && s.poly && s.poly.length >= 3);
@@ -1572,6 +1577,8 @@ export class GolfScene {
     const b = this.bounds;
     const mat = makeMat(b, this.renderer.capabilities.getMaxAnisotropy());
     const sampler = (x, y) => this.hAt(x, y);
+    const CELL_M = 250;
+    const cells = new Map();
     for (const s of surfs) {
       const ring = densifyRing(s.poly, 3);
       if (ring.length < 3) continue;
@@ -1591,7 +1598,14 @@ export class GolfScene {
       const nrm = geom.attributes.normal.array;
       let ny = 0; for (let i = 1; i < nrm.length; i += 3) ny += nrm[i];
       if (ny < 0) { idx.reverse(); geom.setIndex(idx); geom.computeVertexNormals(); }
-      const m = new THREE.Mesh(geom, mat);
+      const key = `${Math.floor(s.poly[0][0] / CELL_M)},${Math.floor(s.poly[0][1] / CELL_M)}`;
+      (cells.get(key) || cells.set(key, []).get(key)).push(geom);
+    }
+    for (const geoms of cells.values()) {
+      const merged = geoms.length > 1 ? mergeGeometries(geoms) : geoms[0];
+      if (merged !== geoms[0]) geoms.forEach((g) => g.dispose());
+      if (!merged) continue;
+      const m = new THREE.Mesh(merged, mat);
       m.receiveShadow = true;
       group.add(m);
     }
@@ -2178,7 +2192,7 @@ export class GolfScene {
     this._haze?.update(this.camera);
     if (this._treeWind) this._treeWind(frameTime);
     const treesMoved = this._treeField ? this._treeField.update(this.camera, frameTime) : false;
-    updateTerrainLod(this._terrain, this.camera);   // terrain detail for this camera
+    updateTerrainLod(this._terrain, this.camera, this.quality?.preset?.terrainLodScale ?? 1);   // terrain detail for this camera
     if (this._grassField) this._grassField.update(this.camera, frameTime);
     if (this.scene.fog && this._fogDensity) {
       // haze lies in the low air: looking down from a flyover or overview the light
@@ -2188,6 +2202,9 @@ export class GolfScene {
       this.scene.fog.density = this._fogDensity * (1 - 0.6 * THREE.MathUtils.smoothstep(above, 40, 700));
     }
     if (this._grassWind) this._grassWind(frameTime);
+    // the rough's fescue tufts: cells past the draw distance are skipped (a blade is a
+    // pixel or two tall out there)
+    if (this._grassCull) this._grassCull(this.camera, this.quality?.preset?.grassDrawM ?? 400);
     if (RENDER_CONFIG.foregroundGrass && this.camMode === 'idle' && this._fairwayGrassCenter) {
       const fdx = this.ballSim.x - this._fairwayGrassCenter.x, fdy = this.ballSim.y - this._fairwayGrassCenter.y;
       if (fdx * fdx + fdy * fdy > 64) this._placeFairwayGrass(); // ball moved > 8m -> re-anchor the foreground patch

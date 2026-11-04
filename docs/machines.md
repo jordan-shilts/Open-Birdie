@@ -48,6 +48,23 @@ flight and roll; the High run was the second shot, from the fairway.
 - **Same build on the dev Mac:** ~79–81 fps, p95 ~15.5 ms, at ~1080p internal (from `CHANGELOG.md`, not
   re-measured): about 4x the pixels at 2–4x the frame rate.
 
+## Where a Low frame goes (dev Mac, 2026-11-04)
+
+Measured on the dev Mac by throughput (frames drawn back to back, then a 1-pixel read-back so the GPU has
+finished), in the sim PC's 1920x1080 window at device scale 1, Hazeltine's 1st tee at Low on `main` `ccae3e3`:
+about 1.6 ms a frame that doesn't shrink with resolution plus 2.3 ms per million pixels. At the 768x432 the sim
+PC had dropped to, that is ~2.4 ms, a tenth of the ~25 ms it took there; take ~10x as a rough guide from the dev
+Mac to the sim PC on this scene, not a measurement. By part: trees ~0.9 ms (all vertex work, the same at any
+resolution), the ground's turf shader ~0.9 ms per million pixels plus its triangles, bloom ~0.25 ms plus 0.35 ms
+per million pixels, SMAA ~0.1 ms plus 0.4 ms per million pixels, the colour grade's own pass ~0.13 ms per million
+pixels. Whistling Straits added a JavaScript-bound frame (2.5 ms a frame: a draw call per bunker) and ~1 M
+triangles of rough tufts.
+
+The changes this led to are in `CHANGELOG.md` ("Lighter frames for the sim PC's integrated GPU"); on the dev Mac
+they take 17-35% off a Low frame. Still to do: measure them on the sim PC the same way as above. The GPU timer
+queries (`EXT_disjoint_timer_query_webgl2`) gave per-pass times on the dev Mac that didn't add up (ANGLE on Metal),
+so per-pass splits there came from switching parts off; on the sim PC (ANGLE on D3D11) the timers should work.
+
 ## Rendering on the MX130 instead
 
 Windows Settings → System → Display → Graphics → add the app (`node_modules\electron\dist\electron.exe`

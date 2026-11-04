@@ -87,7 +87,7 @@ export const RENDER_CONFIG = {
   mowStripeM: 4.5, // fairway mow-band width (m): a fairway triplex cuts ~2.5-3 m passes, read as ~4-5 m light/dark bands
   turfClean: 1.0, // 0..1: clean manicured parkland turf (less stacked noise/straw/near photo tint); links scale it out via courseDry
   gtao: true, // contact AO (grounding). If the turf goes black, GTAO's normal pass recompiled the onBeforeCompile shader without vMapUv — fall back to SSAO via a material-override prepass.
-  colorGrade: true, // cinematic grade + vignette pass (after OutputPass)
+  colorGrade: true, // cinematic grade + vignette (at the end of the OutputPass)
   water: true, // animated water: analytic ripples + fresnel + sun glitter (else static plane)
   waterFoam: true, // shoreline foam via a depth pre-pass (wet line where water meets terrain)
   waterReflect: true, // per-pond planar reflection (trees/banks mirror in the water; frustum-culled)

@@ -100,10 +100,16 @@ const sseClients = new Set();
 // per built hole — so the whole course renders real 1 m relief, not just one hole.
 let activeHd = [];       // resolved descriptors (server-only paths); [] when none
 let courseRevision = 0;  // bumped on each course activation
-// Per-process secret handed only to the loopback Electron primary client; an HD
-// revision activates only on a nonce-matched ack from it.
+// Per-process secret handed only to the loopback Electron primary client: its ack says
+// which ground its scene drew (HD, or the base grid when a bundle failed to decode), so
+// the ball plays the ground the desktop app shows. HD is the default everywhere else:
+// run on its own (`node server.js`, opened in a browser or over the LAN) no client can
+// hold the nonce, so an HD course plays its HD ground from the moment it loads; and if
+// the desktop app never answers, it plays HD too. (This used to hold every shot for 15 s
+// and then fall back to the base grid, under HD visuals.)
 const PRIMARY_NONCE = makeNonce();
 const READY_TIMEOUT_MS = +(process.env.BIRDIE_HD_READY_TIMEOUT_MS || 15000);
+const STANDALONE = require.main === module;   // false when main.js (the desktop app) runs it
 let readyTimer = null;
 const isLoopbackAddr = (a) => a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
 
@@ -259,12 +265,13 @@ async function acquireActivationCourse(request, { abortDifferent, source }) {
 
 function commitPreparedActivation({ candidate, resolvedPackage }) {
   let nextTimer = null;
-  if (candidate.hdDescriptors.length) {
+  const hd = candidate.hdDescriptors.length > 0;
+  if (hd && !STANDALONE) {
     const revision = resolvedPackage.courseRevision;
     nextTimer = setTimeout(() => {
       if (!game.runtimeReady && courseRevision === revision) {
-        console.warn('[hd] readiness timeout — activating procedural fallback');
-        game.activateRuntimeTerrain([]);
+        console.warn('[hd] no readiness ack from the app — playing the HD ground');
+        game.activateRuntimeTerrain(activeHd.map((d) => d.grid));
         broadcast('state', game.state());
       }
     }, READY_TIMEOUT_MS);
@@ -277,6 +284,8 @@ function commitPreparedActivation({ candidate, resolvedPackage }) {
   const previousTimer = readyTimer;
   readyTimer = nextTimer;
   if (previousTimer) clearTimeout(previousTimer);
+  // no desktop app to wait for: the HD ground, now
+  if (hd && STANDALONE) game.activateRuntimeTerrain(activeHd.map((d) => d.grid));
 }
 
 // A finished scenery layer: put it on the live course (only if that course is still

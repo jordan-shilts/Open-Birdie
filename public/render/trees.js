@@ -234,7 +234,7 @@ function makeDepthMat(shared, { alpha = false, atlas = null, flutter = false, ke
 }
 
 // ---------------------------------------------------------------- the field
-const LOD_MID_M = 1100;     // mid -> far switch (near = full model, see nearM)
+const LOD_MID_M = 1100;     // mid -> far switch by default (near = full model, see nearM; quality.js treeMidM)
 const FAR_CULL_M = 3200;    // fogged out past here
 const KEEP_RADIUS_M = 70;   // always drawn (shadow casters just off-screen)
 
@@ -260,10 +260,11 @@ function crowdedness(spots) {
 export class TreeField {
   // spots: [{x, y, s, species, h?, r?, edge?}] (sim metres); hAt(x,y) -> ground
   // height; V: sim->three
-  constructor(spots, hAt, V, { nearM = 150, sunDir = null } = {}) {
+  constructor(spots, hAt, V, { nearM = 150, midM = LOD_MID_M, sunDir = null } = {}) {
     this.group = new THREE.Group();
     this.group.name = 'treeField';
     this.nearM = nearM;
+    this.midM = Math.max(nearM, midM ?? LOD_MID_M);
     this.shared = {
       uTime: { value: 0 },
       uWindAmp: { value: 0.012 + (RENDER_CONFIG.windStrength ?? 0.5) * 0.03 },
@@ -409,7 +410,7 @@ export class TreeField {
     this._frustum.setFromProjectionMatrix(pm);
     const planes = this._frustum.planes;
     const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
-    const nearM = this.nearM;
+    const nearM = this.nearM, midM = this.midM;
     let nN = 0, nM = 0, nF = 0;
     for (const sp of this.variants) {
       const { n, mats, cols, centers, buffers } = sp;
@@ -428,7 +429,7 @@ export class TreeField {
           }
           if (!vis) continue;
         }
-        const lod = d < nearM ? 0 : d < LOD_MID_M ? 1 : 2;
+        const lod = d < nearM ? 0 : d < midM ? 1 : 2;
         const j = out[lod]++;
         mA[lod].set(mats.subarray(i * 16, i * 16 + 16), j * 16);
         cA[lod].set(cols.subarray(i * 3, i * 3 + 3), j * 3);
