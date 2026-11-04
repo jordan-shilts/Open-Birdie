@@ -1,8 +1,9 @@
 // Lining up in 3D: yardage arcs draped on the ground ahead of the ball (labelled),
 // the club's predicted flight as a dashed gold arc, its roll as a dotted line, the
-// ~2-sigma landing zone as a soft gold patch on the terrain, a "carry" pin over the
-// landing spot, and a small front–back tag over each bunker and water hazard the club
-// can reach. Round the green (a chip or a putt) it draws bare: the line, a small landing
+// ~2-sigma landing zone as a soft gold patch on the terrain, and two markers, as the
+// overhead map has them: the target, a crosshair where the shot stops with how far it
+// goes, and the pin, its distance over the flag; plus a small front–back tag over each
+// bunker and water hazard the club can reach. Round the green (a chip or a putt) it draws bare: the line, a small landing
 // ring and the roll, with the cup ringed and its distance over the flag. Lines are
 // camera-facing ribbons a fixed number of pixels wide, so they read the same at 20 m and
 // 250 m. Unlit, no shadows, a handful of draw calls.
@@ -11,8 +12,8 @@ import * as THREE from 'three';
 const YD = 0.9144;
 // Labels are placed in this order each frame and a later one that would overlap an
 // earlier one stays hidden: the prediction's, then the hazards', then the arcs'.
-const LABEL_RANK = { cup: 0, pred: 0, haz: 1, arc: 2 };
-const LABEL_HALF_W = { cup: 30, pred: 36, haz: 34, arc: 22 };   // px, for the overlap test
+const LABEL_RANK = { cup: 0, pin: 0, pred: 0, haz: 1, arc: 2 };
+const LABEL_HALF_W = { cup: 30, pin: 30, pred: 36, haz: 34, arc: 22 };   // px, for the overlap test
 const POLE_M = 2.3;   // the pin's pole at scale 1 (pin-flag.js); its flag is about a third as wide
 
 const LINE_VERT = /* glsl */`
@@ -217,9 +218,11 @@ export class LineupFx {
   }
 
   // The predicted shot (lib/predict.js) or null. near: a chip or pitch round the green,
-  // drawn bare (the line, where it lands, the roll) so the cup stays clear.
-  setPrediction(p, { near = false } = {}) {
+  // drawn bare (the line, where it lands, the roll) so the cup stays clear. pin: {x, y}
+  // (sim m), for the pin marker's distance.
+  setPrediction(p, { near = false, pin = null } = {}) {
     this._clear(this.pred, 'pred');
+    this._dropLabels('pin');
     if (!p || p.isPutt || !p.path || p.path.length < 2) return;
     // The line is drawn on the ground under the ball's flight: seen from behind, an arc
     // in the air is a spike straight up the screen; on the ground it shows the curve
@@ -251,51 +254,39 @@ export class LineupFx {
     // landing zone: a soft gold patch inside the dispersion outline, draped on the ground
     // (not round the green, where it would sit on the cup)
     const outline = !near && p.dispersion && p.dispersion.land;
+    // (no outline round it: the target's crosshair is the mark there)
     if (p.land && outline && outline.length >= 6) this.pred.add(this._patch(p.land, outline));
-    if (outline && outline.length >= 6) {
-      const ring = [...outline, outline[0]].flatMap((q, i, arr) => {
-        if (i === 0) return [[q.x, q.y]];
-        const a = arr[i - 1], out = [];
-        const n = Math.max(1, Math.ceil(Math.hypot(q.x - a.x, q.y - a.y) / 1.5));
-        for (let k = 1; k <= n; k++) out.push([a.x + (q.x - a.x) * k / n, a.y + (q.y - a.y) * k / n]);
-        return out;
-      });
-      this.pred.add(lineMesh(this._drape(ring, 0.16), { color: 0xffd21f, alpha: 0.85, px: 2, order: 11 }));
-    }
-    // the club's lines: its carry (solid) and the short / long edges of where it lands
-    if (!near && p.band && p.path.length) {
-      const b0 = p.path[0], band = p.band;
-      const mid = (band.fromRad + band.toRad) / 2;
-      const halfMin = Math.min(0.5, 22 / Math.max(30, band.carryYd * YD));
-      const half = Math.max((band.toRad - band.fromRad) / 2 + 0.04, halfMin);
-      const arc = (yd) => {
-        const r = yd * YD, n = Math.max(10, Math.ceil((2 * half * r) / 1.5)), pts = [];
-        for (let i = 0; i <= n; i++) { const a = mid - half + (2 * half * i) / n; pts.push([b0.x + Math.sin(a) * r, b0.y + Math.cos(a) * r]); }
-        return pts;
-      };
-      this.pred.add(lineMesh(this._drape(arc(band.minYd), 0.2), { color: 0xffd21f, alpha: 0.6, px: 2, order: 11 }));
-      this.pred.add(lineMesh(this._drape(arc(band.maxYd), 0.2), { color: 0xffd21f, alpha: 0.6, px: 2, order: 11 }));
-      this.pred.add(lineMesh(this._drape(arc(band.carryYd), 0.22), { color: 0xffd21f, alpha: 0.95, px: 3, order: 12 }));
-      const endAt = (yd) => {
-        const a = mid + half, r = yd * YD, x = b0.x + Math.sin(a) * r, y = b0.y + Math.cos(a) * r;
-        return this.V(x, y, this.hAt(x, y) + 0.9);
-      };
-      if (band.maxYd - band.minYd >= 4) {
-        this._label(endAt(band.minYd), `${Math.round(band.minYd)}`, 'arc band', 'pred');
-        this._label(endAt(band.maxYd), `${Math.round(band.maxYd)}`, 'arc band', 'pred');
-      }
-    }
-    if (p.land) {
-      // a small ring on the landing spot (gold and smaller round the green, where the
-      // white ring is the cup's, and no carry pin over it)
-      const r = near ? 0.6 : 1.4;
+    if (near && p.land) {
+      // round the green: a small gold ring where it lands (the white ring is the cup's)
       const pts = [];
       for (let i = 0; i <= 28; i++) {
         const a = (i / 28) * Math.PI * 2;
-        pts.push([p.land.x + Math.cos(a) * r, p.land.y + Math.sin(a) * r]);
+        pts.push([p.land.x + Math.cos(a) * 0.6, p.land.y + Math.sin(a) * 0.6]);
       }
-      this.pred.add(lineMesh(this._drape(pts, 0.14), { color: near ? 0xffd21f : 0xffffff, alpha: 0.95, px: near ? 2 : 2.4, order: 13 }));
-      if (!near) this._label(this.V(p.land.x, p.land.y, this.hAt(p.land.x, p.land.y) + 3.2), `${Math.round(p.carryYd)}<span>y</span>`, 'land', 'pred');
+      this.pred.add(lineMesh(this._drape(pts, 0.14), { color: 0xffd21f, alpha: 0.95, px: 2, order: 13 }));
+    }
+    if (near) return;
+    // the target: a crosshair where the shot stops, as the map marks it, and how far
+    if (p.rest) {
+      const R = 3.5, { x, y } = p.rest;
+      const ring = [];
+      for (let i = 0; i <= 40; i++) {
+        const a = (i / 40) * Math.PI * 2;
+        ring.push([x + Math.cos(a) * R, y + Math.sin(a) * R]);
+      }
+      this.pred.add(lineMesh(this._drape(ring, 0.12), { color: 0xffffff, alpha: 0.95, px: 2.6, order: 13 }));
+      for (const k of [1, 3, 5, 7]) {
+        const a = (k * Math.PI) / 4;
+        const tick = [[x + Math.cos(a) * R * 0.45, y + Math.sin(a) * R * 0.45], [x + Math.cos(a) * R * 0.95, y + Math.sin(a) * R * 0.95]];
+        this.pred.add(lineMesh(this._drape(tick, 0.12), { color: 0xffffff, alpha: 0.95, px: 2.2, order: 13 }));
+      }
+      this._label(this.V(x, y, this.hAt(x, y) + 3.2), `${Math.round(p.totalYd)}<span>y</span>`, 'target', 'pred');
+    }
+    // the pin: its distance from the ball, over the flag (placed each frame, update())
+    if (pin && p.path.length) {
+      const b0 = p.path[0];
+      const yd = Math.hypot(pin.x - b0.x, pin.y - b0.y) / YD;
+      this._label(new THREE.Vector3(), `${Math.round(yd)}<span>y</span>`, 'pin', 'pin');
     }
   }
 
@@ -365,13 +356,19 @@ export class LineupFx {
     }
     for (const l of this.labels) {
       if (!visible) { l.el.style.display = 'none'; continue; }
+      if (l.kind === 'pin') {
+        // over the flag, at the top of its pole as drawn (the pin grows with distance)
+        if (!this.flag?.visible) { l.el.style.display = 'none'; continue; }
+        l.world.copy(this.flag.position);
+        l.world.y += POLE_M * 1.08 * (this.flag.scale.y || 1);
+      }
       v.copy(l.world).project(camera);
       let sx = (v.x * 0.5 + 0.5) * w;
       const sy = (-v.y * 0.5 + 0.5) * h;
       let ok = !(v.z > 1 || sx < 8 || sx > w - 8 || sy < 60 || sy > h - 8);
       const hw = LABEL_HALF_W[l.kind] ?? 24;
       let y = sy;
-      if (ok && l.kind !== 'pred' && l.kind !== 'cup') {
+      if (ok && l.kind !== 'pred' && l.kind !== 'cup' && l.kind !== 'pin') {
         // an arc number just gives way; a hazard tag stacks above what it would cover
         // (from the tee, bunkers past the landing sit right behind the carry label)
         ok = false;
@@ -400,6 +397,7 @@ export class LineupFx {
     this._clear(this.pred, 'pred');
     this._clear(this.cup, 'cup');
     this._dropLabels('haz');
+    this._dropLabels('pin');
     this.root.parent?.remove(this.root);
   }
 }

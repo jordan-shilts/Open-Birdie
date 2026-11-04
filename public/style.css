@@ -469,6 +469,19 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px 
 }
 /* stepped off the flag (lineup-fx.js): the pointer would point at the flag, not the spot */
 .dist-marker.land.aside::after { display: none; }
+/* the two markers of a full shot (lineup-fx.js), as the overhead map has them: the target,
+   where the shot stops, dark over its crosshair; the pin, white over the flag */
+.dist-marker.target, .dist-marker.pin { font-size: 14px; padding: 2px 10px; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35); }
+.dist-marker.target { background: rgba(16, 18, 21, 0.9); color: #fff; border-color: rgba(255, 255, 255, 0.6); }
+.dist-marker.pin { background: #fff; color: #15130a; border-color: #fff; }
+.dist-marker.pin span { opacity: 0.7; }
+.dist-marker.target::after, .dist-marker.pin::after {
+  content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%);
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+}
+.dist-marker.target::after { border-top: 6px solid rgba(16, 18, 21, 0.9); }
+.dist-marker.pin::after { border-top: 6px solid #fff; }
+.dist-marker.target.aside::after { display: none; }
 /* the cup round the green (lineup-fx.js): how far, over the flag */
 .dist-marker.cup {
   background: #fff; color: #15130a; border-color: #fff; font-size: 14px; padding: 2px 10px;

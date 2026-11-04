@@ -95,6 +95,7 @@ const conditions = new ConditionsUI({ onOpen: () => closeMenu() });
 const aimMap = new AimMap($('aim-canvas'), {
   onAim: (v) => lineup.setAim(v, { commit: false }),
   onAimEnd: (v) => lineup.setAim(v),
+  onPlan: (pt) => lineup.setLayup(pt),
 });
 const lineup = new Lineup({
   scene, flightView, aimMap, conditions,
@@ -110,6 +111,10 @@ segmented($('seg-autoclub'), [['on', 'On'], ['off', 'Off']], lineup.autoClub ? '
   lineup.autoClub = v === 'on';
   writeAutoClub(lineup.autoClub);
   markSeg($('seg-autoclub'), v);
+});
+segmented($('seg-details'), [['off', 'Off'], ['on', 'On']], lineup.details ? 'on' : 'off', (v) => {
+  lineup.setDetails(v === 'on');
+  markSeg($('seg-details'), v);
 });
 
 let state = null;

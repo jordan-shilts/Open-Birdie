@@ -5,6 +5,18 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **The hole planned shot by shot, with two markers: the target and the pin** — the overhead map lays a
+  full shot out the way a GPS card does (`public/shot-plan.mjs`): a crosshair where this shot stops, a thin line
+  on to the pin, and each leg's length in a quiet bubble beside it. On a par 4 or 5 whose pin is out of reach
+  from there (past the longest club but the driver), a second crosshair marks where to lay up: down the hole's
+  line of play, on its fairway and out of its sand and water, leaving a full pitching wedge in. Drag that one to
+  plan it somewhere else; the plan runs through it until the next shot. The 3D view has the same two markers: a
+  crosshair on the ground where the shot stops with how far it goes, and the pin's distance over the flag. They
+  replace the landing ring and outline, the carry pin and the band's numbers in 3D, and the aim ring, AUTO's
+  diamond, the stop dot, the carry band and the landing outline on the map (the panel still gives carry, total
+  and where it lands). A full shot is otherwise bare: the distance rings and the hazards' and the green's
+  numbers are off unless Menu → View → **Yardage details** is on (they are still in the shot card and the
+  panel). Round the green, on the range and in the games the views are as before.
 - **A course library to pick from** — the course picker opens on every course at once: your downloaded
   courses as cards (the hole layout as a little map, where it is, holes, par and yardage, HD and scorecard
   tags, when you last played it), the one you're playing first and the rest by when you last played them, then
