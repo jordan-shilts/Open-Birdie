@@ -4,7 +4,8 @@
 // shot card (to the pin, the green's front and back, plays like, why), the planner (side
 // view + overhead aim map + carry / total / where it ends), and the 3D view (predicted
 // arc, landing zone, and the front and back of the hazards the club can reach).
-import { aimWords, yardageMarks } from './yardages.mjs';
+import { aimWords, hazardsInPlay, yardageMarks } from './yardages.mjs';
+import { isNearGreen } from './map-frame.mjs';
 
 const $ = (id) => document.getElementById(id);
 const YD = 0.9144, FT = 0.3048;
@@ -113,7 +114,7 @@ export class Lineup {
 
   get clubInfo() { return byKey[this.club] || CLUBS[0]; }
 
-  // ---- club dock ----
+  // ---- club dock: the club in hand; the whole bag opens over it on a click ----
   _buildDock() {
     const dock = $('clubs');
     dock.innerHTML = '';
@@ -123,10 +124,18 @@ export class Lineup {
       b.setAttribute('role', 'radio');
       b.title = c.name;
       b.innerHTML = `<b>${c.label}</b><span></span>`;
-      b.onclick = () => this.selectClub(c.key, { manual: true });
+      b.onclick = () => { this.selectClub(c.key, { manual: true }); this.openDock(false); };
       dock.appendChild(b);
     }
+    $('club-current').onclick = () => this.openDock();
+    document.addEventListener('pointerdown', (e) => { if (!$('club-picker').contains(e.target)) this.openDock(false); });
     this._renderDock();
+  }
+
+  // open, close (or with no argument toggle) the bag over the club in hand
+  openDock(open = $('clubs').classList.contains('hidden')) {
+    $('clubs').classList.toggle('hidden', !open);
+    $('club-current').setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
   _renderDock() {
@@ -142,6 +151,11 @@ export class Lineup {
       b.title = c ? `${byKey[k].name}: carry ${Math.round(c.carryYd)}, total ${Math.round(c.totalYd)} yd today (${c.source === 'player' ? 'your numbers' : c.source === 'scaled' ? 'scaled from your other clubs' : 'typical numbers'})` : byKey[k].name;
     }
     $('lie-club').textContent = this.clubInfo.name;
+    // the club in hand, and its carry today
+    const cur = this.carries?.clubs?.find((x) => x.club === this.club);
+    $('cc-club').textContent = this.clubInfo.label;
+    $('cc-carry').innerHTML = this.club !== 'PT' && cur && Number.isFinite(cur.carryYd) ? `${Math.round(cur.carryYd)}<small>yd</small>` : '';
+    $('club-current').title = `${this.clubInfo.name}: click for the other clubs`;
   }
 
   selectClub(key, { manual = false, tell = true } = {}) {
@@ -323,20 +337,16 @@ export class Lineup {
     this.aimMap.setPrediction(drawn);
     this.flightView.showPrediction(pred);
     this.scene.setLineup?.(this.flying ? null : drawn);
-    this._tagHazards(pred);
+    this._tagHazards(drawn);
     this.conditions?.setEffects(pred);
   }
 
-  // The hazards worth a tag in the 3D view: every pond short of where this club stops
-  // (it has to be carried), and the bunkers around where it lands; water first, then
-  // nearest the carry, six at most.
+  // The hazards worth a tag in the 3D view: the ones this shot can find at the spread
+  // drawn (yardages.mjs hazardsInPlay, the same ones the map numbers). None round the
+  // green, where the cup is the mark.
   _tagHazards(p) {
-    const list = this.marks?.hazards || [];
-    const mid = (hz) => (hz.frontYd + hz.backYd) / 2;
-    const pick = !p || p.isPutt ? [] : list
-      .filter((hz) => hz.frontYd <= p.totalYd + 30 && (hz.kind === 'water' || hz.backYd >= p.carryYd - 50))
-      .sort((a, b) => (a.kind === 'water') !== (b.kind === 'water') ? (a.kind === 'water' ? -1 : 1) : Math.abs(mid(a) - p.carryYd) - Math.abs(mid(b) - p.carryYd))
-      .slice(0, 6);
+    const near = isNearGreen(this.state?.distToPinYd ?? Infinity, !!p?.isPutt);
+    const pick = near ? [] : hazardsInPlay(this.marks, p);
     const key = pick.map((hz) => `${hz.at[0].toFixed(1)},${hz.at[1].toFixed(1)}`).join('|');
     if (key === this._hazKey) return;
     this._hazKey = key;
