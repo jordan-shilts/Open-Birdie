@@ -27,6 +27,36 @@ export function pointAt(points, t) {
   return { t, x: lerp(a.x, b.x, f), y: lerp(a.y, b.y, f), z: lerp(a.z, b.z, f) };
 }
 
+// The same, smooth: in the air, a cubic (Hermite) through the samples with tangents from
+// their neighbours, so the ball's path and speed carry on smoothly from one 20 ms sample
+// to the next instead of turning a corner at each; on the ground (after airEnd, where
+// bounces are real corners) and across an uneven gap (a deflection kept crisp), the
+// straight line between samples.
+export function smoothPointAt(points, t, airEnd = Infinity) {
+  if (!points || points.length < 4) return pointAt(points, t);
+  const last = points[points.length - 1];
+  if (t <= points[0].t || t >= last.t) return pointAt(points, t);
+  let lo = 0, hi = points.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (points[mid].t <= t) lo = mid; else hi = mid;
+  }
+  if (lo < 1 || hi > points.length - 2) return pointAt(points, t);
+  const p0 = points[lo - 1], p1 = points[lo], p2 = points[hi], p3 = points[hi + 1];
+  const h = p2.t - p1.t;
+  if (p3.t > airEnd || !(h > 1e-6)) return pointAt(points, t);
+  // a gap much shorter or longer than its neighbours: an event sample, leave it straight
+  const even = (a, b) => b > 1e-6 && Math.abs(a - b) <= 0.35 * Math.max(a, b);
+  if (!even(h, p1.t - p0.t) || !even(h, p3.t - p2.t)) return pointAt(points, t);
+  const s = (t - p1.t) / h, s2 = s * s, s3 = s2 * s;
+  const h00 = 2 * s3 - 3 * s2 + 1, h10 = s3 - 2 * s2 + s, h01 = -2 * s3 + 3 * s2, h11 = s3 - s2;
+  const m = (k) => {
+    const m1 = (p2[k] - p0[k]) / (p2.t - p0.t), m2 = (p3[k] - p1[k]) / (p3.t - p1.t);
+    return h00 * p1[k] + h10 * h * m1 + h01 * p2[k] + h11 * h * m2;
+  };
+  return { t, x: m('x'), y: m('y'), z: m('z') };
+}
+
 // Apex (highest point of the AIR phase) and landing (first ground contact) in sim
 // coordinates. flightTime is optional; without it the landing is the end of the
 // descent (the first local minimum after the apex), falling back to the last point.

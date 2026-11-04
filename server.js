@@ -17,6 +17,7 @@ const {
 } = require('./lib/cloud-client');
 const { createCourseActivationManager } = require('./lib/course-activation');
 const { createCourseCache } = require('./lib/course-cache');
+const { createCourseLibrary } = require('./lib/course-library');
 const {
   applySceneryUpdate,
   createSceneryEnricher,
@@ -29,6 +30,7 @@ const { packageKeyFor, parsePackageKey } = require('./lib/course-package');
 const { prepareCourseCandidate } = require('./lib/resolved-course-package');
 const { Game, CLUB_FULL } = require('./lib/game');
 const { PRESETS, conditionsState, loadConditionsFile, saveConditionsFile } = require('./lib/conditions');
+const { normalizeSettings, loadSettingsFile, saveSettingsFile } = require('./lib/settings');
 const { createBag } = require('./lib/bag');
 const { createSavedShots } = require('./lib/saved-shots');
 const { createLeagues, LeagueError, initials } = require('./lib/leagues');
@@ -56,6 +58,8 @@ const SCENERY_ENABLED = process.env.BIRDIE_ENRICH !== '0';
 // Bounded local course cache (BIRDIE_CACHE_MAX_MB, default 1024): least recently
 // played courses are deleted past the cap, never the active one.
 const courseCache = createCourseCache({ dataDir: DATA_DIR });
+// the course picker's list: every downloaded course and the featured ones (lib/course-library.js)
+const courseLibrary = createCourseLibrary();
 // Cloud course service (BIRDIE_CLOUD_URL): courses and their scenery are downloaded
 // as verified packages instead of being built here. Unset = no cloud request ever.
 const CLOUD = cloudConfigFromEnv(process.env, console, { file: path.join(DATA_DIR, 'cloud.json') });
@@ -67,6 +71,12 @@ const CONDITIONS_FILE = path.join(DATA_DIR, 'conditions.json');
 {
   const saved = loadConditionsFile(CONDITIONS_FILE);
   if (saved) game.setConditions(saved);
+}
+// So do the round settings (lib/settings.js: the gimme).
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+{
+  const saved = loadSettingsFile(SETTINGS_FILE);
+  if (saved) game.settings = saved;
 }
 // The player's bag: per-club launch history from the launch monitor (lib/bag.js),
 // which the lineup predicts with (lib/predict.js reads game.bag).
@@ -428,6 +438,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/leagues' && req.method !== 'POST') return json(res, { ...leagues.state(), leagueRound: game.leagueRound });
     if (p === '/api/courses/cached') return json(res, listCached());
+    if (p === '/api/courses') {
+      return json(res, courseLibrary.list({ entries: courseCache.entries(), currentId: activationManager.current()?.courseId || null }));
+    }
     if (p === '/api/search') {
       // Raw query: appending " golf" made Nominatim match addresses like
       // "Golf Place" (St Andrews' starter hut) instead of the course itself.
@@ -653,10 +666,18 @@ const server = http.createServer(async (req, res) => {
         broadcast('state', game.state());
         return json(res, { ok: true });
       }
+      // a partial settings object: {gimmeFt: 3}
       if (p === '/api/settings') {
-        Object.assign(game.settings, body);
+        try {
+          game.settings = normalizeSettings(body, game.settings);
+        } catch (error) {
+          if (error.code !== 'BAD_SETTING') throw error;
+          return json(res, { ok: false, error: error.message, code: error.code }, 400);
+        }
+        try { saveSettingsFile(SETTINGS_FILE, game.settings); }
+        catch (error) { console.warn(`[settings] could not save: ${error.message}`); }
         broadcast('state', game.state());
-        return json(res, { ok: true });
+        return json(res, { ok: true, settings: game.settings });
       }
     }
     if (p.startsWith('/api/hd-assets/') && (req.method === 'GET' || req.method === 'HEAD')) {
@@ -835,6 +856,8 @@ async function bootstrap() {
       console.log(`[HTTP] Open-Birdie UI: http://localhost:${actualPort}` +
         (exposed ? `  (exposed on ${HTTP_HOST} — trusted networks only)` : '  (localhost only — set BIRDIE_HOST=0.0.0.0 to mirror on your LAN)'));
       resolve({ httpPort: actualPort });
+      // read the downloaded courses once now, so the course picker opens at once
+      setImmediate(() => { try { courseLibrary.list(); } catch (_) { /* listed on demand */ } });
     });
   });
 }

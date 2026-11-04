@@ -13,9 +13,10 @@
 // keeps the eye on it; a neighbouring tee or green never reads as part of this hole.
 //
 // Sim coordinates: metres, x east, y north. Compass headings clockwise from north.
-import { hazardText, holeSurfaces } from './yardages.mjs';
+import { greenFor, hazardsInPlay, hazardText, holeSurfaces } from './yardages.mjs';
+import { frameMap } from './map-frame.mjs';
 
-const YD = 0.9144;
+const YD = 0.9144, FT = 0.3048;
 const DEG = Math.PI / 180;
 
 // map palette: a dark course plan the gold prediction and white arcs read on
@@ -77,7 +78,8 @@ export class AimMap {
   setShot(points) { this.shot = points && points.length > 1 ? points : null; this.draw(); }
   setYardages(marks) { this.marks = marks; this.draw(); }
 
-  // ---- view transform: ball near the bottom, default line straight up ----
+  // ---- view transform: default line straight up; the ball near the bottom for a full
+  // shot, the green filling the map round the green (map-frame.mjs) ----
   _view(Wc, Hc) {
     const { ball, pin, baseAimDeg } = this.hole;
     const a = baseAimDeg * DEG;
@@ -86,19 +88,24 @@ export class AimMap {
       const dx = x - ball.x, dy = y - ball.y;
       return [dx * right[0] + dy * right[1], dx * fwd[0] + dy * fwd[1]];
     };
-    const [pu, pv] = toUV(pin[0], pin[1]);
-    let reach = Math.max(pv + 22, 70);
-    let half = Math.max(Math.abs(pu) + 22, 42);
-    if (this.pred && this.pred.rest && !this.pred.isPutt) {
-      const [ru, rv] = toUV(this.pred.rest.x, this.pred.rest.y);
-      reach = Math.max(reach, rv + 30);
-      half = Math.max(half, Math.abs(ru) + 26);
-    }
-    const padTop = 18, padBot = 30;
-    const s = Math.min((Hc - padTop - padBot) / reach, (Wc / 2 - 10) / half);
-    const ox = Wc / 2, oy = Hc - padBot;
+    const putt = !!(this.pred && this.pred.isPutt);
+    const rest = this.pred && this.pred.rest && !putt ? this.pred.rest : null;
+    const { s, ox, oy, near } = frameMap(Wc, Hc, {
+      pinUV: toUV(pin[0], pin[1]),
+      restUV: rest ? toUV(rest.x, rest.y) : null,
+      greenUV: this._greenPoly().map((p) => toUV(p[0], p[1])),
+      putt,
+    });
     const toPx = (x, y) => { const [u, v] = toUV(x, y); return [ox + u * s, oy - v * s]; };
-    return { toUV, toPx, s, ox, oy, a, fwd, right };
+    return { toUV, toPx, s, ox, oy, a, fwd, right, near };
+  }
+
+  // the pin's green outline (sim m), once per pin
+  _greenPoly() {
+    const { pin } = this.hole;
+    const key = `${this.geo?.courseRevision ?? this.geo?.name}|${pin[0]},${pin[1]}`;
+    if (this._greenKey !== key) { this._greenKey = key; this._green = (this.geo && greenFor(this.geo, pin)) || []; }
+    return this._green;
   }
 
   _resizeBacking() {
@@ -123,15 +130,17 @@ export class AimMap {
     ctx.clearRect(0, 0, W, H);
     if (!this.hole || !this.geo || w < 20 || h < 20) return;
     const view = this._view(w, h);
-    const key = `${W}x${H}|${this.hole.ball.x},${this.hole.ball.y}|${this.hole.baseAimDeg}|${view.s.toFixed(4)}`;
+    const key = `${W}x${H}|${this.hole.ball.x},${this.hole.ball.y}|${this.hole.baseAimDeg}|${view.s.toFixed(4)}|${view.ox.toFixed(1)},${view.oy.toFixed(1)}`;
     if (key !== this._staticKey) { this._drawStatic(view, W, H, dpr, w, h); this._staticKey = key; }
     ctx.drawImage(this._static, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this._drawArcs(ctx, view, w, h, ui);
-    this._drawAim(ctx, view, w, h, ui);
-    // label boxes so far: the prediction's carry and stop, then the green's front and
-    // back, then the hazards by importance; each later label steers clear of the earlier
+    const aimBox = this._drawAim(ctx, view, w, h, ui);
+    // label boxes so far: the aim's, the prediction's carry, stop and legs, then the
+    // green's front and back, then the hazards by importance; each later label steers
+    // clear of the earlier
     const placed = this._drawPrediction(ctx, view, ui);
+    if (aimBox) placed.push(aimBox);
     this._drawGreenMarks(ctx, view, w, h, ui, placed);
     this._drawHazards(ctx, view, w, h, ui, placed);
     this._drawShot(ctx, view, ui);
@@ -281,19 +290,21 @@ export class AimMap {
     return l;
   }
 
-  // yardage arcs every 50 y (25 y on short shots) from the ball, labelled on the right
+  // distance arcs from the ball, labelled on the right: every 50 y (25 y, 10 y on
+  // shorter views) for a full shot, every 10 ft round the green
   _drawArcs(ctx, view, w, h, ui) {
     const { ox, oy, s } = view;
     const maxM = Math.hypot(Math.max(ox, w - ox), oy) / s;
-    const stepYd = maxM / YD > 260 ? 50 : maxM / YD > 110 ? 25 : 10;
+    const unit = view.near ? FT : YD;
+    const step = view.near ? 10 : maxM / YD > 260 ? 50 : maxM / YD > 110 ? 25 : 10;
     ctx.save();
     ctx.font = `700 ${10.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    const band = this.pred && !this.pred.isPutt ? this.pred.band : null;
+    const band = this.pred && !this.pred.isPutt && !view.near ? this.pred.band : null;
     const dim = band ? 0.6 : 1;   // the club's own lines lead; the yardage grid steps back
-    for (let yd = stepYd; yd * YD < maxM; yd += stepYd) {
-      const R = yd * YD * s;
-      const major = yd % (stepYd * 2) === 0 || stepYd === 50;
+    for (let d = step; d * unit < maxM; d += step) {
+      const R = d * unit * s;
+      const major = d % (step * 2) === 0 || step === 50;
       ctx.beginPath();
       ctx.arc(ox, oy, R, Math.PI * 1.08, Math.PI * 1.92);
       ctx.strokeStyle = major ? `rgba(255,255,255,${0.3 * dim})` : `rgba(255,255,255,${0.13 * dim})`;
@@ -302,11 +313,11 @@ export class AimMap {
       if (!major) continue;
       // label where the arc leaves the right edge (or at 40 degrees right of the line)
       let ang = 40 * DEG;
-      const xr = (w - ox - 22 * ui);
+      const xr = (w - ox - (view.near ? 36 : 22) * ui);
       if (R > xr) ang = Math.asin(xr / R);
       const lx = ox + Math.sin(ang) * R, ly = oy - Math.cos(ang) * R;
       if (ly < 10 || ly > h - 4) continue;
-      const txt = `${yd}`;
+      const txt = view.near ? `${d} ft` : `${d}`;
       ctx.lineWidth = 3 * ui; ctx.strokeStyle = 'rgba(10,14,11,0.85)';
       ctx.strokeText(txt, lx + 3 * ui, ly);
       ctx.fillStyle = `rgba(255,255,255,${0.78 * (band ? 0.75 : 1)})`;
@@ -353,7 +364,7 @@ export class AimMap {
   // whichever side is clear of the prediction's labels.
   _drawGreenMarks(ctx, view, w, h, ui, placed) {
     const g = this.marks && this.marks.green;
-    if (!g || (this.pred && this.pred.isPutt)) return;
+    if (!g || (this.pred && this.pred.isPutt) || view.near) return;   // round the green the green itself fills the map
     const [x0, y0] = view.toPx(g.front[0], g.front[1]);
     const [x1, y1] = view.toPx(g.back[0], g.back[1]);
     const L = Math.hypot(x1 - x0, y1 - y0) || 1;
@@ -390,21 +401,18 @@ export class AimMap {
     ctx.restore();
   }
 
-  // Front and back of every bunker and water hazard near the line (yardages.mjs), the
-  // way a yardage book marks them: a thin bracket down the hazard's outer side from its
-  // front to its back, and the two numbers beside it. Where two would overlap, the one
-  // nearer this club's carry keeps its numbers.
+  // Front and back of the hazards this shot can find (yardages.mjs hazardsInPlay, the
+  // ones the 3D view tags), the way a yardage book marks them: a thin bracket down the
+  // hazard's outer side from its front to its back, and the two numbers beside it, clear
+  // of the labels already placed. None round the green, where the green fills the map.
   _drawHazards(ctx, view, w, h, ui, placed) {
-    const list = (this.marks && this.marks.hazards) || [];
+    const list = view.near ? [] : hazardsInPlay(this.marks, this.pred);
     if (!list.length) return;
-    const p = this.pred && !this.pred.isPutt ? this.pred : null;
-    const mid = (hz) => (hz.frontYd + hz.backYd) / 2;
-    const ranked = p ? [...list].sort((a, b) => Math.abs(mid(a) - p.carryYd) - Math.abs(mid(b) - p.carryYd)) : list;
     ctx.save();
     ctx.font = `800 ${9.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
     ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
     const th = 12 * ui;
-    for (const hz of ranked) {
+    for (const hz of list) {
       const yF = view.toPx(hz.front[0], hz.front[1])[1], yB = view.toPx(hz.back[0], hz.back[1])[1];
       // a carry over water the line crosses is bracketed just right of the line
       const edge = hz.onLine ? view.ox + 10 * ui : view.ox + (hz.side > 0 ? hz.uMax : hz.uMin) * view.s + hz.side * 3 * ui;
@@ -484,6 +492,7 @@ export class AimMap {
     ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(txt, bx + 5 * ui, ty + 0.5);
     ctx.restore();
+    return { x: bx, y: by, w: tw, h: th };
   }
 
   // the pin's distance from the ball (yd)
@@ -553,14 +562,57 @@ export class AimMap {
       ctx.fillStyle = '#15130a'; ctx.fill(); ctx.strokeStyle = '#ffd21f'; ctx.lineWidth = 2.2 * ui; ctx.stroke();
       label(X, Y, `${Math.round(p.carryYd)}`, true);
     }
+    const legs = p.rest && !p.isPutt && !view.near;
     if (p.rest && p.totalYd - p.carryYd > 3) {
       const [X, Y] = view.toPx(p.rest.x, p.rest.y);
       ctx.beginPath(); ctx.arc(X, Y, 3.6 * ui, 0, Math.PI * 2);
       ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#15130a'; ctx.lineWidth = 1.4 * ui; ctx.stroke();
-      label(X - 2 * ui, Y - 15 * ui, `${Math.round(p.totalYd)}`, false);
+      if (!legs) label(X - 2 * ui, Y - 15 * ui, `${Math.round(p.totalYd)}`, false);
     }
+    if (legs) this._drawLegs(ctx, view, ui, p, boxes);
     ctx.restore();
     return boxes;
+  }
+
+  // The shot in two legs, as a GPS card breaks it down: how far this one goes (ball to
+  // where it stops) and what it leaves to the pin, each in a quiet round bubble beside
+  // its leg, the second leg a faint line on to the pin. Pushes the bubbles' boxes.
+  _drawLegs(ctx, view, ui, p, boxes) {
+    const { ball, pin } = this.hole;
+    const B = view.toPx(ball.x, ball.y), R = view.toPx(p.rest.x, p.rest.y), P = view.toPx(pin[0], pin[1]);
+    const leftYd = Math.hypot(pin[0] - p.rest.x, pin[1] - p.rest.y) / YD;
+    const bubble = (A, Z, yd) => {
+      const L = Math.hypot(Z[0] - A[0], Z[1] - A[1]);
+      if (L < 40 * ui) return;   // too short a leg to sit beside
+      // beside the leg's middle, on its left (the stop's and the hazards' labels go right)
+      const nx = (Z[1] - A[1]) / L, ny = -(Z[0] - A[0]) / L;
+      const num = `${Math.round(yd)}`;
+      ctx.font = `800 ${11 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+      const tw = ctx.measureText(num).width;
+      ctx.font = `700 ${7.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+      const uw = ctx.measureText('y').width;
+      const r = Math.max(13 * ui, (tw + uw) / 2 + 5 * ui);
+      const X = (A[0] + Z[0]) / 2 + nx * (r + 8 * ui), Y = (A[1] + Z[1]) / 2 + ny * (r + 8 * ui);
+      ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(14,16,18,0.78)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+      const x0 = X - (tw + uw) / 2, base = Y + 4 * ui;
+      ctx.font = `800 ${11 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+      ctx.fillText(num, x0, base);
+      ctx.font = `700 ${7.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillText('y', x0 + tw + 0.5 * ui, base);
+      boxes.push({ x: X - r, y: Y - r, w: 2 * r, h: 2 * r });
+    };
+    if (leftYd >= 15) {
+      ctx.setLineDash([2 * ui, 4 * ui]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.2 * ui;
+      ctx.beginPath(); ctx.moveTo(R[0], R[1]); ctx.lineTo(P[0], P[1]); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    bubble(B, R, p.totalYd);
+    if (leftYd >= 15) bubble(R, P, leftYd);
   }
 
   _drawShot(ctx, view, ui) {
@@ -581,6 +633,21 @@ export class AimMap {
     const { pin, ball } = this.hole;
     const [px, py] = view.toPx(pin[0], pin[1]);
     ctx.save();
+    if (view.near) {
+      // round the green: the cup ringed so it can't be missed, with how far it is
+      ctx.beginPath(); ctx.arc(px, py, 9 * ui, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.4 * ui; ctx.stroke();
+      const ft = Math.round(Math.hypot(pin[0] - ball.x, pin[1] - ball.y) / FT);
+      const txt = `${ft} ft`;
+      ctx.font = `800 ${11.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+      const tw = ctx.measureText(txt).width + 10 * ui, th = 17 * ui;
+      const bx = px + 13 * ui, by = py - 17 * ui - th / 2;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.roundRect(bx, by, tw, th, 5 * ui); ctx.fill();
+      ctx.fillStyle = '#15130a'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(txt, bx + 5 * ui, by + th / 2 + 0.5);
+    }
     // flag: pole and pennant, with a ring for the cup
     ctx.beginPath(); ctx.arc(px, py, 4 * ui, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.3 * ui; ctx.stroke();
