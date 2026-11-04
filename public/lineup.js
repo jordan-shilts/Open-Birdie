@@ -1,8 +1,12 @@
 // Lining up a shot: the club in hand, where it is predicted to go (lib/predict.js:
 // the player's own numbers for that club, today's conditions, the real terrain), and
 // every view of it: the club dock (each club's carry today + the one that fits), the
-// shot card (to the pin, plays like, why), the planner (side view + overhead aim map +
-// carry / total / where it ends), and the 3D view (predicted arc and landing zone).
+// shot card (to the pin, the green's front and back, plays like, why), the planner (side
+// view + overhead aim map + carry / total / where it ends), and the 3D view (predicted
+// arc, landing zone, and the front and back of the hazards the club can reach).
+import { aimWords, hazardsInPlay, yardageMarks } from './yardages.mjs';
+import { isNearGreen } from './map-frame.mjs';
+
 const $ = (id) => document.getElementById(id);
 const YD = 0.9144, FT = 0.3048;
 
@@ -41,6 +45,12 @@ const readSpread = () => { try { return SPREAD[localStorage.getItem(SPREAD_KEY)]
 
 // The prediction as drawn: dispersion areas scaled to the chosen spread, and the band
 // of carry distances (and bearings, relative to north) its landing area covers.
+// where AUTO aims a full shot, in words (lib/safe-spot.js kinds)
+const SPOT_WORDS = {
+  green: 'the middle of the green', fairway: 'the middle of the fairway',
+  line: 'down the middle of the hole', pin: 'the pin',
+};
+
 export function withSpread(pred, spread, ball) {
   if (!pred || pred.isPutt || !pred.dispersion) return pred;
   const k = SPREAD[spread] ?? 1;
@@ -84,6 +94,11 @@ export class Lineup {
     this.spread = readSpread();
     this.autoClub = readAutoClub();
     this._pickPending = false;   // a new lie still waiting for its auto club pick
+    // A full shot starts aimed where AUTO aims (the green when this club gets there,
+    // else the fairway it lands on), not down the line to the pin, which on a dogleg or
+    // along a shore can run out over trees or the sea; it follows the club in hand
+    // until the aim is moved by hand at this lie.
+    this._autoAimLie = false;
     this._buildDock();
     this._bindSpread();
   }
@@ -104,7 +119,7 @@ export class Lineup {
 
   get clubInfo() { return byKey[this.club] || CLUBS[0]; }
 
-  // ---- club dock ----
+  // ---- club dock: the club in hand; the whole bag opens over it on a click ----
   _buildDock() {
     const dock = $('clubs');
     dock.innerHTML = '';
@@ -114,10 +129,18 @@ export class Lineup {
       b.setAttribute('role', 'radio');
       b.title = c.name;
       b.innerHTML = `<b>${c.label}</b><span></span>`;
-      b.onclick = () => this.selectClub(c.key, { manual: true });
+      b.onclick = () => { this.selectClub(c.key, { manual: true }); this.openDock(false); };
       dock.appendChild(b);
     }
+    $('club-current').onclick = () => this.openDock();
+    document.addEventListener('pointerdown', (e) => { if (!$('club-picker').contains(e.target)) this.openDock(false); });
     this._renderDock();
+  }
+
+  // open, close (or with no argument toggle) the bag over the club in hand
+  openDock(open = $('clubs').classList.contains('hidden')) {
+    $('clubs').classList.toggle('hidden', !open);
+    $('club-current').setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
   _renderDock() {
@@ -133,6 +156,11 @@ export class Lineup {
       b.title = c ? `${byKey[k].name}: carry ${Math.round(c.carryYd)}, total ${Math.round(c.totalYd)} yd today (${c.source === 'player' ? 'your numbers' : c.source === 'scaled' ? 'scaled from your other clubs' : 'typical numbers'})` : byKey[k].name;
     }
     $('lie-club').textContent = this.clubInfo.name;
+    // the club in hand, and its carry today
+    const cur = this.carries?.clubs?.find((x) => x.club === this.club);
+    $('cc-club').textContent = this.clubInfo.label;
+    $('cc-carry').innerHTML = this.club !== 'PT' && cur && Number.isFinite(cur.carryYd) ? `${Math.round(cur.carryYd)}<small>yd</small>` : '';
+    $('club-current').title = `${this.clubInfo.name}: click for the other clubs`;
   }
 
   selectClub(key, { manual = false, tell = true } = {}) {
@@ -167,10 +195,22 @@ export class Lineup {
     this.lieKey = lie;
     this.condKey = cond;
     if (!this._dragging) this.aim = s.aimOffset || 0;
+    if (newLie) { this.autoSpot = null; this.aimMap.setAuto(null); this._autoAimLie = !s.practice; }
     this.aimMap.setHole({
       ball: s.ball, pin: s.pin, baseAimDeg: base, aimOffset: this.aim,
       line: s.practice ? null : (this.scene.geo?.holes?.[s.hole - 1]?.line || null),
     });
+    // the green's front and back and the hazards near the line, once per lie
+    if (newLie || this._marksGeo !== this.scene.geo) {
+      this._marksGeo = this.scene.geo;
+      this.marks = yardageMarks(this.scene.geo, {
+        ball: s.ball, pin: s.pin, baseAimDeg: base, practice: !!s.practice,
+        sea: this.scene.hasSea?.() ? (x, y) => this.scene.isSea(x, y) : null,
+      });
+      this.aimMap.setYardages(this.marks);
+      this._hazKey = '';
+      this.scene.setHazardMarks?.([]);   // the last lie's tags go now; the next prediction picks new ones
+    }
     const wind = s.conditions ? { mph: s.conditions.windMph, fromDeg: s.conditions.windFromDeg, gustMph: s.conditions.gustMph } : null;
     this.aimMap.setWind(wind);
     this.scene.setWind?.(wind || {});
@@ -206,13 +246,15 @@ export class Lineup {
 
   // ---- aim ----
   // a live aim (slider drag, map drag, keys): preview at once, commit after a pause
-  setAim(offset, { commit = true } = {}) {
+  setAim(offset, { commit = true, auto = null } = {}) {
     const s = this.state;
     if (!s) return;
     this.aim = Math.max(-30, Math.min(30, Math.round(offset * 2) / 2));
+    if (!auto) this._autoAimLie = false;   // moved by hand: the aim stays where it is put
+    this.autoSpot = auto;   // where AUTO aims, until the aim is moved by hand
+    this.aimMap.setAuto(auto);
     this._dragging = true;
-    $('aim-slider').value = this.aim;
-    $('aim-val').textContent = `${this.aim > 0 ? 'R' : this.aim < 0 ? 'L' : ''}${Math.abs(this.aim).toFixed(1)}°`;
+    this.showAim();
     this.aimMap.setAim(this.aim);
     this.scene.setAim(s.aimDeg - (s.aimOffset || 0) + this.aim);
     this.predict({ debounce: 40 });
@@ -225,11 +267,27 @@ export class Lineup {
     }
   }
 
+  // The aim control: the slider, and the aim in yards left or right of the pin at the
+  // club's carry (the pin's distance for a putt or without a prediction).
+  showAim(offset = this.aim) {
+    const s = this.state;
+    const p = this.pred;
+    const dist = p && !p.isPutt && p.carryYd > 0 ? p.carryYd : (s?.distToPinYd || 0);
+    const a = aimWords(offset, dist);
+    $('aim-slider').value = offset;
+    $('aim-val').innerHTML = a.yd ? `${a.yd}<small>yd ${a.side}</small>` : '<small class="aim-on">ON PIN</small>';
+    $('aim-val').title = `${Math.abs(offset).toFixed(1)}° ${offset > 0 ? 'right' : offset < 0 ? 'left' : 'straight'}${a.yd ? `: ${a.text} of the pin at ${Math.round(dist)} yd` : ''}`;
+    $('aim-val').closest('.aim-read')?.classList.toggle('off', !!a.yd);
+  }
+
+  // AUTO: aim for the safe spot (lib/safe-spot.js), wind and shape allowed for. Returns
+  // where it aims, in words, or null without a prediction to aim from.
   autoAim() {
     const a = this.pred?.aimAssist;
-    if (!a || !Number.isFinite(a.offsetDeg)) return false;
-    this.setAim(a.offsetDeg);
-    return true;
+    if (!a || !Number.isFinite(a.offsetDeg)) return null;
+    this.setAim(a.offsetDeg, { auto: this.pred.isPutt ? null : a.spot || null });
+    if (this.pred.isPutt) return 'the cup, on the read';
+    return SPOT_WORDS[a.spot?.kind] || 'the line to the pin';
   }
 
   // ---- prediction ----
@@ -259,13 +317,17 @@ export class Lineup {
 
   render(pred) {
     this.pred = pred;
+    this.showAim();
     const c = this.clubInfo;
     const isPutt = !!pred?.isPutt;
     $('planner').classList.remove('hidden');
-    $('pl-eyebrow').textContent = pred ? `PREDICTED · ${c.name.toUpperCase()}` : `${c.name.toUpperCase()}`;
+    const partial = !isPutt && pred?.partial;
+    $('pl-eyebrow').textContent = pred ? `PREDICTED · ${c.name.toUpperCase()}${partial ? ' · PARTIAL' : ''}` : `${c.name.toUpperCase()}`;
     const src = pred?.source;
     $('pl-source').textContent = !pred ? 'Prediction unavailable'
       : isPutt ? this._puttRead(pred)
+      // inside the shortest full shot: the swing that finishes at the pin, by ball speed
+      : partial ? `${Math.round(pred.launch.speedMph)} mph ball speed to the pin · full carries ${Math.round(partial.fullCarryYd)}`
       : src === 'player' ? `Your ${c.name.toLowerCase()}: last ${pred.n} shot${pred.n === 1 ? '' : 's'}`
       : src === 'scaled' ? `Typical ${c.name.toLowerCase()}, scaled to your speed`
       : `Typical ${c.name.toLowerCase()}: hit a few to learn yours`;
@@ -284,7 +346,32 @@ export class Lineup {
     this.aimMap.setPrediction(drawn);
     this.flightView.showPrediction(pred);
     this.scene.setLineup?.(this.flying ? null : drawn);
+    this._tagHazards(drawn);
     this.conditions?.setEffects(pred);
+    this._followAuto(pred);
+  }
+
+  // At a new lie, aim the full shot where AUTO does (see _autoAimLie): putts keep their
+  // read and chips round the green the pin. Re-aiming predicts again, and AUTO's answer
+  // from its own aim is the same aim, so this settles at once.
+  _followAuto(pred) {
+    const a = pred?.aimAssist, spot = a?.spot;
+    if (!this._autoAimLie || this.flying || this._dragging || !pred || pred.isPutt || !spot || spot.kind === 'pin') return;
+    if (isNearGreen(this.state?.distToPinYd ?? Infinity) || !Number.isFinite(a.offsetDeg)) return;
+    if (Math.abs(a.offsetDeg - this.aim) >= 0.3) this.setAim(a.offsetDeg, { auto: spot });
+    else if (!this.autoSpot) { this.autoSpot = spot; this.aimMap.setAuto(spot); }
+  }
+
+  // The hazards worth a tag in the 3D view: the ones this shot can find at the spread
+  // drawn (yardages.mjs hazardsInPlay, the same ones the map numbers). None round the
+  // green, where the cup is the mark.
+  _tagHazards(p) {
+    const near = isNearGreen(this.state?.distToPinYd ?? Infinity, !!p?.isPutt);
+    const pick = near ? [] : hazardsInPlay(this.marks, p);
+    const key = pick.map((hz) => `${hz.at[0].toFixed(1)},${hz.at[1].toFixed(1)}`).join('|');
+    if (key === this._hazKey) return;
+    this._hazKey = key;
+    this.scene.setHazardMarks?.(pick);
   }
 
   // the putt's read: where to start it, at today's green speed
@@ -302,6 +389,12 @@ export class Lineup {
     const d = s.distToPinYd;
     $('lie-pin').innerHTML = d > 45 ? num(d, 'yd') : num(d * 3, 'ft');
     $('mm-topin').textContent = d > 45 ? `${Math.round(d)} yd` : `${Math.round(d * 3)} ft`;
+    // the green's front and back on the line through the pin (none once on the green)
+    const g = this.marks?.green;
+    const fb = g && !s.holed && !(p && p.isPutt);
+    const unit = d > 45 ? '' : '<small>yd</small>';
+    $('sc-fb').innerHTML = fb ? `FRONT <b>${Math.round(g.frontYd)}</b>${unit} · BACK <b>${Math.round(g.backYd)}</b>${unit}` : '';
+    $('pl-fb').innerHTML = fb ? `F <b>${Math.round(g.frontYd)}</b> · B <b>${Math.round(g.backYd)}</b>` : '';
     const show = p && !p.isPutt && Number.isFinite(p.playsLikeYd) && d > 45;
     $('sc-plays-box').classList.toggle('hidden', !show);
     if (show) $('sc-plays').innerHTML = num(p.playsLikeYd, 'yd');

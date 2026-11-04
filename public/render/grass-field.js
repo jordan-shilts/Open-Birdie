@@ -52,6 +52,7 @@ const GRASS_VERT = /* glsl */`
   uniform vec2 uHSize;                   // height texture size
   uniform vec2 uFade;                    // full size inside .x, gone by .y (m from camera)
   uniform vec2 uBladeH;                  // blade height (m): mown cut, rough
+  uniform vec3 uFescue;                  // links fescue on open ground: strength (0..1), height (m), fescue only (1: no other blades)
   varying vec3 vGrassCol;
   varying float vTip;
   varying vec3 vGrassW;   // world position (translucency view vector)
@@ -81,7 +82,7 @@ const GRASS_BEGIN = /* glsl */`
     vec2 sim = (wc + hh) * uSpacing;                       // jittered inside its cell
     float ground = gGround(sim);
     float fk = 1.0 - smoothstep(uFade.x, uFade.y, distance(cameraPosition, vec3(sim.x, ground, -sim.y)));
-    float h = 0.0, cut = 1.0;
+    float h = 0.0, cut = 1.0, native = 0.0;
     vGrassCol = vec3(0.0);
     if (fk > 0.0) {                                        // past the reach nothing grows: skip the reads
       vec2 suv = (sim - uBounds.xy) / uBounds.zw;
@@ -91,6 +92,14 @@ const GRASS_BEGIN = /* glsl */`
       float bare = max(smoothstep(0.25, 0.6, mown.g), smoothstep(0.15, 0.45, max(aux.g, aux.b)));
       cut = smoothstep(0.35, 0.75, mown.r);
       h = mix(uBladeH.y, uBladeH.x, cut) * (0.65 + 0.7 * hh.x) * (1.0 - bare) * inside * fk;
+      // links: the open ground past the mown (and the soft edge of its mask, the first
+      // cut) grows tall wispy fescue, not rough
+      native = (1.0 - smoothstep(0.01, 0.12, mown.r)) * uFescue.x;
+      // toward the ring's reach whole tussocks drop out (a random share of them) rather
+      // than shrinking, so the field thins into the scattered tufts past it, no rim
+      float keep = step(fract(hh.x * 13.7 + hh.y * 7.1), fk);
+      h = mix(h, uFescue.y * (0.5 + 0.9 * hh.x) * (1.0 - bare) * inside * keep, native);
+      h *= mix(1.0, smoothstep(0.05, 0.4, native), uFescue.z);
       // no blades in a divot: the turf paints the scar there (divots.js)
       vec2 dvC; mat2 dvRot; vec2 dvR; float dvLook;
       if (h > 0.0 && cut > 0.5 && divotCell(sim - uBounds.xy, uBounds.zw, uMown, uAux, dvC, dvRot, dvR, dvLook))
@@ -98,13 +107,15 @@ const GRASS_BEGIN = /* glsl */`
       // the turf's own base colour, one clump in seven a shade yellower (older blades)
       float older = step(0.86, fract(hh.x * 7.31 + hh.y * 3.17));
       vGrassCol = texture2D(uBase, suv).rgb * mix(vec3(1.0), vec3(1.25, 1.1, 0.62), older * 0.55) * (0.78 + 0.44 * hh.x);
+      // fescue straw: gold to grey-green tussock by tussock
+      vGrassCol = mix(vGrassCol, mix(vec3(0.50, 0.41, 0.20), vec3(0.39, 0.37, 0.21), hh.y) * (0.85 + 0.3 * hh.x), native * 0.8);
     }
     float a = hh.y * 6.2831853;
     // a clump with no height collapses to a point: its triangles have no area to raster
     vec2 r = mat2(cos(a), sin(a), -sin(a), cos(a)) * position.xz * mix(1.4, 1.0, cut) * (0.55 + 0.45 * fk) * step(1e-4, h);
     float t = position.y;
     // wind: a slow gusting lean plus a little per-clump flutter, more on long blades
-    float sway = (sin(uTime * 1.3 + sim.x * 0.21 + sim.y * 0.17) * 0.6 + sin(uTime * 2.9 + hh.x * 30.0) * 0.4) * (0.08 + 0.25 * (1.0 - cut));
+    float sway = (sin(uTime * 1.3 + sim.x * 0.21 + sim.y * 0.17) * 0.6 + sin(uTime * 2.9 + hh.x * 30.0) * 0.4) * (0.08 + 0.25 * (1.0 - cut) + 0.2 * native);
     vec3 wp = vec3(sim.x + r.x, ground - 0.02 + t * h, -sim.y + r.y);
     wp.x += sway * t * t * h;
     wp.z += sway * 0.5 * t * t * h;
@@ -112,6 +123,8 @@ const GRASS_BEGIN = /* glsl */`
     // dark deep in the clump (the blades shade each other), bright toward the lit tips,
     // so a blade reads against the ground it grows from instead of melting into it
     vGrassCol *= mix(0.38, 1.28, t);
+    // a fescue blade ends in a pale seed head that catches the light
+    vGrassCol = mix(vGrassCol, vec3(0.62, 0.53, 0.32), native * smoothstep(0.7, 1.0, t) * 0.6);
     vTip = t;
     vGrassW = wp;
   }`;
@@ -145,7 +158,7 @@ function grassMaterial(u) {
       // a blade's back face must keep the up normal (DoubleSide flips it: black blades)
       .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n normal = normalize(vNormal); nonPerturbedNormal = normal;');
   };
-  m.customProgramCacheKey = () => 'grass-field-v5';
+  m.customProgramCacheKey = () => 'grass-field-v6';
   return m;
 }
 
@@ -208,7 +221,7 @@ export function visibleCells(frustum, cam, reach, spacing, rangeAt) {
       const dz = Math.max(0, cam.y - hi - 0.3, lo - cam.y);   // nearest the ground there gets, vertically
       if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
       _box.min.set(bx0 - pad, lo - 0.1, -by1 - pad);
-      _box.max.set(bx1 + pad, hi + 0.4, -by0 + pad);
+      _box.max.set(bx1 + pad, hi + 0.7, -by0 + pad);   // room for the tallest blade (links fescue, 0.6 m)
       if (!frustum.intersectsBox(_box)) continue;
       if (bx0 < x0) x0 = bx0;
       if (bx1 > x1) x1 = bx1;
@@ -224,9 +237,11 @@ export function visibleCells(frustum, cam, reach, spacing, rangeAt) {
 const _frustum = new THREE.Frustum(), _pv = new THREE.Matrix4();
 
 // turf: scene._turfInputs ({ baseMap, mownMask, bunkerMask, bounds }); elev: the
-// course elevation grid; hAt: scene.hAt; hdBounds: sim-metre rects of HD terrain.
+// course elevation grid; hAt: scene.hAt; hdBounds: sim-metre rects of HD terrain;
+// fescue: 0..1, how much of the open ground grows links fescue (none at the ball);
+// fescueOnly: draw the fescue and no other blades (the ring at the camera not at all).
 export class GrassField {
-  constructor({ turf, elev, hAt, hdBounds = [], scale = 1, sunDir = null }) {
+  constructor({ turf, elev, hAt, hdBounds = [], scale = 1, sunDir = null, fescue = 0, fescueOnly = false }) {
     this.group = new THREE.Group();
     this.group.name = 'grassField';
     const b = turf.bounds;
@@ -248,22 +263,25 @@ export class GrassField {
     };
     this._time = common.uTime;
     const geom = clumpGeometry();
-    // [spacing m, fade start, fade end (m from the camera), mown blade m, rough blade m]
+    // [spacing m, fade start, fade end (m from the camera), mown blade m, rough blade m,
+    //  fescue (share of the course's)]
     const k = 1 / Math.sqrt(scale);
     const rings = [
       // a dense ring at the camera (low cameras: launch, landing, free), the play
       // ring, and the rough out to ~30 m
-      [0.03 * k, 3.1, 4.5, 0.03, 0.07],
-      [0.07 * k, 6.2, 11.1, 0.035, 0.085],
-      [0.18 * k, 18, 30, 0.0, 0.11],
+      [0.03 * k, 3.1, 4.5, 0.03, 0.07, 0],
+      [0.07 * k, 6.2, 11.1, 0.035, 0.085, 1],
+      [0.18 * k, 18, 30, 0.0, 0.11, 1],
     ];
-    this.rings = rings.map(([spacing, f0, f1, hm, hr]) => {
+    this.rings = rings.map(([spacing, f0, f1, hm, hr, fk]) => {
+      if (fescueOnly && fk) f0 = Math.min(f0, f1 * 0.35);   // fescue thins out over most of the reach
       const u = {
         ...common,
         uSpacing: { value: spacing }, uGrid: { value: 1 },
         uOriginCell: { value: new THREE.Vector2() },
         uFade: { value: new THREE.Vector2(f0, f1) },
         uBladeH: { value: new THREE.Vector2(hm, hr) },
+        uFescue: { value: new THREE.Vector3(Math.min(1, Math.max(0, fescue)) * fk, 0.42, fescueOnly ? 1 : 0) },
       };
       const g = geom.clone();
       g.instanceCount = 0;
@@ -272,7 +290,7 @@ export class GrassField {
       mesh.receiveShadow = true;
       mesh.castShadow = false;
       this.group.add(mesh);
-      return { spacing, reach: f1, u, mesh };
+      return { spacing, reach: f1, u, mesh, off: fescueOnly && !fk };
     });
     geom.dispose();
   }
@@ -300,6 +318,7 @@ export class GrassField {
     _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     _frustum.setFromProjectionMatrix(_pv);
     for (const r of this.rings) {
+      if (r.off) { r.mesh.geometry.instanceCount = 0; continue; }
       const c = visibleCells(_frustum, camera.position, r.reach, r.spacing, this._rangeAt);
       if (c) {
         r.u.uOriginCell.value.set(c.i0, c.j0);

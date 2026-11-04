@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  pointAt, flightMarkers, shotProfile, profileUpTo, niceStep, sideViewScale, toPolyline, toAreaPolygon,
+  pointAt, smoothPointAt, flightMarkers, shotProfile, profileUpTo, niceStep, sideViewScale, toPolyline, toAreaPolygon,
   M_TO_YD, M_TO_FT,
 } from '../public/render/flight-profile.js';
 
@@ -25,6 +25,24 @@ test('pointAt interpolates and clamps to the trajectory', () => {
   assert.deepEqual(pointAt(pts, -1), pts[0]);
   assert.deepEqual(pointAt(pts, 99), pts[pts.length - 1]);
   assert.equal(pointAt([], 1), null);
+});
+
+test('smoothPointAt runs through the samples on a smooth curve in the air, straight on the ground', () => {
+  const pts = sampleShot();
+  // through every sample exactly
+  for (const p of pts.slice(2, -3)) {
+    const q = smoothPointAt(pts, p.t, 4);
+    assert.ok(Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) < 1e-9, `t=${p.t}`);
+  }
+  // between them it follows the true parabola, far closer than the straight line does
+  const t = 1.01, u = t / 4, trueZ = 5 + 120 * u * (1 - u);
+  const lin = Math.abs(pointAt(pts, t).z - trueZ), cub = Math.abs(smoothPointAt(pts, t, 4).z - trueZ);
+  assert.ok(cub < lin / 20, `cubic ${cub} vs linear ${lin}`);
+  // on the ground (past flightTime) it is the straight line between samples: a bounce
+  // stays a corner instead of dipping through the turf
+  assert.deepEqual(smoothPointAt(pts, 4.51, 4), pointAt(pts, 4.51));
+  // and it clamps like pointAt
+  assert.deepEqual(smoothPointAt(pts, -1, 4), pts[0]);
 });
 
 test('flightMarkers finds the apex in the air phase and the landing at flightTime', () => {

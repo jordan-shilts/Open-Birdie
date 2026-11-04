@@ -18,8 +18,9 @@ const PIN = [0, 365];
 
 // A 400 yd par 4 running north from (0, 0), falling `slope` m per 100 m, inside a
 // course boundary (out of bounds 15 m beyond it), with `bunkers` extra bunkers off to
-// the left so the surface lookup has a real course's polygon count.
-function lineupCourse({ slope = 0, bunkers = 0, boundary = true } = {}) {
+// the left so the surface lookup has a real course's polygon count; with `lakes`, a
+// lake across the boundary (in play, past the outline too) and a pond well beyond it.
+function lineupCourse({ slope = 0, bunkers = 0, boundary = true, lakes = false } = {}) {
   const surfaces = [
     { kind: 'tee', poly: rect(-4, -4, 4, 4) },
     { kind: 'fairway', poly: rect(-25, 40, 25, 330) },
@@ -40,6 +41,7 @@ function lineupCourse({ slope = 0, bunkers = 0, boundary = true } = {}) {
     boundary: boundary ? rect(-220, -60, 220, 470) : null,
     elevation: { minX, minY, cellM, nx, ny, heights },
     holes: [{ ref: 1, par: 4, tee: [0, 0], pin: PIN, lengthYd: 399, line: [[0, 0], PIN] }],
+    ...(lakes ? { scenery: { water: [{ kind: 'water', poly: circle(200, 150, 45) }, { kind: 'water', poly: circle(-320, 300, 30) }] } } : {}),
   };
 }
 
@@ -57,7 +59,7 @@ const direct = (g, launch, opts = {}) => simulateShot(launch, g.ball, g.aimDeg, 
 });
 
 test('the cell lookup answers exactly as the course lookup, everywhere', () => {
-  for (const options of [{ bunkers: 120 }, { bunkers: 40, boundary: false }]) {
+  for (const options of [{ bunkers: 120 }, { bunkers: 40, boundary: false }, { bunkers: 40, lakes: true }]) {
     const g = lineupGame(options);
     const fast = cellSurfaceLookup(g.course, g.surfaceAt);
     assert.notEqual(fast, g.surfaceAt);
@@ -66,7 +68,12 @@ test('the cell lookup answers exactly as the course lookup, everywhere', () => {
     let checked = 0;
     const same = (x, y) => { checked++; assert.equal(fast(x, y), g.surfaceAt(x, y), `(${x}, ${y})`); };
     for (let k = 0; k < 20000; k++) same(-500 + rnd() * 1000, -400 + rnd() * 1300);   // in, near and far out of bounds
-    for (const s of [...g.course.surfaces, { poly: g.course.boundary || [] }]) {
+    const lakes = g.course.scenery?.water || [];
+    if (lakes.length) {   // the lake plays as water past the outline; the pond beyond it is out of bounds
+      assert.equal(g.surfaceAt(240, 150), 'water');
+      assert.equal(g.surfaceAt(-320, 300), 'ob');
+    }
+    for (const s of [...g.course.surfaces, ...lakes, { poly: g.course.boundary || [] }]) {
       for (const [x, y] of s.poly) for (let k = 0; k < 6; k++) same(x + (rnd() - 0.5) * 2, y + (rnd() - 0.5) * 2);
     }
     if (g.course.boundary) {   // across the out-of-bounds buffer, 15 m outside the boundary
@@ -221,6 +228,43 @@ test('carries fall club by club, and the club for the pin', () => {
   assert.ok(slow.clubs[0].carryYd < c.clubs[0].carryYd - 10);
 });
 
+test('inside the shortest full shot, a club is predicted as the partial swing that finishes at the pin', () => {
+  const g = lineupGame();
+  const near = { x: 0, y: PIN[1] - 45 * YD };   // 45 yd out, on the fairway
+  g.ball = near;
+  const fullLw = predictCarries(g).clubs.find((x) => x.club === 'LW');
+  assert.ok(fullLw.carryYd > 60, `a full lob wedge carries ${fullLw.carryYd}`);
+  const at45 = {};
+  for (const club of ['LW', 'SW', 'I7']) {
+    const p = at45[club] = predictShot(g, { club });
+    assert.ok(p.partial, `${club}: a partial swing`);
+    assert.ok(p.partial.share > 0.2 && p.partial.share < 0.95, `${club}: ${p.partial.share} of full speed`);
+    const miss = Math.hypot(p.rest.x - PIN[0], p.rest.y - PIN[1]);
+    assert.ok(p.holed || miss <= 0.6, `${club} stops ${miss.toFixed(2)} m from the pin`);
+    assert.ok(p.carryYd < 47 && p.carryYd < p.partial.fullCarryYd);
+    assert.ok(Math.abs(p.launch.speedMph - typical(club).speedMph * p.partial.share) < 1, 'the club\'s launch, slower');
+    assert.ok(p.launch.totalSpin < typical(club).totalSpin && p.launch.vla === typical(club).vla);
+  }
+  assert.equal(at45.LW.partial.fullCarryYd, fullLw.carryYd, 'what a full one does, as the club bar has it');
+  assert.ok(at45.I7.partial.share < at45.SW.partial.share && at45.SW.partial.share < at45.LW.partial.share);
+  assert.ok(at45.I7.carryYd < at45.LW.carryYd, 'the 7-iron chips and runs, the lob wedge flies');
+  // closer in, a smaller swing; its spread shrinks with it
+  g.ball = { x: 0, y: PIN[1] - 20 * YD };
+  const at20 = predictShot(g, { club: 'LW' });
+  assert.ok(at20.partial.share < at45.LW.partial.share);
+  assert.ok(at20.dispersion.majorYd < at45.LW.dispersion.majorYd);
+  // past the lob wedge's full carry every club is swung in full, even one that flies the green
+  g.ball = { x: 0, y: PIN[1] - 95 * YD };
+  for (const club of ['LW', 'I7']) {
+    const p = predictShot(g, { club });
+    assert.equal(p.partial, null, club);
+    assert.deepEqual(p.launch, { speedMph: typical(club).speedMph, vla: typical(club).vla, hla: 0, totalSpin: typical(club).totalSpin, spinAxis: 0 });
+  }
+  assert.ok(predictShot(g, { club: 'I7' }).carryYd > 120);
+  g.ball = { x: 0, y: 0 };
+  assert.equal(predictShot(g, { club: 'DR' }).partial, null);
+});
+
 test('putts: on the green the prediction is a putt at a pace to finish just past the hole', () => {
   const g = lineupGame();
   g.ball = { x: 1.5, y: PIN[1] - 9 };
@@ -251,6 +295,23 @@ test('practice: the prediction plays from the session\'s spot at its target', ()
   const p = predictShot(g, { club: 'I7' });
   assert.deepEqual([p.path[0].x, p.path[0].y], [r2(g.practice.spot[0]), r2(g.practice.spot[1])]);
   assert.equal(p.distToPinYd, r1(Math.hypot(g.practice.target.x - g.practice.spot[0], g.practice.target.y - g.practice.spot[1]) / YD));
+  // the putting challenge: a putt read from the session's spot drops into the real cup
+  g.startPractice('putting', { random: () => 0 });
+  const putt = predictShot(g, {});
+  assert.equal(putt.isPutt, true);
+  assert.deepEqual([putt.path[0].x, putt.path[0].y], [r2(g.practice.spot[0]), r2(g.practice.spot[1])]);
+  assert.equal(putt.holed, true);
+  // a practice green mapped under the range's spot: it still plays as a tee
+  const mapped = lineupCourse();
+  mapped.surfaces.unshift({ kind: 'green', poly: rect(-6, -6, 6, 6) });
+  const range = new Game();
+  range.setCourse(mapped);
+  range.startPractice('range', { targetYd: 150 });
+  assert.equal(range.surfaceAt(range.practice.spot[0], range.practice.spot[1]), 'green');
+  const full = predictShot(range, { club: 'I7' });
+  assert.equal(full.isPutt, false);
+  assert.equal(full.lie, 'tee');
+  assert.notEqual(predictCarries(range).recommended, 'PT');
 });
 
 test('errors: no course, not ready, an unknown club or aim, a finished hole', () => {

@@ -46,20 +46,26 @@ export const DRY_PALETTE = {
 // wood, bunker, water) stays at the lush value at every courseDry.
 export const BLEND_KEYS = ['base', 'rough', 'range', 'fairwayA', 'fairwayB', 'tee'];
 
-// Manual per-course dryness, keyed by the course `name` (as it arrives from
-// loadCourse). Auto-detection from fairway warmth is a deferred STRETCH (T5).
+// Manual per-course dryness, keyed by the course's own name: the part of `name` before
+// its first comma (loadCourse can carry a full address after it). Auto-detection was
+// tried from the aerial's colour (dry grass reflects little blue), but the photos'
+// season decides it as much as the grass: Hazeltine's HD photos read as yellow as
+// Bandon's.
 export const COURSE_DRY = {
   'Chambers Bay': 0.85,
   'TPC Sawgrass': 0.0,
   'St Andrews Old Course': 0.7,
-  'Bandon Dunes Golf Resort, Round Lake Drive, Coos County, Oregon, United States': 0.8,
+  'Bandon Dunes Golf Resort': 0.8,
+  'Whistling Straits': 0.75,
 };
 
 const clamp01 = (v) => (Number.isFinite(v) ? Math.min(Math.max(v, 0), 1) : 0);
+const courseKey = (name) => String(name ?? '').split(',')[0].trim().toLowerCase();
+const DRY_BY_KEY = new Map(Object.entries(COURSE_DRY).map(([k, v]) => [courseKey(k), v]));
 
 // Dryness for a course name — clamped to [0,1], 0 (lush) for unknown/missing.
 export function courseDryFor(name) {
-  return clamp01(COURSE_DRY[name]);
+  return clamp01(DRY_BY_KEY.get(courseKey(name)));
 }
 
 const H = (hex) => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];

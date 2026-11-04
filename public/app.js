@@ -7,6 +7,7 @@ import { FlightView } from './flight-view.js';
 import { AimMap } from './aim-map.js';
 import { ConditionsUI } from './conditions-ui.js';
 import { Lineup, clubByLabel, writeAutoClub } from './lineup.js';
+import { LeaguesUI } from './leagues-ui.js';
 import { parseQualitySetting, qualityLabel } from './render/quality.js';
 import { parseSkySetting, SKY_ORDER, SKY_PRESETS } from './render/sky-presets.js';
 
@@ -25,8 +26,21 @@ let gfxSetting = parseQualitySetting(query.get('gfx') || (visualCaptureEnabled ?
 const SKY_KEY = 'open-birdie.sky';
 const readSky = () => { try { return localStorage.getItem(SKY_KEY); } catch { return null; } };
 let skySetting = parseSkySetting(query.get('sky') || (visualCaptureEnabled ? 'midday' : readSky()));
-const scene = new GolfScene($('scene'), { quality: gfxSetting, autoQuality: !visualCaptureEnabled, sky: skySetting });
+// The shot camera: 'follow' flies with the ball (the default), 'tv' covers it from the
+// tee and the landing area (render/flight-camera.js); ?shotcam= overrides the saved one.
+const SHOTCAM_KEY = 'open-birdie.shotcam';
+const readShotCam = () => { try { return localStorage.getItem(SHOTCAM_KEY); } catch { return null; } };
+let shotCam = (query.get('shotcam') || readShotCam()) === 'tv' ? 'tv' : 'follow';
+const scene = new GolfScene($('scene'), { quality: gfxSetting, autoQuality: !visualCaptureEnabled, sky: skySetting, shotCam });
 const flightView = new FlightView($('flightview'));
+const leaguesUI = new LeaguesUI({
+  toast: (main, sub) => showToast(main, sub),
+  clearStage: () => {
+    for (const id of ['scorecard', 'games-menu']) $(id).classList.add('hidden');
+    $('btn-score').classList.remove('active');
+    $('btn-games').classList.remove('active');
+  },
+});
 
 // ---------- HUD scale: one layout, zoomed to the window (laptop .. 4K TV) ----------
 function fitHud() {
@@ -62,6 +76,12 @@ segmented($('seg-gfx'), [['auto', 'Auto'], ['high', 'High'], ['low', 'Low']], gf
 });
 scene.onQualityChange = showGfx;
 showGfx(scene.quality);
+segmented($('seg-shotcam'), [['follow', 'Follow the ball'], ['tv', 'TV']], shotCam, (v) => {
+  shotCam = v === 'tv' ? 'tv' : 'follow';
+  try { localStorage.setItem(SHOTCAM_KEY, shotCam); } catch { /* private mode */ }
+  scene.setShotCam(shotCam);
+  markSeg($('seg-shotcam'), shotCam);
+});
 segmented($('seg-sky'), SKY_ORDER.map((k) => [k, k === 'golden' ? 'Golden' : SKY_PRESETS[k].label]), skySetting, (v) => {
   skySetting = parseSkySetting(v);
   try { localStorage.setItem(SKY_KEY, skySetting); } catch { /* private mode */ }
@@ -81,6 +101,11 @@ const lineup = new Lineup({
   onClubChange: (key) => { const p = clubPresets[key]; if (p) setPractice(p.speedMph, p.vla, p.spin); },
 });
 window.__birdie = { scene, lineup, get state() { return state; } };
+// the gimme (lib/settings.js): the server keeps it; the state shows what it is
+segmented($('seg-gimme'), [['0', 'Off'], ['2', '2 ft'], ['3', '3 ft'], ['5', '5 ft'], ['8', '8 ft'], ['10', '10 ft']], '', (v) => {
+  markSeg($('seg-gimme'), v);
+  fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gimmeFt: +v }) }).catch(() => {});
+});
 segmented($('seg-autoclub'), [['on', 'On'], ['off', 'Off']], lineup.autoClub ? 'on' : 'off', (v) => {
   lineup.autoClub = v === 'on';
   writeAutoClub(lineup.autoClub);
@@ -91,6 +116,7 @@ let state = null;
 let pendingState = null;
 let animating = false;
 let lastHoleKey = '';
+let lastIntroKey = '';  // the hole whose name/note toast was shown (once per hole)
 let clubPresets = {};
 let prevOver = false;   // round-over auto-open latch (open the card once, not every state event)
 let reviewHole = null;  // index of a played hole being reviewed on the scorecard
@@ -119,42 +145,52 @@ function setStat(id, label, value) {
   $(id).previousElementSibling.textContent = label;
   $(id).textContent = value;
 }
-const PRACTICE_SHORT = { range: 'RANGE', closest: 'CTP', longdrive: 'LONG', targets: 'TARGET' };
+const PRACTICE_SHORT = { range: 'RANGE', closest: 'CTP', longdrive: 'LONG', targets: 'TARGET', putting: 'PUTTS', chipping: 'CHIPS', ladder: 'LADDER' };
+// putting and chipping: games at a real hole's cup, from a new spot round it every ball
+const greenGame = (pr) => pr.mode === 'putting' || pr.mode === 'chipping';
 
 function applyState(s) {
   state = s;
   if (!s.loaded) { openCourseModal(); return; }
   const pr = s.practice || null;   // driving range / mini game session (the round is paused)
   $('course-name').textContent = s.courseName.split(',')[0];
+  $('player-name').textContent = s.player ? s.player.name : 'Player 1';
+  $('player-avatar').textContent = s.player ? s.player.initials : 'P1';
+  leaguesUI.setGameState(s);
   if (pr) {
     const closest = pr.mode === 'closest' && pr.holeRef != null;
+    const green = greenGame(pr);
     setStat('hud-hole', closest ? 'HOLE' : 'MODE', closest ? `${pr.holeRef}` : PRACTICE_SHORT[pr.mode]);
-    setStat('hud-par', 'PAR', closest ? '3' : '–');
-    setStat('hud-len', 'FLAG', `${pr.target.yd}y`);
+    setStat('hud-par', green ? 'HOLE' : 'PAR', green ? `${pr.holeRef}` : closest ? '3' : '–');
+    setStat('hud-len', green ? 'TO CUP' : 'FLAG', !green ? `${pr.target.yd}y`
+      : pr.mode === 'putting' ? `${Math.round(s.distToPinYd * 3)} ft` : `${Math.round(s.distToPinYd)}y`);
     setStat('hud-strokes', 'BALLS', pr.ballsTotal ? `${pr.ballsHit}/${pr.ballsTotal}` : `${pr.ballsHit}`);
   } else {
     setStat('hud-hole', 'HOLE', `${s.holeRef ?? s.hole}`); // real course hole number (1,9,10,18…), not play index
     setStat('hud-par', 'PAR', s.par);
-    setStat('hud-len', 'LENGTH', `${s.lengthYd}y`);
+    setStat('hud-len', 'LENGTH', `${s.scorecardYd ?? s.lengthYd}y`); // the play tee's scorecard yardage when researched
     setStat('hud-strokes', 'STROKES', s.strokes);
+    const introKey = `${s.courseName}#${s.hole}`;
+    if (introKey !== lastIntroKey && !s.over) { lastIntroKey = introKey; showHoleIntro(s); }
   }
   updateForward(s);
   if (!lineup._dragging) {
-    $('aim-slider').value = s.aimOffset;
-    $('aim-val').textContent = `${s.aimOffset > 0 ? 'R' : s.aimOffset < 0 ? 'L' : ''}${Math.abs(s.aimOffset).toFixed(1)}°`;
+    lineup.showAim(s.aimOffset);
   }
   updateScoreChip(s);
-  updateHolePills(s);
+  markSeg($('seg-gimme'), String(s.settings?.gimmeFt ?? ''));
 
-  // a practice target is its own "hole": a new flag re-frames the shot
+  // a practice target is its own "hole": a new flag, or a new ball round the green,
+  // re-frames the shot from behind the ball
   const key = pr
-    ? `${s.courseName}#${pr.mode}@${s.pin[0].toFixed(1)},${s.pin[1].toFixed(1)}`
+    ? `${s.courseName}#${pr.mode}@${s.pin[0].toFixed(1)},${s.pin[1].toFixed(1)}<${s.ball.x.toFixed(1)},${s.ball.y.toFixed(1)}`
     : `${s.courseName}#${s.hole}`;
   if (scene.geo) {
     if (key !== lastHoleKey) {
       lastHoleKey = key;
       flightView.newHole(key);
-      scene.setHole({ pin: s.pin, tee: s.tee, ref: pr ? pr.target.yd : (s.holeRef ?? s.hole) }, { x: s.ball.x, y: s.ball.y }, s.aimDeg);
+      // the flag reads its yardage on the range, its hole number at a real cup
+      scene.setHole({ pin: s.pin, tee: s.tee, ref: pr ? (pr.target.yd ?? pr.holeRef) : (s.holeRef ?? s.hole) }, { x: s.ball.x, y: s.ball.y }, s.aimDeg);
     } else if (!animating) {
       scene.setBall(s.ball);
       scene.setAim(s.aimDeg);
@@ -167,12 +203,14 @@ function applyState(s) {
   if (scene.geo) lineup.setState(s);
   buildScorecard(s);
   renderPracticeBoard(s);
+  stackShotPanel();
 
   // round-over: auto-open the card exactly once (latched on the false->true edge), and
   // lock out further play. Lives here so the pendingState/animation path triggers it too.
   if (s.over && !prevOver && !pr) { $('scorecard').classList.remove('hidden'); $('practice').classList.add('hidden'); }
   prevOver = s.over;
   $('btn-practice').classList.toggle('hidden', !!s.over && !pr);
+  updateMulligan();
 }
 
 async function loadGeometry() {
@@ -293,7 +331,7 @@ es.addEventListener('state', (e) => {
   if (animating) pendingState = s;
   else applyState(s);
 });
-es.addEventListener('course', () => { loadGeometry(); closeCourseModal(); });
+es.addEventListener('course', () => { loadGeometry(); closeCourseModal(); loadLibrary(); });
 // Scenery (buildings, real trees, the aerial photo) can arrive after the course is
 // playable. Same activation, so the HD assets and the round stay: re-read the
 // geometry and rebuild the scene in place (deferred by the scene while a shot flies).
@@ -332,17 +370,25 @@ es.addEventListener('course-progress', (e) => {
   el.textContent = text;
   el.classList.remove('hidden');
 });
+es.addEventListener('leagues', (e) => leaguesUI.setData(JSON.parse(e.data)));
+es.addEventListener('league-card', (e) => leaguesUI.cardPosted(JSON.parse(e.data)));
 es.addEventListener('lm', (e) => {
   const lm = JSON.parse(e.data);
   $('lm-status').classList.toggle('connected', lm.connected);
   $('lm-text').textContent = lm.connected ? 'Monitor connected' : 'Monitor offline';
 });
 let lineupBack = null;   // after a shot lands: back to lining up the next one
+let lastShot = null;     // { shot, plan, savedId, mulled }: the round's latest shot (Save, mulligan)
+let replay = null;       // a saved shot replaying (the round is not touched), or null
 es.addEventListener('shot', (e) => {
   const shot = JSON.parse(e.data);
+  if (replay) endReplay();    // a live ball mid-replay: back to the round's hole first
   const plan = lineup.pred;   // what this club was predicted to do, for the comparison
+  lastShot = { shot, plan, savedId: null, mulled: false };
   showShotData(shot, plan);
+  setSaveButton();
   animating = true;
+  updateMulligan();
   clearTimeout(lineupBack);
   lineup.setFlying(true);
   flightView.startShot(shot);
@@ -355,6 +401,7 @@ es.addEventListener('shot', (e) => {
     aimMap.setShot(pts);
     lineup.setFlying(false);
     if (pendingState) { applyState(pendingState); pendingState = null; }
+    updateMulligan();
     shotToast(shot);
     lineupBack = setTimeout(() => flightView.lineup(), 4200);
   }, {
@@ -367,6 +414,7 @@ es.addEventListener('shot', (e) => {
       if (i - shown >= 6 || (i === pts.length && shown !== i)) { shown = i; aimMap.setShot(pts.slice(0, i)); }
     },
     isPutt: !!shot.sim.isPutt,
+    spinRpm: shot.launch?.totalSpin, spinAxisDeg: shot.launch?.spinAxis,
   });
 });
 
@@ -397,11 +445,17 @@ function prettyClub(name) {
   if (/GAP|APPROACH|^GW$|^AW$|WEDGEA|WEDGEG/.test(s)) return 'GW';
   return name;   // unknown — show the monitor's label as-is
 }
-function showShotData(shot, plan = null) {
+// view: 'live' (a shot just hit: the dock follows its club), 'restore' (the round's last
+// shot shown again, e.g. after a replay) or 'replay' (a saved shot replaying)
+function showShotData(shot, plan = null, view = 'live') {
   $('shotpanel').classList.remove('hidden');
+  const mulled = view === 'restore' && !!lastShot?.mulled;
+  $('shotpanel').classList.toggle('replaying', view === 'replay');
+  $('shotpanel').classList.toggle('mulled', mulled);
+  $('sp-label').textContent = view === 'replay' ? 'SAVED SHOT' : mulled ? 'MULLIGAN' : 'LAST SHOT';
   const l = shot.launch, sim = shot.sim;
   const club = shot.club ? prettyClub(shot.club) : clubFromShot(l.speedMph, sim.isPutt);
-  lineup.markClubLabel(club);
+  if (view === 'live') lineup.markClubLabel(club);
   $('sp-club').textContent = clubByLabel(club)?.name || club;
   setVal('sd-speed', l.speedMph.toFixed(1), 'mph');
   setVal('sd-launch', `${l.vla.toFixed(1)}° ${l.hla > 0 ? 'R' : l.hla < 0 ? 'L' : ''}${Math.abs(l.hla).toFixed(1)}°`, '');
@@ -419,6 +473,17 @@ function showShotData(shot, plan = null) {
     vs.innerHTML = `vs plan: <b class="${dc >= 0 ? 'up' : 'down'}">${dc >= 0 ? '+' : '−'}${Math.abs(dc)} yd</b> carry`
       + (Math.abs(off) >= 1 ? `, <b>${Math.abs(off)} yd ${off > 0 ? 'right' : 'left'}</b> of the line` : ', on line');
   } else vs.innerHTML = '';
+  stackShotPanel();
+}
+
+// While a game is on, the last shot's numbers stack under its board in the left column,
+// and step aside when the board leaves them no room above the shot card.
+function stackShotPanel() {
+  const panel = $('shotpanel'), board = $('practice-board');
+  const on = !board.classList.contains('hidden');
+  panel.classList.remove('no-room');
+  panel.style.top = on ? `${board.offsetTop + board.offsetHeight + 8}px` : '';
+  if (on && panel.offsetTop + panel.offsetHeight > $('shot-card').offsetTop - 8) panel.classList.add('no-room');
 }
 
 function shotToast(shot) {
@@ -438,13 +503,23 @@ function shotToast(shot) {
   showToast(main, sub);
 }
 
-function showToast(main, sub = '') {
+function showToast(main, sub = '', ms = 4200) {
   const t = $('toast');
   t.innerHTML = `${esc(main)}${sub ? `<div class="sub">${esc(sub)}</div>` : ''}`;
   t.classList.remove('hidden');
   t.style.opacity = 1;
   clearTimeout(t._h);
-  t._h = setTimeout(() => { t.style.opacity = 0; }, 4200);
+  t._h = setTimeout(() => { t.style.opacity = 0; }, ms);
+}
+
+// A hole with a researched name or note introduces itself as it starts.
+function showHoleIntro(s) {
+  const note = s.holeNote || s.greenNote;
+  if (!s.holeName && !note) return;
+  const title = `Hole ${s.holeRef ?? s.hole}${s.holeName ? ` · ${s.holeName}` : ''}`;
+  const facts = [`Par ${s.par}`, `${s.scorecardYd ?? s.lengthYd} yd${s.playTee ? ` (${s.playTee})` : ''}`,
+    s.handicap != null ? `HCP ${s.handicap}` : null].filter(Boolean).join(' · ');
+  showToast(esc(title), esc(note ? `${facts} — ${note}` : facts), 7000);
 }
 
 // "Tree!" the moment the replay reaches the ball's first tree contact (a `tree` sim
@@ -480,33 +555,8 @@ function updateScoreChip(s) {
   chip.classList.toggle('over', t > 0);
 }
 
-function updateHolePills(s) {
-  const el = $('hole-pills');
-  el.classList.toggle('hidden', !!s.practice);
-  if (el.children.length !== s.holeCount) {
-    el.innerHTML = '';
-    for (let i = 1; i <= s.holeCount; i++) {
-      const p = document.createElement('button');
-      p.className = 'pill'; p.textContent = (s.holeRefs && s.holeRefs[i - 1]) ?? i; p.dataset.h = i; p.type = 'button';
-      p.onclick = () => reviewHoleOnCard(+p.dataset.h);
-      el.appendChild(p);
-    }
-  }
-  for (const p of el.children) {
-    const h = +p.dataset.h;
-    const ref = (s.holeRefs && s.holeRefs[h - 1]) ?? h; // real hole number for labels
-    const done = s.scores[h - 1] != null;
-    p.classList.toggle('active', h === s.hole);
-    p.classList.toggle('done', done);
-    p.classList.toggle('pickedup', !!(s.pickedUp && s.pickedUp[h - 1]));
-    p.disabled = !done && h !== s.hole; // only played holes (and the current one) are reachable
-    p.setAttribute('aria-label', done ? `Hole ${ref}, score ${s.scores[h - 1]}` : `Hole ${ref}`);
-    if (h === s.hole) p.setAttribute('aria-current', 'true'); else p.removeAttribute('aria-current');
-  }
-}
-
-// Review a played hole: open the scorecard and highlight that hole's column.
-// (E1 — review is the scorecard, not a shot replay or a camera move.)
+// Review a played hole: highlight that hole's column on the scorecard (a click on its
+// number there). (E1 — review is the scorecard, not a shot replay or a camera move.)
 function reviewHoleOnCard(h) {
   if (!state || state.scores[h - 1] == null) return;
   reviewHole = h - 1;
@@ -517,11 +567,18 @@ function reviewHoleOnCard(h) {
 // ---------- scorecard ----------
 function buildScorecard(s) {
   const n = s.pars.length;
-  let h1 = '<tr><th></th>', p1 = '<tr><th>Par</th>', s1 = '<tr><th>Score</th>';
+  // researched scorecards add a row per tee (the play tee first) and the hole handicaps
+  const tees = s.tees || [];
+  const hcps = (s.handicaps || []).some((x) => x != null) ? s.handicaps : null;
+  let h1 = '<tr><th></th>', p1 = '<tr><th>Par</th>', s1 = '<tr><th>Score</th>', hc = '<tr class="hcp"><th>Hcp</th>';
+  const teeRows = tees.map((t) => `<tr class="tee${t.name === s.playTee ? ' play' : ''}"><th>${esc(t.name)}</th>`);
   for (let i = 0; i < n; i++) {
     const hl = i === reviewHole ? ' review' : '';
-    h1 += `<th class="${hl.trim()}">${i + 1}</th>`;
+    const name = s.holeNames && s.holeNames[i];
+    h1 += `<th class="${hl.trim()}" data-h="${i + 1}"${name ? ` title="${esc(name)}"` : ''}>${(s.holeRefs && s.holeRefs[i]) ?? i + 1}</th>`;
+    tees.forEach((t, k) => { teeRows[k] += `<td class="${hl.trim()}">${t.yards[i] ?? ''}</td>`; });
     p1 += `<td class="${hl.trim()}">${s.pars[i]}</td>`;
+    if (hcps) hc += `<td class="${hl.trim()}">${hcps[i] ?? ''}</td>`;
     const sc = s.scores[i];
     const cls = sc == null ? '' : sc < s.pars[i] ? 'under' : sc > s.pars[i] ? 'over' : '';
     const dot = (s.pickedUp && s.pickedUp[i]) ? '<i class="pu" title="picked up"></i>' : '';
@@ -529,10 +586,26 @@ function buildScorecard(s) {
   }
   const totPar = s.pars.reduce((a, b) => a + b, 0);
   const totScore = s.scores.reduce((a, b) => a + (b || 0), 0);
+  const teeHtml = tees.map((t, k) => `${teeRows[k]}<td>${t.yards.reduce((a, b) => a + (b || 0), 0) || ''}</td></tr>`).join('');
+  // mulligans, per hole, only once any have been taken: the card stays honest
+  const mull = s.mulligans || [];
+  const totMull = mull.reduce((a, b) => a + (b || 0), 0);
+  let m1 = '';
+  if (totMull) {
+    m1 = '<tr class="mull"><th title="Mulligans taken">Mull.</th>';
+    for (let i = 0; i < n; i++) m1 += `<td class="${i === reviewHole ? 'review' : ''}">${mull[i] || ''}</td>`;
+    m1 += `<td>${totMull}</td></tr>`;
+  }
   $('score-table').innerHTML =
-    `<table>${h1}<th>Σ</th></tr>${p1}<td>${totPar}</td></tr>${s1}<td>${totScore || ''}</td></tr></table>`;
+    `<table>${h1}<th>Σ</th></tr>${teeHtml}${p1}<td>${totPar}</td></tr>${hcps ? `${hc}<td></td></tr>` : ''}` +
+    `${s1}<td>${totScore || ''}</td></tr>${m1}</table>`;
+  $('scorecard').classList.toggle('with-tees', tees.length > 0);
   buildSummary(s);
 }
+$('score-table').onclick = (e) => {
+  const th = e.target.closest('th[data-h]');
+  if (th) reviewHoleOnCard(+th.dataset.h);
+};
 
 function nineRel(s, a, b) {
   let sc = 0, pr = 0;
@@ -554,6 +627,8 @@ function highlights(s) {
   if (birdies) chips.push(`<span class="sum-chip good">${birdies} birdie${birdies > 1 ? 's' : ''}</span>`);
   if (!eagles && !birdies) chips.push('<span class="sum-chip">No birdies this round</span>');
   if (best != null) chips.push(`<span class="sum-chip">Best: hole ${best}</span>`);
+  const mull = (s.mulligans || []).reduce((a, b) => a + (b || 0), 0);
+  if (mull) chips.push(`<span class="sum-chip">${mull} mulligan${mull > 1 ? 's' : ''}</span>`);
   return `<div class="sum-hi">${chips.join('')}</div>`;
 }
 
@@ -592,8 +667,10 @@ const postPractice = (body) => fetch('/api/practice', {
 
 function practiceToast(shot) {
   const p = shot.practice;
-  let main = p.shot.holed ? '⛳ HOLE IN ONE!' : p.shot.note;
-  let sub = `Carry ${shot.sim.carryYd.toFixed(0)} · Total ${shot.sim.totalYd.toFixed(0)} yd`;
+  let main = !p.shot.holed ? p.shot.note : p.mode === 'closest' ? '⛳ HOLE IN ONE!' : `⛳ ${p.shot.note}!`;
+  // a putt's carry says nothing: the putts made so far instead
+  let sub = p.mode === 'putting' ? `${p.score.label} ${p.score.value}`
+    : `Carry ${shot.sim.carryYd.toFixed(0)} · Total ${shot.sim.totalYd.toFixed(0)} yd`;
   if (p.over && p.score) { sub = main; main = `${p.score.label}: ${p.score.value}`; }
   showToast(main, sub);
 }
@@ -601,6 +678,10 @@ function practiceToast(shot) {
 const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const yd0 = (v) => (Number.isFinite(v) ? Math.round(v) : '–');
 const lr = (v) => (Number.isFinite(v) ? `${v > 0 ? 'R' : v < 0 ? 'L' : ''}${Math.abs(Math.round(v))}` : '–');
+// feet as lib/practice.js words them: '5 in', '2.3 ft', '12 ft'; a chip's to the tenth
+// it is scored on, under 20 ft ('10.4 ft')
+const ft1 = (v) => (!Number.isFinite(v) ? '–' : v < 1 ? `${Math.max(1, Math.round(v * 12))} in` : `${v < 10 ? Math.round(v * 10) / 10 : Math.round(v)} ft`);
+const chipFt = (v) => (v >= 1 && v < 20 ? `${v} ft` : ft1(v));
 
 // Shot columns per game: [heading, cell(shot)].
 const PB_COLUMNS = {
@@ -609,6 +690,21 @@ const PB_COLUMNS = {
     ['TO PIN', (s) => (s.holed ? 'ACE' : s.counted === false ? (s.lie === 'water' ? 'water' : 'OB') : `${Math.round(s.toTargetYd * 3)} ft`)]],
   longdrive: [['#', (s) => s.n], ['DIST', (s) => yd0(s.distanceYd)], ['CARRY', (s) => yd0(s.carryYd)], ['OFF', (s) => lr(s.offlineYd)], ['', (s) => (s.counted ? '✓' : '✗')]],
   targets: [['#', (s) => s.n], ['FLAG', (s) => `${s.targetYd}y`], ['TO FLAG', (s) => `${yd0(s.toTargetYd)}y`], ['PTS', (s) => s.points ?? 0]],
+  putting: [['#', (s) => s.n], ['PUTT', (s) => ft1(s.puttFt)], ['LEFT', (s) => (s.holed ? 'holed' : ft1(s.leftFt))]],
+  chipping: [['#', (s) => s.n], ['CLUB', (s) => esc(s.club ? prettyClub(s.club) : '–')], ['FROM', (s) => `${yd0(s.chipYd)}y`],
+    ['TO CUP', (s) => (s.holed ? 'holed' : s.counted === false ? (s.lie === 'water' ? 'water' : 'OB') : chipFt(s.leftFt))], ['PTS', (s) => s.points ?? 0]],
+  ladder: [['#', (s) => s.n], ['FLAG', (s) => `${s.targetYd}y`], ['TO FLAG', (s) => `${s.toTargetYd < 10 ? s.toTargetYd : yd0(s.toTargetYd)}y`],
+    ['', (s) => (s.climbed ? '✓' : '✗')]],
+};
+
+// Where a game stands when its next ball changes (the green games' spot, the ladder's
+// rung): the second half of the board's subtitle.
+const PB_PROGRESS = {
+  putting: (pr, s) => (pr.over ? `game over, ${ft1(pr.score.feetLeft)} left in all`
+    : `putt ${pr.ballsHit + 1} of ${pr.ballsTotal} · ${Math.round(s.distToPinYd * 3)} ft`),
+  chipping: (pr, s) => (pr.over ? 'game over' : `chip ${pr.ballsHit + 1} of ${pr.ballsTotal} · ${Math.round(s.distToPinYd)} yd`),
+  ladder: (pr) => (pr.score.cleared === pr.flags.length ? `all ${pr.flags.length} rungs in ${pr.ballsHit} balls`
+    : pr.over ? 'game over' : `rung ${pr.score.cleared + 1} of ${pr.flags.length} · ${pr.target.yd} yd`),
 };
 
 function renderPracticeBoard(s) {
@@ -618,8 +714,10 @@ function renderPracticeBoard(s) {
   if (!pr) return;
   $('pb-mode').textContent = pr.label.toUpperCase();
   const where = pr.mode === 'closest' && pr.holeRef != null ? `Hole ${pr.holeRef}, ${pr.target.yd} yd`
-    : pr.ground === 'range' ? "On the course's driving range" : "From hole 1's tee (no range mapped)";
-  const left = pr.ballsTotal ? (pr.over ? 'game over' : `ball ${pr.ballsHit + 1} of ${pr.ballsTotal}`) : `${pr.ballsHit} balls`;
+    : greenGame(pr) ? `Hole ${pr.holeRef} green`
+      : pr.ground === 'range' ? "On the course's driving range" : "From hole 1's tee (no range mapped)";
+  const left = PB_PROGRESS[pr.mode] ? PB_PROGRESS[pr.mode](pr, s)
+    : pr.ballsTotal ? (pr.over ? 'game over' : `ball ${pr.ballsHit + 1} of ${pr.ballsTotal}`) : `${pr.ballsHit} balls`;
   $('pb-sub').textContent = `${where} · ${left}`;
   $('pb-score-label').textContent = pr.score ? pr.score.label.toUpperCase() : 'BALLS';
   $('pb-score').textContent = pr.score ? pr.score.value : `${pr.ballsHit}`;
@@ -643,7 +741,7 @@ function renderPracticeBoard(s) {
   const cols = PB_COLUMNS[pr.mode];
   const best = pr.score && pr.score.shot;
   const rows = pr.shots.slice(-8).reverse().map((sh) => {
-    const cls = sh.n === best ? 'best' : sh.counted === false ? 'miss' : '';
+    const cls = sh.n === best || sh.holed || sh.climbed ? 'best' : sh.counted === false ? 'miss' : '';
     return `<tr class="${cls}">${cols.map(([, cell]) => `<td>${cell(sh)}</td>`).join('')}</tr>`;
   });
   $('pb-shots').innerHTML = rows.length
@@ -661,8 +759,14 @@ function renderPracticeBoard(s) {
 
 $('btn-games').onclick = () => {
   if (!state?.loaded) { openCourseModal(); return; }
-  $('games-menu').classList.toggle('hidden');
-  $('btn-games').classList.toggle('active', !$('games-menu').classList.contains('hidden'));
+  const open = $('games-menu').classList.contains('hidden');
+  if (open) {   // one screen mid-stage at a time
+    leaguesUI.toggle(false);
+    $('scorecard').classList.add('hidden');
+    $('btn-score').classList.remove('active');
+  }
+  $('games-menu').classList.toggle('hidden', !open);
+  $('btn-games').classList.toggle('active', open);
 };
 document.querySelectorAll('#games-menu .game-card').forEach((card) => {
   card.onclick = () => { $('games-menu').classList.add('hidden'); postPractice({ mode: card.dataset.mode }); };
@@ -670,7 +774,8 @@ document.querySelectorAll('#games-menu .game-card').forEach((card) => {
 $('pb-again').onclick = () => {
   const pr = state?.practice;
   if (!pr) return;
-  const hole = pr.mode === 'closest' ? (pr.par3s || []).find((h) => h.ref === pr.holeRef)?.index : undefined;
+  // the same par 3, or the same green
+  const hole = pr.mode === 'closest' ? (pr.par3s || []).find((h) => h.ref === pr.holeRef)?.index : pr.holeIndex;
   postPractice({ mode: pr.mode, ...(hole != null ? { hole } : {}), ...(pr.mode !== 'targets' ? { targetYd: pr.target.yd } : {}) });
 };
 $('pb-end').onclick = () => postPractice({ action: 'end' });
@@ -685,11 +790,17 @@ $('btn-next').onclick = async () => {
 };
 function toggleScorecard() {
   reviewHole = null;
+  if ($('scorecard').classList.contains('hidden')) {   // one panel mid-screen at a time
+    leaguesUI.toggle(false);
+    $('games-menu').classList.add('hidden');
+    $('btn-games').classList.remove('active');
+  }
   $('scorecard').classList.toggle('hidden');
   $('btn-score').classList.toggle('active', !$('scorecard').classList.contains('hidden'));
   if (state) buildScorecard(state);
 }
 $('btn-score').onclick = toggleScorecard;
+$('btn-league').onclick = () => leaguesUI.toggle();
 $('stat-hole').onclick = toggleScorecard;   // the HOLE badge opens the scorecard (phone hole-nav)
 $('stat-hole').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleScorecard(); } };
 $('btn-restart').onclick = () => { reviewHole = null; fetch('/api/reset', { method: 'POST' }); $('scorecard').classList.add('hidden'); };
@@ -697,14 +808,19 @@ $('btn-changecourse').onclick = () => { $('scorecard').classList.add('hidden'); 
 $('btn-practice').onclick = () => $('practice').classList.toggle('hidden');
 $('btn-course').onclick = () => { closeMenu(); openCourseModal(); };
 
-// menu (top right) and the panels' close buttons
-function closeMenu() { $('main-menu').classList.add('hidden'); $('btn-menu').setAttribute('aria-expanded', 'false'); }
+// the menu (top right): a settings drawer from the right edge; the panels' close buttons
+function setMenu(open) {
+  $('main-menu').classList.toggle('open', open);
+  $('main-menu').setAttribute('aria-hidden', open ? 'false' : 'true');
+  $('menu-scrim').classList.toggle('open', open);
+  $('btn-menu').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function closeMenu() { setMenu(false); }
 $('btn-menu').onclick = (e) => {
   e.stopPropagation();
-  const open = $('main-menu').classList.contains('hidden');
-  $('main-menu').classList.toggle('hidden', !open);
-  $('btn-menu').setAttribute('aria-expanded', open ? 'true' : 'false');
+  setMenu(!$('main-menu').classList.contains('open'));
 };
+$('menu-close').onclick = closeMenu;
 document.addEventListener('pointerdown', (e) => {
   if (!$('main-menu').contains(e.target) && !$('btn-menu').contains(e.target)) closeMenu();
 });
@@ -712,6 +828,7 @@ document.querySelectorAll('[data-close]').forEach((b) => {
   b.onclick = () => {
     $(b.dataset.close).classList.add('hidden');
     if (b.dataset.close === 'scorecard') $('btn-score').classList.remove('active');
+    if (b.dataset.close === 'league-panel') $('btn-league').classList.remove('active');
     if (b.dataset.close === 'games-menu') $('btn-games').classList.remove('active');
   };
 });
@@ -723,6 +840,216 @@ $('btn-bag-reset').onclick = async () => {
   lineup.refreshCarries(false);
   showToast('Club averages cleared', 'Predictions use typical numbers until you hit a few');
 };
+
+// ---------- mulligans ----------
+// After a round shot lands, Mulligan (or M) takes it back: the server restores the ball,
+// strokes and score and counts the mulligan on the card (lib/game.js mulligan).
+function updateMulligan() {
+  const can = !!(state && state.loaded && state.canMulligan && !state.practice && !animating && !replay);
+  $('btn-mulligan').classList.toggle('hidden', !can);
+}
+async function takeMulligan() {
+  if (animating || replay || !state?.canMulligan) return;
+  const b = $('btn-mulligan');
+  b.disabled = true;
+  try {
+    const r = await fetch('/api/mulligan', { method: 'POST' }).then((x) => x.json());
+    if (!r.ok) showToast('Mulligan', r.error || 'Nothing to take back');
+  } catch { showToast('Mulligan', 'The game is not answering'); }
+  finally { b.disabled = false; }
+}
+$('btn-mulligan').onclick = takeMulligan;
+es.addEventListener('mulligan', (e) => {
+  const m = JSON.parse(e.data);
+  clearTimeout(lineupBack);
+  scene.clearShot();
+  aimMap.setShot([]);
+  flightView.lineup();
+  if (lastShot) lastShot.mulled = true;
+  $('shotpanel').classList.add('mulled');
+  $('sp-label').textContent = 'MULLIGAN';
+  lastHoleKey = '';   // the state that follows puts the ball back: re-frame it there at once
+  showToast('↺ Mulligan, hit it again', m.mulligans > 1 ? `${m.mulligans} mulligans on this hole` : 'The scorecard counts it');
+});
+
+// ---------- saved shots ----------
+// ★ on the last-shot panel (or in the Saved panel) keeps a shot with its flight; the
+// Saved panel lists them and replays one on the course it was hit on. A replay only
+// moves the camera and the ball on screen: the round is never touched.
+const postJson = (url, body) => fetch(url, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+}).then((r) => r.json());
+let serverLastShotId = null;   // the server's last shot, when this screen missed its event
+
+function setSavedCount(n) {
+  const c = $('saved-count');
+  c.textContent = n > 99 ? '99+' : `${n}`;
+  c.classList.toggle('hidden', !n);
+}
+function setSaveButton() {
+  const b = $('sp-save');
+  const saved = !!lastShot?.savedId;
+  b.setAttribute('aria-pressed', saved ? 'true' : 'false');
+  b.querySelector('span').textContent = saved ? 'Saved' : 'Save';
+  b.title = saved ? 'Saved; press again to remove it from your saved shots' : 'Save this shot to your saved shots';
+  b.disabled = !lastShot || !!replay;
+  const add = $('saved-add');
+  add.disabled = saved || replay || !(lastShot || serverLastShotId != null);
+  add.textContent = saved ? '★ Last shot saved' : '★ Save the last shot';
+}
+async function saveLastShot() {
+  const shotId = lastShot ? lastShot.shot.shotId : serverLastShotId;
+  if (shotId == null) return;
+  try {
+    const r = await postJson('/api/saved-shots', { shotId });
+    if (!r.ok) { showToast('Save shot', r.error || 'Could not save it'); return; }
+    if (lastShot && lastShot.shot.shotId === shotId) lastShot.savedId = r.shot.id;
+    setSaveButton();
+    showToast('★ Shot saved', 'Replay it any time from Saved');
+  } catch { showToast('Save shot', 'The game is not answering'); }
+}
+async function removeSaved(id) {
+  try { await postJson('/api/saved-shots/remove', { id }); } catch { showToast('Saved shots', 'The game is not answering'); }
+}
+$('sp-save').onclick = () => (lastShot?.savedId ? removeSaved(lastShot.savedId) : saveLastShot());
+$('saved-add').onclick = saveLastShot;
+es.addEventListener('saved-shots', (e) => {
+  const ev = JSON.parse(e.data);
+  setSavedCount(ev.count);
+  if (ev.saved && lastShot && ev.shotId === lastShot.shot.shotId) lastShot.savedId = ev.saved;
+  if (ev.removed && lastShot && lastShot.savedId === ev.removed) lastShot.savedId = null;
+  setSaveButton();
+  if (!$('saved-panel').classList.contains('hidden')) renderSaved();
+});
+
+const courseShort = (name) => String(name || '').split(',')[0];
+const PRACTICE_NAMES = { range: 'Driving range', closest: 'Closest to the pin', longdrive: 'Long drive', targets: 'Target challenge' };
+// the club a saved shot was hit with: the monitor's or the player's pick, else the one
+// its ball speed suggests (as the last-shot panel shows it)
+function savedClubName(s) {
+  const label = s.club ? prettyClub(s.club) : clubFromShot(s.launch.speedMph, s.result.isPutt);
+  return clubByLabel(label)?.name || label;
+}
+function savedRowHtml(s, here) {
+  const club = savedClubName(s);
+  const r = s.result, l = s.launch;
+  const main = r.isPutt
+    ? `<b>${Math.round(r.totalYd * 3)}<small>ft</small></b> putt`
+    : `<b>${Math.round(r.carryYd)}<small>yd</small></b> carry · <b>${Math.round(r.totalYd)}<small>yd</small></b>`;
+  const when = new Date(s.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const where = [when, s.practice ? PRACTICE_NAMES[s.practice] || 'Practice' : `Hole ${s.holeRef ?? s.hole ?? '?'}`, courseShort(s.course)].join(' · ');
+  const launch = `${l.speedMph.toFixed(1)} mph · ${l.vla.toFixed(1)}° · ${Math.round(l.totalSpin)} rpm${r.isPutt ? '' : ` · apex ${Math.round(r.apexFt)} ft`}`;
+  const tip = here ? 'Replay the flight' : `Load ${courseShort(s.course)} to replay it`;
+  return `<div class="saved-row" data-id="${esc(s.id)}">`
+    + `<div class="saved-main"><span class="saved-club">${esc(club)}</span>${main}</div>`
+    + `<div class="saved-where">${esc(where)}</div>`
+    + `<div class="saved-launch">${esc(launch)}</div>`
+    + `<div class="saved-acts"><button class="btn" data-act="replay"${here ? '' : ' disabled'} title="${esc(tip)}">▶ Replay</button>`
+    + '<button class="btn x" data-act="remove" title="Remove from saved shots" aria-label="Remove from saved shots">✕</button></div>'
+    + '</div>';
+}
+async function renderSaved() {
+  let data;
+  try { data = await (await fetch('/api/saved-shots')).json(); } catch { data = null; }
+  const list = $('saved-list');
+  if (!data || !Array.isArray(data.shots)) { list.innerHTML = '<div class="saved-empty">Saved shots are not available right now.</div>'; return; }
+  setSavedCount(data.shots.length);
+  serverLastShotId = data.lastShotId ?? null;
+  if (lastShot && lastShot.shot.shotId === serverLastShotId) {
+    lastShot.savedId = data.shots.find((x) => x.shotId === serverLastShotId && x.at >= Date.now() - 6 * 3600e3)?.id ?? lastShot.savedId;
+  }
+  setSaveButton();
+  if (!data.shots.length) {
+    list.innerHTML = '<div class="saved-empty">No saved shots yet. Hit one you love, then press ★ Save on the last-shot panel, or the button above.</div>';
+    return;
+  }
+  const course = state?.loaded ? state.courseName : null;
+  list.innerHTML = data.shots.map((x) => savedRowHtml(x, x.course === course)).join('');
+  list.querySelectorAll('.saved-row').forEach((row) => {
+    row.querySelector('[data-act="replay"]').onclick = () => replaySaved(row.dataset.id);
+    row.querySelector('[data-act="remove"]').onclick = () => removeSaved(row.dataset.id);
+  });
+}
+function openSaved(open) {
+  $('saved-panel').classList.toggle('hidden', !open);
+  $('btn-saved').classList.toggle('active', open);
+  if (open) renderSaved();
+}
+$('btn-saved').onclick = () => openSaved($('saved-panel').classList.contains('hidden'));
+fetch('/api/saved-shots').then((r) => r.json()).then((d) => {
+  if (Array.isArray(d.shots)) setSavedCount(d.shots.length);
+  serverLastShotId = d.lastShotId ?? null;
+  setSaveButton();
+}).catch(() => {});
+
+// Replay a saved shot where it was hit: the scene goes to that spot and aim, flies the
+// stored trajectory with the side view, then comes back to the round as it stands.
+async function replaySaved(id) {
+  if (animating || replay || !scene.geo || !state?.loaded) return;
+  let rec = null;
+  try { rec = await (await fetch(`/api/saved-shots/${encodeURIComponent(id)}`)).json(); } catch { /* offline */ }
+  if (!rec || !Array.isArray(rec.points) || rec.points.length < 2) { showToast('Replay', 'That saved shot could not be loaded'); return; }
+  if (rec.course !== state.courseName) { showToast('Replay', `Load ${courseShort(rec.course)} to replay it`); return; }
+  if (animating || replay) return;   // a live ball came in while it loaded
+  openSaved(false);
+  const pts = rec.points.map(([t, x, y, z]) => ({ t, x, y, z }));
+  const r = rec.result;
+  const shot = {
+    launch: rec.launch, club: rec.club, strokes: null, note: r.note, lie: r.lie,
+    sim: { points: pts, carryYd: r.carryYd, totalYd: r.totalYd, offlineYd: r.offlineYd, apexFt: r.apexFt, flightTime: r.flightTime, isPutt: r.isPutt, events: [] },
+  };
+  const token = { id, doneTimer: null };
+  replay = token;
+  animating = true;
+  clearTimeout(lineupBack);
+  lineup.setFlying(true);
+  showShotData(shot, null, 'replay');
+  setSaveButton();
+  updateMulligan();
+  const label = savedClubName(rec);
+  const where = rec.practice ? PRACTICE_NAMES[rec.practice] || 'Practice' : `Hole ${rec.holeRef ?? rec.hole ?? '?'}`;
+  const toast = $('toast');   // the last shot's toast would sit over the banner
+  clearTimeout(toast._h);
+  toast.style.opacity = 0;
+  const banner = $('replay-banner');
+  banner.innerHTML = `<span class="lbl">REPLAY</span>${esc([where, label, r.isPutt ? `${Math.round(r.totalYd * 3)} ft putt` : `${Math.round(r.carryYd)} yd carry`].filter(Boolean).join(' · '))}`;
+  banner.classList.remove('hidden');
+  const rp = rec.replay || {};
+  const end = pts[pts.length - 1];
+  scene.setHole(
+    { pin: rp.pin || [end.x, end.y], tee: rp.tee || null, ref: rec.practice ? null : (rec.holeRef ?? rec.hole ?? null) },
+    rp.from || { x: pts[0].x, y: pts[0].y },
+    Number.isFinite(rp.aimDeg) ? rp.aimDeg : state.aimDeg,
+  );
+  await new Promise((res) => setTimeout(res, 700));   // the camera settles behind the ball
+  if (replay !== token) return;
+  flightView.startShot(shot);
+  scene.playShot(pts, r.flightTime, () => {
+    if (replay !== token) return;
+    flightView.finish();
+    token.doneTimer = setTimeout(() => { if (replay === token) endReplay(); }, 1600);
+  }, { onProgress: (t) => flightView.setTime(t), isPutt: !!r.isPutt, spinRpm: rec.launch?.totalSpin, spinAxisDeg: rec.launch?.spinAxis });
+}
+function endReplay() {
+  const r = replay;
+  if (!r) return;
+  clearTimeout(r.doneTimer);
+  replay = null;
+  $('replay-banner').classList.add('hidden');
+  animating = false;
+  lineup.setFlying(false);
+  flightView.lineup();
+  scene.clearShot();
+  // back to the round: its hole and ball (the camera re-frames there) and its last shot
+  lastHoleKey = '';
+  const s = pendingState || state;
+  pendingState = null;
+  if (s) applyState(s);
+  if (lastShot) showShotData(lastShot.shot, lastShot.plan, 'restore');
+  else $('shotpanel').classList.add('hidden');
+  setSaveButton();
+  updateMulligan();
+}
 
 // Free course-creator camera: fly/orbit the hole to inspect surfaces against the aerial.
 scene.setFreeCamCallback((on) => {
@@ -743,26 +1070,38 @@ window.addEventListener('keydown', (e) => {
   const k = String(e.key || '');
   if (k === 'Escape') {
     closeMenu();
-    for (const id of ['conditions', 'practice', 'games-menu', 'scorecard']) $(id).classList.add('hidden');
+    lineup.openDock(false);
+    for (const id of ['conditions', 'practice', 'games-menu', 'scorecard', 'league-panel', 'player-menu']) $(id).classList.add('hidden');
+    leaguesUI.closeResult();
     $('btn-score').classList.remove('active');
+    $('btn-league').classList.remove('active');
+    $('btn-games').classList.remove('active');
     return;
   }
   if (k.toLowerCase() === 'f') { if (!animating && scene.flyover.start()) e.preventDefault(); return; }
   if (k.toLowerCase() === 'w') { conditions.toggle(); return; }
+  if (k.toLowerCase() === 'l') { leaguesUI.toggle(); return; }
   if (animating) return;
   if (k === 'ArrowLeft' || k === 'ArrowRight') {
     e.preventDefault();
     lineup.setAim(lineup.aim + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 2 : 0.5));
   } else if (k.toLowerCase() === 'a') {
-    if (!lineup.autoAim()) showToast('Auto-aim', 'Needs a prediction for this club');
+    autoAim();
   } else if (k === '0') lineup.setAim(0);
+  else if (k.toLowerCase() === 'm' && scene.camMode !== 'free') takeMulligan();
 });
 
 $('aim-slider').oninput = (e) => lineup.setAim(+e.target.value);
 $('aim-left').onclick = () => lineup.setAim(lineup.aim - 0.5);
 $('aim-right').onclick = () => lineup.setAim(lineup.aim + 0.5);
 $('aim-reset').onclick = () => lineup.setAim(0);
-$('aim-auto').onclick = () => { if (!lineup.autoAim()) showToast('Auto-aim', 'Needs a prediction for this club'); };
+$('aim-auto').onclick = () => autoAim();
+// AUTO: the safe spot, with where it aims said out loud
+function autoAim() {
+  const where = lineup.autoAim();
+  if (!where) showToast('Auto aim', 'Needs a prediction for this club');
+  else showToast(`Aiming at ${where}`, 'Allowing for the wind and your shape');
+}
 fetch('/api/clubs').then((r) => r.json()).then((p) => { clubPresets = p; });
 
 // practice panel
@@ -787,46 +1126,140 @@ $('ps-hit').onclick = () => {
   });
 };
 
-// ---------- course modal ----------
+// ---------- course picker ----------
+// Every course at a glance (/api/courses, lib/course-library.js): the downloaded ones,
+// last played first, then the featured ones not downloaded yet. Typing filters the cards
+// at once; Up / Down pick one and Enter plays it; with nothing matching, Enter searches
+// the map (OpenStreetMap) for any course in the world. A click on a card plays it.
+let library = null;   // the last /api/courses
+let libSel = -1;      // the card picked with the keys (index among the visible ones)
+const libCards = () => [...document.querySelectorAll('#course-lib .cm-card:not(.hidden)')];
+
 function openCourseModal() {
   $('course-modal').classList.remove('hidden');
   $('course-modal').style.display = 'flex';
-  loadCachedList();
+  $('course-close').classList.toggle('hidden', !state?.loaded);
+  $('course-q').value = '';
+  $('course-results').innerHTML = '';
+  $('course-msg').textContent = '';
+  renderLibrary();
+  loadLibrary();
+  setTimeout(() => $('course-q').focus(), 0);
 }
 function closeCourseModal() {
   $('course-modal').style.display = 'none';
 }
-
-async function loadCachedList() {
+async function loadLibrary() {
   try {
-    const cached = await (await fetch('/api/courses/cached')).json();
-    const el = $('course-cached');
-    el.innerHTML = cached.length ? '<p class="muted" style="margin:10px 0 6px">Downloaded courses (instant):</p>' : '';
-    for (const c of cached) {
-      const d = document.createElement('div');
-      d.className = 'result';
-      d.innerHTML = `<span class="badge">saved</span> ${c.name.split(',').slice(0, 3).join(',')}`;
-      d.onclick = () => pickCourse({ cached: c.file, name: c.name });
-      el.appendChild(d);
-    }
-  } catch (_) { /* server starting */ }
+    const r = await fetch('/api/courses');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    library = await r.json();
+  } catch (_) { return; }   // the server is starting: keep what is shown
+  if ($('course-modal').style.display !== 'none') renderLibrary();
+}
+
+// the holes as a little map: each hole's line of play, its green a dot
+function sketchSvg(sk) {
+  if (!sk) return '<svg viewBox="0 0 24 24" class="cm-flag" aria-hidden="true"><path d="M7 20.5V4l9 3.6-9 3.6"/><path d="M4 20.5h16"/></svg>';
+  const pad = 0.06, w = sk.w + 2 * pad, h = sk.h + 2 * pad;
+  const lines = sk.holes.map((l) => `<polyline points="${l.map(([x, y]) => `${(x + pad).toFixed(3)},${(y + pad).toFixed(3)}`).join(' ')}"/>`).join('');
+  const greens = sk.holes.map((l) => { const [x, y] = l[l.length - 1]; return `<circle cx="${(x + pad).toFixed(3)}" cy="${(y + pad).toFixed(3)}" r="0.022"/>`; }).join('');
+  return `<svg viewBox="0 0 ${w.toFixed(3)} ${h.toFixed(3)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g class="cm-lines">${lines}</g><g class="cm-greens">${greens}</g></svg>`;
+}
+function playedAgo(ms) {
+  if (!ms) return '';
+  const m = Math.round((Date.now() - ms) / 60000);
+  if (m < 2) return 'played just now';
+  if (m < 60) return `played ${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 36) return `played ${h} h ago`;
+  const d = Math.round(h / 24);
+  return d < 45 ? `played ${d} days ago` : 'played a while ago';
+}
+function cardHtml(c, kind, i) {
+  const stats = [c.holes ? `${c.holes} holes` : null, c.par ? `Par ${c.par}` : null,
+    c.yards ? `${Math.round(c.yards).toLocaleString('en-US')} yd` : null].filter(Boolean).join(' · ');
+  const tags = kind === 'featured'
+    ? '<i class="tag get">Download</i>' + (c.researched ? '<i class="tag">Scorecard</i>' : '')
+    : (c.current ? '<i class="tag now">Playing</i>' : '') + (c.hd ? '<i class="tag">HD</i>' : '') +
+      (c.researched ? '<i class="tag">Scorecard</i>' : '') + (playedAgo(c.lastUsed) ? `<i class="tag dim">${playedAgo(c.lastUsed)}</i>` : '');
+  const words = `${c.name} ${c.place || ''}`.toLowerCase();
+  return `<button type="button" class="cm-card${c.current ? ' current' : ''}" data-kind="${kind}" data-i="${i}" data-words="${esc(words)}">
+    <span class="cm-map">${kind === 'featured' ? sketchSvg(null) : sketchSvg(c.sketch)}</span>
+    <span class="cm-body"><b class="cm-name">${esc(c.name.split(',')[0])}</b>${c.place ? `<span class="cm-place">${esc(c.place)}</span>` : ''}
+      ${stats ? `<span class="cm-stats">${stats}</span>` : ''}<span class="cm-tags">${tags}</span></span>
+  </button>`;
+}
+function renderLibrary() {
+  const el = $('course-lib');
+  if (!library) { el.innerHTML = '<div class="cm-empty"><span class="loading-spin"></span>Loading your courses…</div>'; return; }
+  const yours = library.courses || [], feat = library.featured || [];
+  el.innerHTML =
+    (yours.length ? `<div class="cm-sec"><span class="lbl">YOUR COURSES · <b data-count="yours">${yours.length}</b></span><span class="cm-sub">Downloaded, so they load in seconds</span></div>
+      <div class="cm-grid" data-sec="yours">${yours.map((c, i) => cardHtml(c, 'yours', i)).join('')}</div>` : '') +
+    (feat.length ? `<div class="cm-sec"><span class="lbl">FEATURED · <b data-count="featured">${feat.length}</b></span><span class="cm-sub">A click downloads one: about a minute the first time</span></div>
+      <div class="cm-grid" data-sec="featured">${feat.map((c, i) => cardHtml(c, 'featured', i)).join('')}</div>` : '') +
+    '<div id="cm-none" class="cm-empty hidden"></div>';
+  el.querySelectorAll('.cm-card').forEach((card) => { card.onclick = () => playCard(card); });
+  applyFilter();
+}
+// show the cards with a word starting with each word typed (name or place); pick the first
+const wordsOf = (text) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+function applyFilter() {
+  const q = $('course-q').value.trim().toLowerCase();
+  const words = wordsOf(q);
+  for (const card of document.querySelectorAll('#course-lib .cm-card')) {
+    const have = wordsOf(card.dataset.words);
+    card.classList.toggle('hidden', !words.every((w) => have.some((h) => h.startsWith(w))));
+  }
+  for (const sec of ['yours', 'featured']) {
+    const n = document.querySelectorAll(`#course-lib .cm-grid[data-sec="${sec}"] .cm-card:not(.hidden)`).length;
+    const b = document.querySelector(`#course-lib [data-count="${sec}"]`);
+    if (b) b.textContent = n;
+    const grid = document.querySelector(`#course-lib .cm-grid[data-sec="${sec}"]`);
+    if (grid) { grid.classList.toggle('hidden', !n); grid.previousElementSibling.classList.toggle('hidden', !n); }
+  }
+  const none = $('cm-none');
+  const shown = libCards().length;
+  if (none) {
+    none.classList.toggle('hidden', !!shown || !q);
+    none.innerHTML = q ? `Nothing here called “${esc(q)}”. Press <kbd>Enter</kbd> to search the map for it.` : '';
+  }
+  markLibSel(words.length && shown ? 0 : -1);
+}
+function markLibSel(i) {
+  const cards = libCards();
+  libSel = cards.length ? Math.max(-1, Math.min(cards.length - 1, i)) : -1;
+  document.querySelectorAll('#course-lib .cm-card.sel').forEach((c) => c.classList.remove('sel'));
+  if (libSel >= 0) cards[libSel].classList.add('sel');
+  if (libSel >= 0) cards[libSel].scrollIntoView({ block: 'nearest' });
+}
+async function playCard(card) {
+  const c = card.dataset.kind === 'featured' ? library.featured[+card.dataset.i] : library.courses[+card.dataset.i];
+  if (!c) return;
+  if (c.current && state?.loaded) { closeCourseModal(); return; }
+  document.querySelectorAll('#course-lib .cm-card.loading').forEach((x) => x.classList.remove('loading'));
+  card.classList.add('loading');
+  await pickCourse(c.file ? { cached: c.file, name: c.name } : { osmType: c.osmType, osmId: c.osmId, name: c.name, lat: c.lat, lon: c.lon });
+  card.classList.remove('loading');
 }
 
 async function doSearch(q) {
   if (!q.trim()) return;
   const msg = $('course-msg');
   msg.className = 'muted';
-  msg.innerHTML = '<span class="loading-spin"></span>searching OpenStreetMap…';
+  msg.innerHTML = '<span class="loading-spin"></span>searching the map (OpenStreetMap)…';
   $('course-results').innerHTML = '';
   try {
     const rows = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
     if (rows.error) throw new Error(rows.error);
-    msg.textContent = rows.length ? '' : 'No golf course found — try the course name plus its town.';
+    msg.textContent = rows.length ? '' : 'No golf course found on the map: try the course name plus its town.';
+    if (rows.length) $('course-results').innerHTML = '<div class="cm-sec"><span class="lbl">ON THE MAP</span><span class="cm-sub">A click downloads it: 10 to 90 s the first time</span></div>';
     for (const r of rows) {
       const d = document.createElement('div');
       d.className = 'result';
       const isCourse = r.type === 'golf_course';
-      d.innerHTML = `<span class="badge ${isCourse ? '' : 'other'}">${isCourse ? 'golf course' : r.type}</span> ${r.name}`;
+      d.innerHTML = `<span class="badge ${isCourse ? '' : 'other'}">${isCourse ? 'golf course' : esc(r.type)}</span> ${esc(r.name)}`;
       d.onclick = () => pickCourse({ name: r.name, bbox: r.bbox, osmType: r.osmType, osmId: r.osmId });
       $('course-results').appendChild(d);
     }
@@ -839,7 +1272,9 @@ async function doSearch(q) {
 async function pickCourse(body) {
   const msg = $('course-msg');
   msg.className = 'muted';
-  msg.innerHTML = '<span class="loading-spin"></span>Downloading course + terrain from open data… 10–90 s on first load.';
+  const name = esc((body.name || 'the course').split(',')[0]);
+  msg.innerHTML = body.cached ? `<span class="loading-spin"></span>Loading ${name}…`
+    : `<span class="loading-spin"></span>Downloading ${name}: course and terrain from open data, 10 to 90 s the first time…`;
   pickInFlight = true;
   try {
     const r = await (await fetch('/api/load-course', { method: 'POST', body: JSON.stringify(body) })).json();
@@ -855,10 +1290,23 @@ async function pickCourse(body) {
 }
 
 $('course-search').onclick = () => doSearch($('course-q').value);
-$('course-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch($('course-q').value); });
-document.querySelectorAll('.modal-box .chip').forEach((c) => {
-  c.onclick = () => { $('course-q').value = c.dataset.q; doSearch(c.dataset.q); };
+$('course-q').addEventListener('input', applyFilter);
+$('course-q').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    markLibSel(libSel + (e.key === 'ArrowDown' ? 1 : -1));
+  } else if (e.key === 'Enter') {
+    const card = libCards()[libSel];
+    if (card) playCard(card);
+    else doSearch($('course-q').value);
+  }
 });
+$('course-close').onclick = closeCourseModal;
+$('course-modal').addEventListener('keydown', (e) => { if (e.key === 'Escape' && state?.loaded) closeCourseModal(); });
+// a click on the dimmed course behind closes it (once a course is loaded)
+$('course-modal').addEventListener('pointerdown', (e) => { if (e.target === $('course-modal') && state?.loaded) closeCourseModal(); });
+// the course name, top left, switches course
+$('course-name').onclick = () => openCourseModal();
 
 // ---------- boot ----------
 (async () => {
@@ -866,6 +1314,7 @@ document.querySelectorAll('.modal-box .chip').forEach((c) => {
     await loadGeometry();
     const s = await (await fetch('/api/state')).json();
     applyState(s);
+    loadLibrary();
     if (!s.loaded) openCourseModal();
     else closeCourseModal();
   } catch (err) {

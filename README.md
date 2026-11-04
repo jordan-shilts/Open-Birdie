@@ -78,7 +78,8 @@ A ball rolled near the cup at holeable speed drops in.
 ### Range & games
 
 Practice on the loaded course's real ground. Your round pauses, and **Back to the round**
-picks it up exactly where you left it. Every ball is hit from the same spot, with no penalties.
+picks it up exactly where you left it. Every ball is hit from the game's spot (the putting and
+chipping games move it round the green, ball by ball), with no penalties.
 
 | Mode | How it plays |
 | --- | --- |
@@ -86,6 +87,9 @@ picks it up exactly where you left it. Every ball is hit from the same spot, wit
 | Closest to the pin | 5 balls at a par 3 (the shortest; the others are a click away); balls in the water or out of bounds don't count; an ace ends it |
 | Long drive | 6 drives; only drives that stop inside the grid (25 yd either side of the line) count |
 | Target challenge | 10 balls, a new flag 60–200 yd out each time; 10 / 5 / 3 / 1 points inside 3 / 8 / 15 / 25 yd |
+| Putting challenge | 9 putts on the green of the hole you're on: 3, 5, 8, 12, 16, 20, 25, 30 and 40 ft, each from its own side of the cup (a small green brings the long ones in); most holed wins, fewest feet left breaks a tie |
+| Up and down | 6 chips from just off the same green, 8–30 yd from the cup, all round it (never from sand, water or out of bounds); 10 points for a chip-in, 5 / 3 / 2 / 1 inside 3 / 6 / 10 / 20 ft |
+| Distance ladder | flags at 50, 75, 100, 125, 150 and 175 yd on the range; stop within 7 yd of the current one to climb to the next; 12 balls, and clearing all six ends it |
 
 Shots come from the launch monitor or the Practice shot panel, as in a round.
 
