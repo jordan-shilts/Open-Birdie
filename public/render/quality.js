@@ -29,7 +29,10 @@ export const QUALITY_PRESETS = Object.freeze({
     treeDensity: 1.0,       // woods fill spacing multiplier (1 = dense)
     treeCap: 9000,          // instanced trees across the course
     treeNearM: 200,         // trees nearer than this draw the full leaf-card LOD
+    treeMidM: 1100,         // ... and nearer than this the mid LOD (1 card in 4); the far LOD beyond
+    terrainLodScale: 1,     // the distances at which the ground steps down to coarser cells (hd-terrain.js)
     grassScale: 0.5,        // fescue / foreground-grass instance budgets (55k tufts was ~4.5 ms at 1080p)
+    grassDrawM: 400,        // the rough's fescue tufts are drawn this far out (scene.js _addGrass)
     foregroundGrass: false, // blade patches read as fuzz at the play cameras (config.js grassField)
     flowers: true,
   }),
@@ -41,13 +44,21 @@ export const QUALITY_PRESETS = Object.freeze({
     shadowMapSize: 2048,
     shadowRadius: 1.5,
     gtao: false,
-    bloom: true,
+    // Bloom only lifts the sun's glints off water and the brightest sand (threshold 1.6,
+    // postfx.js), and its 13 draws were about a sixth of a Low frame on the dev Mac
+    // (docs/machines.md), a cost the sim PC's integrated GPU can't spare.
+    bloom: false,
     waterReflect: false,
     waterFoam: false,
     treeDensity: 0.55,
     treeCap: 2600,
     treeNearM: 110,
+    // Trees cost the same at any resolution (it is all vertex work): past ~450 m a tree is
+    // under 40 px tall at Low's ~1520x855, where the far LOD (crossed cards) reads the same.
+    treeMidM: 450,
+    terrainLodScale: 0.6,
     grassScale: 0.25,
+    grassDrawM: 220,
     foregroundGrass: false,
     flowers: false,
   }),
