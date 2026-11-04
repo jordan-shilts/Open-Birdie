@@ -18,7 +18,7 @@ import { buildWater } from './water.js';
 import { buildBuildings } from './buildings.js';
 import { SKY_PRESETS, parseSkySetting } from './sky-presets.js';
 import { coursePonds, carveBeds } from './water-shore.js';
-import { findSea, carveSea, seaAt, playPoints } from './sea.js';
+import { findSea, carveSea, seaAt, playPoints, shoreGround } from './sea.js';
 import { makeWaterDepth } from './water-depth.js';
 import { makeTurfMaterial, makeSandMaterial } from './turf.js';
 import { srgbToLinear, averageLinearColor } from './macro-tint.js';
@@ -197,6 +197,7 @@ export class GolfScene {
     this.markers = [];
     // lining up: yardage arcs, the predicted flight and landing zone (lineup-fx.js)
     this.lineupFx = new LineupFx(this.scene, this.markerLayer, { hAt: (x, y) => this.hAt(x, y), V });
+    this.lineupFx.setFlag(this.pin);
     this._lineupPred = null;
     // shot callouts (apex height / carry) projected like the yardage markers
     this.shotLabels = {
@@ -610,6 +611,18 @@ export class GolfScene {
       catch (e) { console.warn('[render] sea skipped:', e && e.message); }
       if (this._sea) console.log(`[render] sea at ${this._sea.level.toFixed(2)} m, ${Math.round(this._sea.frac * 100)}% of the terrain grid`);
     }
+    // the ground the sea meets (sand, rock, wet), painted by the turf shader
+    this._shore = null;
+    if (this._sea) {
+      const sg = shoreGround(this.elev, this._sea);
+      const tex = new THREE.DataTexture(sg.data, sg.nx, sg.ny, THREE.RGBAFormat, THREE.UnsignedByteType);
+      tex.magFilter = tex.minFilter = THREE.LinearFilter;
+      tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.generateMipmaps = false;
+      tex.needsUpdate = true;
+      const half = sg.cellM / 2;
+      this._shore = { tex, offset: [b.minX - (sg.minX - half), b.minY - (sg.minY - half)], size: [sg.nx * sg.cellM, sg.ny * sg.cellM] };
+    }
     const terrain = this._terrainMesh(b);
     group.add(terrain);
     // countryside past the course edge (no more floating slab); purely visual
@@ -837,6 +850,7 @@ export class GolfScene {
       surfaceMaskRaw: maskRawTex, // P2a: crisp fwidth edge source (R=mown/G=green/B=bunker)
       hq: this.quality?.level !== 'low', // Low graphics skips the rough/first-cut taps
       sunDir: this.sunDir,             // live HDRI sun (bunker-lip shading)
+      shore: this._shore,              // sand and rock where the ground meets the sea (sea.js shoreGround)
       // P2a: per-surface palette (linear) so the shader can composite the base colour
       // per-fragment with a crisp fwidth mask, overriding the soft splat/tint/collar.
       pal: {
@@ -1248,47 +1262,107 @@ export class GolfScene {
     if (count) console.log(`[render] buildings: ${count}/${list.length}`);
   }
 
-  // Clumped scatter across rough polygons. Real fescue grows in dense patches
-  // with bare gaps, not an even thin spread — so we drop clump centers on the
-  // rough, then cluster tufts around each (center-biased disc, trimmed at the
-  // rough edge so a clump never spills onto a mown surface). Same tuft budget as
-  // a uniform scatter, but it reads far fuller where the grass actually is.
+  // Clumped scatter of fescue. Real fescue grows in dense patches with bare gaps,
+  // not an even thin spread — so we drop clump centers on open ground, then cluster
+  // tufts around each (center-biased disc, trimmed where the open ground ends so a
+  // clump never spills onto a mown surface). Same tuft budget as a uniform scatter,
+  // but it reads far fuller where the grass actually is.
+  //
+  // Where: the native ground a links leaves unmown, anywhere within 70 m of a hole's
+  // line (where the player looks; the whole course's rough thinned the budget to lone
+  // clumps on painted ground), off the fairways, greens and tees and the 6 m of first cut
+  // mown round them, and never in sand or water (it runs right up to a bunker's lip).
   _grassSpots(geo) {
-    if (!RENDER_CONFIG.groundGrass) return [];
-    const rough = (geo.surfaces || []).filter((s) => s.kind === 'rough' && s.poly && s.poly.length >= 3);
-    if (!rough.length) return [];
-    const onRough = (x, y) => { for (const s of rough) if (pointInPoly(x, y, s.poly)) return true; return false; };
-    // Bunkers (and water) often sit as islands inside a rough polygon, so "on rough"
-    // is true inside them — exclude those so fescue never sprouts in the sand.
-    // also mown ground: OSM rough polygons often enclose the fairway/green, and the
-    // physics surface priority puts those ABOVE rough — so no fescue on them
-    const blocked = (geo.surfaces || []).filter((s) => ['bunker', 'water', 'fairway', 'green', 'tee'].includes(s.kind) && s.poly && s.poly.length >= 3);
-    const onBlocked = (x, y) => { for (const s of blocked) if (pointInPoly(x, y, s.poly)) return true; return false; };
-    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
-    for (const s of rough) for (const [x, y] of s.poly) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    if (!RENDER_CONFIG.groundGrass || !this.bounds) return [];
+    const b = this.bounds, CELL = 4, CORRIDOR_M = 70, CUT_M = 6;
+    const nx = Math.max(1, Math.ceil((b.maxX - b.minX) / CELL)), ny = Math.max(1, Math.ceil((b.maxY - b.minY) / CELL));
+    const cellOf = (x, y) => {
+      const i = Math.floor((x - b.minX) / CELL), j = Math.floor((y - b.minY) / CELL);
+      return i >= 0 && i < nx && j >= 0 && j < ny ? j * nx + i : -1;
+    };
+    // 1: mown, 2: sand or water, then 3: the first cut round the mown
+    const ground = new Uint8Array(nx * ny);
+    const paint = (poly, v) => {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+      const i0 = Math.max(0, Math.floor((x0 - b.minX) / CELL)), i1 = Math.min(nx - 1, Math.floor((x1 - b.minX) / CELL));
+      const j0 = Math.max(0, Math.floor((y0 - b.minY) / CELL)), j1 = Math.min(ny - 1, Math.floor((y1 - b.minY) / CELL));
+      for (let j = j0; j <= j1; j++) {
+        for (let i = i0; i <= i1; i++) {
+          if (pointInPoly(b.minX + (i + 0.5) * CELL, b.minY + (j + 0.5) * CELL, poly)) ground[j * nx + i] = Math.max(ground[j * nx + i], v);
+        }
+      }
+    };
+    for (const s of geo.surfaces || []) {
+      if (!s.poly || s.poly.length < 3) continue;
+      if (s.kind === 'fairway' || s.kind === 'green' || s.kind === 'tee') paint(s.poly, 1);
+      else if (s.kind === 'bunker' || s.kind === 'water') paint(s.poly, 2);
+    }
+    const r = Math.ceil(CUT_M / CELL);
+    const cut = Uint8Array.from(ground);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        if (ground[j * nx + i] !== 1) continue;
+        for (let dj = -r; dj <= r; dj++) {
+          for (let di = -r; di <= r; di++) {
+            const ii = i + di, jj = j + dj;
+            if (ii >= 0 && ii < nx && jj >= 0 && jj < ny && !cut[jj * nx + ii]) cut[jj * nx + ii] = 3;
+          }
+        }
+      }
+    }
+    // the corridor cells (within CORRIDOR_M of a hole's line) that fescue may fill
+    const open = [];
+    const near = new Uint8Array(nx * ny);
+    for (const h of geo.holes || []) {
+      const L = Array.isArray(h.line) && h.line.length > 1 ? h.line : [h.tee, h.pin];
+      for (let s = 1; s < L.length; s++) {
+        const [ax, ay] = L[s - 1], [bx, by] = L[s];
+        const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
+        const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - CORRIDOR_M - b.minX) / CELL)), i1 = Math.min(nx - 1, Math.floor((Math.max(ax, bx) + CORRIDOR_M - b.minX) / CELL));
+        const j0 = Math.max(0, Math.floor((Math.min(ay, by) - CORRIDOR_M - b.minY) / CELL)), j1 = Math.min(ny - 1, Math.floor((Math.max(ay, by) + CORRIDOR_M - b.minY) / CELL));
+        for (let j = j0; j <= j1; j++) {
+          for (let i = i0; i <= i1; i++) {
+            const k = j * nx + i;
+            if (near[k] || cut[k]) continue;
+            const px = b.minX + (i + 0.5) * CELL, py = b.minY + (j + 0.5) * CELL;
+            const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L2));
+            if (Math.hypot(ax + t * dx - px, ay + t * dy - py) <= CORRIDOR_M) { near[k] = 1; open.push(k); }
+          }
+        }
+      }
+    }
+    if (!open.length) return [];
     const spots = [], rnd = mulberry32(8080), CAP = RENDER_CONFIG.grassCap;
     let att = 0;
     while (spots.length < CAP && att++ < CAP * 6) {
-      const cx = minX + rnd() * (maxX - minX), cy = minY + rnd() * (maxY - minY);
-      if (!onRough(cx, cy)) continue;
+      const k = open[(rnd() * open.length) | 0];
+      const cx = b.minX + ((k % nx) + rnd()) * CELL, cy = b.minY + (Math.floor(k / nx) + rnd()) * CELL;
       const R = 1.0 + rnd() * 2.5;             // clump radius (m) — tight, bushy patches
       const K = 10 + ((rnd() * rnd() * 26) | 0); // tufts/clump, skewed toward small patches
-      for (let k = 0; k < K && spots.length < CAP; k++) {
+      for (let n = 0; n < K && spots.length < CAP; n++) {
         const ang = rnd() * Math.PI * 2, rad = Math.pow(rnd(), 0.7) * R; // center-biased
         const x = cx + Math.cos(ang) * rad, y = cy + Math.sin(ang) * rad;
-        if (onRough(x, y) && !onBlocked(x, y)) spots.push({ x, y, s: 0.7 + rnd() * 0.7 });
+        const c = cellOf(x, y);
+        if (c >= 0 && near[c]) spots.push({ x, y, s: 0.7 + rnd() * 0.7 });
       }
     }
     return spots;
   }
 
   // Real grass blades around the camera on every mown and rough surface (grass-field.js).
+  // On a links (dry enough to grow fescue, as _addGrass) the field runs even with the
+  // blades off, for the fescue alone: tall wispy straw on the open ground round the
+  // camera, where the static tufts are too thin to cover it.
   _addGrassField(group) {
-    if (!RENDER_CONFIG.grassField || !this.elev || !this._turfInputs) return;
+    const fescue = Math.min(1, Math.max(0, ((this._courseDry || 0) - 0.4) / 0.4));
+    const fescueOnly = !RENDER_CONFIG.grassField;
+    if ((fescueOnly && !(RENDER_CONFIG.linksFescue && fescue > 0)) || !this.elev || !this._turfInputs) return;
     try {
       const hdBounds = this._hdPatches.map((p) => ({ minX: p.minX, minY: p.minY, maxX: p.minX + (p.nx - 1) * p.cellM, maxY: p.minY + (p.ny - 1) * p.cellM }));
       this._grassField = new GrassField({
         turf: this._turfInputs, elev: this.elev, hAt: (x, y) => this.hAt(x, y), hdBounds, sunDir: this.sunDir,
+        fescue, fescueOnly,
         scale: Math.min(1, (this.quality?.preset?.grassScale ?? 0.5) * 2),
       });
       // the course teardown disposes materials' userData textures

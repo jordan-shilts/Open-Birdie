@@ -462,6 +462,8 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px 
   content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%);
   border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--accent);
 }
+/* stepped off the flag (lineup-fx.js): the pointer would point at the flag, not the spot */
+.dist-marker.land.aside::after { display: none; }
 /* the cup round the green (lineup-fx.js): how far, over the flag */
 .dist-marker.cup {
   background: #fff; color: #15130a; border-color: #fff; font-size: 14px; padding: 2px 10px;

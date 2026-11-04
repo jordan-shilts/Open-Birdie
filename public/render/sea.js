@@ -7,8 +7,10 @@
 // it that the edge of the grid reaches, outside the course's own ponds (they have
 // their own water); and only when it is big, its band narrow, and none of the course's
 // tees, fairways or greens lie under it (a grid of flat no-data is not a sea).
-// Render-only, like the pond beds: physics keeps the lidar surface. Pure (no three, no
-// DOM) so it is unit-tested (test/sea.test.mjs).
+// The carved floor is render-only, like the pond beds: physics keeps the lidar surface.
+// But the sea itself plays as water (lib/course.js makeSurfaceLookup requires this file,
+// and grid-repair.js, so it finds the same sea). Pure (no three, no DOM): unit-tested
+// (test/sea.test.mjs), and nothing here may import the browser's modules.
 import { pointInPoly } from './water-shore.js';
 
 const BIN_M = 0.1;    // height histogram bins
@@ -128,6 +130,42 @@ export function findSea(grid, {
   }
   if (play.length && under > maxPlayFrac * play.length) return null;
   return { level, mask, shoreM: distanceToLand(mask, nx, ny, cellM), frac, nx, ny, minX, minY, cellM };
+}
+
+// The ground the sea meets, for the terrain shader to paint (turf.js): per cell of the
+// grid, an RGBA texel of R = sand (a beach: low, gentle ground by the water), G = rock (a
+// cliff or bluff dropping to it, and boulders at a steep waterline), B = wet (the last
+// metre above the water line), A = 255. Only near the sea: the grass runs on inland,
+// and the shader keeps all of it to the rough, off the course's own surfaces.
+// grid: the grid findSea read; sea: its result.
+export function shoreGround(grid, sea, { beachM = 60, beachHighM = 3, cliffM = 70 } = {}) {
+  const { nx, ny, cellM, heights: H } = grid;
+  const n = nx * ny;
+  const land = new Uint8Array(n);
+  for (let k = 0; k < n; k++) land[k] = sea.mask[k] ? 0 : 1;
+  const toSea = distanceToLand(land, nx, ny, cellM);   // on land: metres to the nearest sea cell
+  const ramp = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const out = new Uint8Array(n * 4);
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const k = j * nx + i;
+      out[k * 4 + 3] = 255;
+      const d = toSea[k];
+      if (sea.mask[k] || d > Math.max(beachM, cliffM)) continue;
+      const h = H[k] - sea.level;
+      const gx = (H[j * nx + Math.min(nx - 1, i + 1)] - H[j * nx + Math.max(0, i - 1)]) / (2 * cellM);
+      const gy = (H[Math.min(ny - 1, j + 1) * nx + i] - H[Math.max(0, j - 1) * nx + i]) / (2 * cellM);
+      const tan = Math.hypot(gx, gy);
+      const sand = (1 - ramp(beachM * 0.6, beachM, d)) * (1 - ramp(beachHighM * 0.5, beachHighM, h)) * (1 - ramp(0.35, 0.6, tan));
+      const cliff = (1 - ramp(cliffM * 0.6, cliffM, d)) * ramp(0.55, 0.9, tan);
+      const boulders = (1 - ramp(0.8, 2, h)) * ramp(0.2, 0.4, tan) * (1 - ramp(10, 25, d));
+      const wet = (1 - ramp(0.3, 1.2, h)) * (1 - ramp(10, 25, d));
+      out[k * 4] = Math.round(255 * sand);
+      out[k * 4 + 1] = Math.round(255 * Math.max(cliff, boulders));
+      out[k * 4 + 2] = Math.round(255 * wet);
+    }
+  }
+  return { data: out, nx, ny, minX: grid.minX, minY: grid.minY, cellM };
 }
 
 // Is (x, y) sea? The nearest cell of the grid, and past its edge the edge's.

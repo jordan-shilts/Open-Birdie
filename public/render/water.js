@@ -254,8 +254,11 @@ const SEA_FRAG = /* glsl */`
     float F = (0.02 + 0.98 * pow(1.0 - max(dot(V, N), 0.0), 5.0)) * (1.0 - 0.45 * clamp(rough * 6.0, 0.0, 1.0));
     // the sky in the waves, softened where the chop is finer than a pixel
     vec3 R = reflect(-V, N);
-    vec3 T = normalize(cross(R, vec3(0.0, 1.0, 0.0)) + vec3(1e-4));
     float spread = clamp(rough * 3.0, 0.0, 0.5);
+    // rough water mirrors the sky well above the horizon too (its facets tilt up to it):
+    // the deep blue of open sea, not the pale band along the horizon
+    R = normalize(R + vec3(0.0, 0.04 + 0.3 * spread, 0.0));
+    vec3 T = normalize(cross(R, vec3(0.0, 1.0, 0.0)) + vec3(1e-4));
     vec3 sky = (seaSky(R) + seaSky(R + T * spread) + seaSky(R - T * spread + vec3(0.0, spread * 0.5, 0.0))) / 3.0;
     float day = 0.35 + 0.65 * clamp(uSunDir.y * 1.6, 0.0, 1.0);
     // the body: deep blue, the faces of the waves scattering blue-green, clearing over

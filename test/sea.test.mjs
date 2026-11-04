@@ -2,7 +2,7 @@
 // terrain, flooded in from the grid's edge, kept off the course, carved under.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findSea, carveSea, seaAt, distanceToLand, playPoints } from '../public/render/sea.js';
+import { findSea, carveSea, seaAt, distanceToLand, playPoints, shoreGround } from '../public/render/sea.js';
 
 // 100 x 60 cells of 2 m: sea in the west (x < 60 m) at `sea`, then the shore rising
 // 0.4 m per metre to land that rolls about 8 m up.
@@ -75,4 +75,28 @@ test('distance to land: zero on land, growing out to sea', () => {
   const mask = Uint8Array.from([0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1]);   // 4 x 3, land in the first column
   const d = distanceToLand(mask, 4, 3, 2);
   assert.deepEqual([d[0], d[1], d[2], d[3]], [0, 2, 4, 6]);
+});
+
+test('the shore: sand on a low gentle beach, rock on a cliff, wet at the waterline, grass inland', () => {
+  // the sea west of x = 60 m; north of y = 60 m a beach rising 0.05 m per metre, south of
+  // it a cliff rising 1.5 m per metre; both level off at 8 m
+  const nx = 100, ny = 60, cellM = 2;
+  const heights = new Float32Array(nx * ny);
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const x = i * 2, y = j * 2;
+      heights[j * nx + i] = x < 60 ? 0 : Math.min(8, 0.4 + (x - 60) * (y >= 60 ? 0.05 : 1.5));
+    }
+  }
+  const g = { nx, ny, cellM, minX: 0, minY: 0, heights };
+  const s = findSea(g);
+  assert.ok(s, 'no sea');
+  const { data } = shoreGround(g, s);
+  const px = (x, y) => { const k = (Math.round(y / 2) * nx + Math.round(x / 2)) * 4; return { sand: data[k], rock: data[k + 1], wet: data[k + 2] }; };
+  assert.ok(px(76, 90).sand > 200, `beach sand ${px(76, 90).sand}`);   // 1.2 m up, 16 m in
+  assert.ok(px(62, 90).wet > 150, 'the waterline is wet');
+  assert.ok(px(62, 20).rock > 200, `cliff rock ${px(62, 20).rock}`);
+  assert.equal(px(62, 20).sand, 0, 'no sand on a cliff');
+  for (const [x, y] of [[180, 90], [180, 20]]) assert.deepEqual(px(x, y), { sand: 0, rock: 0, wet: 0 }, 'inland: grass');
+  assert.deepEqual(px(20, 50), { sand: 0, rock: 0, wet: 0 }, 'the sea itself: the water covers it');
 });

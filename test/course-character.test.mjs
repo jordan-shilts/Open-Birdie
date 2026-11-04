@@ -11,6 +11,11 @@ test('courseDryFor: map lookup, clamp, default 0', () => {
   assert.equal(courseDryFor('Some Unknown Course'), 0);          // unknown → lush default
   assert.equal(courseDryFor(undefined), 0);                      // missing → 0, never NaN
   assert.ok(!Number.isNaN(courseDryFor(null)));
+  // the course's own name, before any address loadCourse carries after a comma (the
+  // Bandon entry, keyed by its full address, matched no course and drew it lush)
+  assert.equal(courseDryFor('Bandon Dunes Golf Resort'), 0.8);
+  assert.equal(courseDryFor('Bandon Dunes Golf Resort, Round Lake Drive, Coos County, Oregon, United States'), 0.8);
+  assert.equal(courseDryFor('whistling straits'), 0.75);
 });
 
 test('blendPalette at 0 is byte-identical to COLORS (no lush-course regression)', () => {

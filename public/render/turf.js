@@ -97,9 +97,29 @@ export function makeSandMaterial(bounds, aniso, aux = null, sunDir = null, cours
             diffuseColor.rgb *= mix(1.0, 0.58, shade);
             diffuseColor.rgb *= 1.0 + 0.20 * lit;
             diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.92, 0.95, 0.88), shade * 0.5);
+            // THE HOLLOW, AS THE PLAYER SEES IT. Looking across a bunker, its near lip hides
+            // the face under it and holds it in shadow (a dark crescent inside the near
+            // edge); the far face rises toward the eye, full of light, under a thin line of
+            // shadow from the grass lip overhanging it. Across the whole bowl the sand runs
+            // from dim near to bright far: a blurred mip of the mask gives the bowl's inward
+            // direction, so the cue still reads 150 m off, where the edge bands are a pixel.
+            // Gone looking down from above, where nothing hides anything.
+            vec3 toCamW = normalize((vec4(vViewPosition, 0.0) * viewMatrix).xyz);
+            vec2 toCamH = normalize(vec2(toCamW.x, -toCamW.z) + 1e-5);
+            float graze = 1.0 - smoothstep(0.3, 0.8, toCamW.y);
+            float towardEye = dot(inward, toCamH);        // -1 under the near lip, +1 on the far face
+            float hidden = (1.0 - smoothstep(0.5, 0.75, bIn)) * clamp(-towardEye, 0.0, 1.0);
+            float rises = face * clamp(towardEye, 0.0, 1.0);
+            float overhang = (1.0 - smoothstep(0.5, 0.6, bIn)) * clamp(towardEye, 0.0, 1.0);
+            vec2 eW = vec2(6.0) / uAuxExt;
+            float wgx = textureLod(uAux, vCourseUv + vec2(eW.x, 0.0), 3.5).b - textureLod(uAux, vCourseUv - vec2(eW.x, 0.0), 3.5).b;
+            float wgy = textureLod(uAux, vCourseUv + vec2(0.0, eW.y), 3.5).b - textureLod(uAux, vCourseUv - vec2(0.0, eW.y), 3.5).b;
+            float bowl = clamp(dot(vec2(wgx, wgy), toCamH) * 2.5, -1.0, 1.0);   // + far side, - near side
+            diffuseColor.rgb *= (1.0 - 0.32 * hidden * graze) * (1.0 + 0.14 * rises * graze) * (1.0 - 0.3 * overhang * graze);
+            diffuseColor.rgb *= 1.0 + (0.12 * max(bowl, 0.0) - 0.04 * max(-bowl, 0.0)) * graze;
           }`);
     };
-    mat.customProgramCacheKey = () => 'sand-lip-v3';
+    mat.customProgramCacheKey = () => 'sand-lip-v4';
   }
   return mat;
 }
@@ -108,7 +128,10 @@ export function makeSandMaterial(bounds, aniso, aux = null, sunDir = null, cours
 // R = tee, G = water, B = bunker, each softly blurred (~1.8 m) — tee cut, wet banks,
 // bunker lips. (Its old single-channel bunker gate was superseded by the raw mask.)
 // hq = false (Low graphics) skips the extra rough/first-cut taps.
-export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisotropy, macro = null, courseDry = 0, surfaceMaskRaw = null, pal = null, hq = true, sunDir = null }) {
+// shore (optional, a coastal course): { tex, offset: [x, y], size: [w, h] }, the ground
+// the sea meets (sea.js shoreGround) as a texture over the terrain grid; offset is the
+// grid texture's corner from bounds' (m), size its extent.
+export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisotropy, macro = null, courseDry = 0, surfaceMaskRaw = null, pal = null, hq = true, sunDir = null, shore = null }) {
   const splatTex = baseMap, maskTex = mownMask, bunkerMaskTex = bunkerMask, aniso = anisotropy;
   // P2a: a RAW (unblurred) mask for the crisp fwidth edge. Falls back to the blurred
   // mask so the headless material test (no raw mask supplied) still builds.
@@ -118,7 +141,6 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
   const repX = extX / tileM, repY = extY / tileM;
 
   const normalMap = tiled(ASSETS.turf.normal, false, repX, repY, aniso);
-  const roughnessMap = tiled(ASSETS.turf.rough, false, repX, repY, aniso);
   const detail = tiled(ASSETS.turf.color, true, repX, repY, aniso);
   const sand = tiled(ASSETS.turf.sand, true, repX, repY, aniso);
   maskTex.wrapS = maskTex.wrapT = THREE.ClampToEdgeWrapping;
@@ -128,7 +150,9 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
   const mat = new THREE.MeshStandardMaterial({
     map: splatTex,
     normalMap, normalScale: new THREE.Vector2(0.8, 0.8),
-    roughnessMap, roughness: 1.0, metalness: 0,
+    // no roughness map: the turf one (grass_rough.jpg, every texel under 0.9) only ever
+    // fed the 0.9 floor below, and the shader is at WebGL's 16 texture units without it
+    roughness: 0.9, metalness: 0,
     envMapIntensity: 0.2, // turf is matte — keep sky/sun reflection low so lit slopes don't blow out white
   });
 
@@ -154,6 +178,14 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
     const PV = (a, d) => new THREE.Vector3(...(Array.isArray(a) ? a : d));
     const P = pal || {};
     shader.uniforms.uPalGreenA = { value: PV(P.greenA, [0.072, 0.275, 0.055]) };
+    if (shore) {
+      shader.uniforms.uShore = { value: shore.tex };
+      shader.uniforms.uShoreRect = { value: new THREE.Vector4(shore.offset[0], shore.offset[1], 1 / shore.size[0], 1 / shore.size[1]) };
+      // the ground's height, for the beds in a cliff face
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying float vShoreH;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvShoreH = (modelMatrix * vec4(transformed, 1.0)).y;');
+    }
     // Aerial macro layer (optional) — MATERIAL-FIRST since v24: the photo no longer
     // replaces the lit turf. Its blurred low-frequency copy (uMacroLow / uMacroAvg)
     // TINTS the material's hue/value, and the raw photo only crossfades in at TRUE
@@ -265,6 +297,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         ${hq ? '#define TURF_HQ' : ''}
+        ${shore ? '#define TURF_SHORE\nuniform sampler2D uShore; uniform vec4 uShoreRect; varying float vShoreH;' : ''}
         uniform sampler2D uDetail; uniform vec2 uDetailRepeat;
         uniform sampler2D uMask; uniform sampler2D uBunker; uniform sampler2D uSand;
         uniform sampler2D uMaskRaw; uniform vec3 uPalGreenA; uniform vec3 uSunDir3;
@@ -560,6 +593,38 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           float gLum = dot(grass, vec3(0.299, 0.587, 0.114));
           // clean parkland turf keeps its colour: the 40% pull is a links tan-fescue tune
           grass = mix(grass, vec3(gLum * mix(0.85, 0.92, uTurfClean)) * vec3(1.1, 1.0, 0.8), mix(0.4, 0.22, uTurfClean)); // *0.85 darkens so desaturating doesn't LIGHTEN the green to pale
+          #ifdef TURF_SHORE
+          // THE SHORE (sea.js shoreGround): where the ground meets the sea, beach sand on the
+          // low, gentle ground, rock on the cliffs and a steep waterline, wet and dark in the
+          // last metre above the water. Only on the rough: the course's surfaces keep theirs.
+          // Before the aerial: its tint shades the shore like the turf, its far photo owns it.
+          {
+            vec4 sh = texture2D(uShore, (vMapUv * uExt + uShoreRect.xy) * uShoreRect.zw);
+            if (sh.r + sh.g > 0.004) {
+              float onShore = clamp(1.0 - max(max(mCrisp, cls.r), gCrisp) - bCrisp, 0.0, 1.0);
+              // the grid's smooth contours broken up into a ragged line where the grass
+              // stops: tongues of sand, outcrops of rock, tufts at the edge
+              float brk = tFbm(vec2(wx, wy) * 0.21 + 5.3) - 0.47 + 0.35 * (tNoise(vec2(wx, wy) * 1.1) - 0.5);
+              float sandK = smoothstep(0.42, 0.58, sh.r + brk * 0.6) * onShore;
+              float rockK = smoothstep(0.38, 0.6, sh.g - brk * 0.5) * onShore;
+              // beach sand: the bunker sand's grain, toned down to a grey-tan shore sand,
+              // darker and cooler where the sea wets it
+              vec3 beach = texture2D(uSand, vMapUv * uDetailRepeat * 0.5).rgb * 0.62;
+              beach = mix(beach, vec3(0.34, 0.30, 0.235), 0.5) * (0.92 + 0.16 * tNoise(vec2(wx, wy) * 1.3));
+              beach *= mix(vec3(1.0), vec3(0.55, 0.56, 0.6), sh.b);
+              // grey-brown stone in beds along the face, blocky, cracked close up, darker
+              // and wet low down
+              float beds = tNoise(vec2(vShoreH * 1.3 + 4.0 * tNoise(vec2(wx, wy) * 0.15), 7.7));
+              float blocks = tFbm(vec2(wx, wy) * 0.45 + vShoreH * 0.3);
+              float crag = tFbm(vec2(wx, wy) * 1.9 + vShoreH * 1.1);
+              vec3 rock = mix(vec3(0.062, 0.058, 0.054), vec3(0.20, 0.182, 0.155), smoothstep(0.3, 0.7, blocks));
+              rock = mix(rock, vec3(0.27, 0.235, 0.185), 0.35 * smoothstep(0.55, 0.8, beds));   // paler sandstone beds
+              rock *= (0.8 + 0.4 * beds) * (0.62 + 0.76 * smoothstep(0.25, 0.7, crag)) * mix(1.0, 0.55, sh.b);
+              grass = mix(grass, beach, sandK);
+              grass = mix(grass, rock, rockK);
+            }
+          }
+          #endif
           ${macroBlend}
           // v42 DIVOTS (divots.js): sand-and-seed scars on tees and fairways, inside ~45 m
           // (a 10 cm scar is under a pixel past that); the grass field grows no blades in them.
@@ -642,9 +707,9 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           }
         }`);
   };
-  mat.customProgramCacheKey = () => `turf-grain-v42-divots${macro ? '-macro' : ''}${hq ? '' : '-lq'}`; // v42: divots, crisp tee box, rough sheen (v41: distance/surface-gated taps; v40: texture value noise)
+  mat.customProgramCacheKey = () => `turf-grain-v42-divots${macro ? '-macro' : ''}${hq ? '' : '-lq'}${shore ? '-shore' : ''}`; // v42: divots, crisp tee box, rough sheen (v41: distance/surface-gated taps; v40: texture value noise)
   // textures injected via onBeforeCompile (+ the canvas masks) aren't reachable from
   // the standard material slots, so register them for disposal on course reload.
-  mat.userData.disposeTextures = [detail, sand, maskTex, bunkerMaskTex, ...(surfaceMaskRaw ? [maskRawTex] : [])];
+  mat.userData.disposeTextures = [detail, sand, maskTex, bunkerMaskTex, ...(surfaceMaskRaw ? [maskRawTex] : []), ...(shore ? [shore.tex] : [])];
   return mat;
 }
