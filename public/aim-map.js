@@ -6,6 +6,11 @@
 // water hazard near the line (yardages.mjs). Click or drag on it to aim; double-click
 // aims straight back at the pin.
 //
+// A full shot is drawn as a plan, the way a GPS card lays out a hole (shot-plan.mjs): two
+// kinds of marker, a target (a crosshair where the shot stops) and the pin, joined by its
+// legs, each with a quiet bubble of its length; on a par 4 or 5 the pin can't be reached
+// from the target, a second target where to lay up, which can be dragged.
+//
 // It shows the hole being played and only that hole: course surfaces carry no hole of
 // their own, so each goes to the hole whose line of play runs nearest it. This hole's
 // tees, fairway, green and hazards are drawn in full, every other hole's fade into the
@@ -40,11 +45,13 @@ const CORRIDOR_HALF_M = 44, GREEN_R_M = 40, TEE_R_M = 26, BALL_R_M = 22;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export class AimMap {
-  constructor(canvas, { onAim = null, onAimEnd = null } = {}) {
+  constructor(canvas, { onAim = null, onAimEnd = null, onPlan = null } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.onAim = onAim;
     this.onAimEnd = onAimEnd;
+    this.onPlan = onPlan;    // ({x, y}) while the lay-up target is dragged
+    this.plan = null;        // shot-plan.mjs shotPlan()
     this.geo = null;
     this.hole = null;        // { ball: {x,y}, pin: [x,y], baseAimDeg, line }
     this.aimOffset = 0;
@@ -77,6 +84,12 @@ export class AimMap {
   setWind(wind) { this.wind = wind; this.draw(); }
   setShot(points) { this.shot = points && points.length > 1 ? points : null; this.draw(); }
   setYardages(marks) { this.marks = marks; this.draw(); }
+  setPlan(plan) { this.plan = plan || null; this.draw(); }
+  // the plan drawn for this view: a full shot's, not round the green
+  _planFor(view) {
+    const p = this.plan;
+    return p && p.targets?.length && !view.near && this.pred && !this.pred.isPutt ? p : null;
+  }
 
   // ---- view transform: default line straight up; the ball near the bottom for a full
   // shot, the green filling the map round the green (map-frame.mjs) ----
@@ -128,6 +141,7 @@ export class AimMap {
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
+    this._layupPx = null;   // set again where the plan draws its lay-up
     if (!this.hole || !this.geo || w < 20 || h < 20) return;
     const view = this._view(w, h);
     const key = `${W}x${H}|${this.hole.ball.x},${this.hole.ball.y}|${this.hole.baseAimDeg}|${view.s.toFixed(4)}|${view.ox.toFixed(1)},${view.oy.toFixed(1)}`;
@@ -300,7 +314,7 @@ export class AimMap {
     ctx.save();
     ctx.font = `700 ${10.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    const band = this.pred && !this.pred.isPutt && !view.near ? this.pred.band : null;
+    const band = this.pred && !this.pred.isPutt && !view.near && !this._planFor(view) ? this.pred.band : null;
     const dim = band ? 0.6 : 1;   // the club's own lines lead; the yardage grid steps back
     for (let d = step; d * unit < maxM; d += step) {
       const R = d * unit * s;
@@ -418,11 +432,18 @@ export class AimMap {
       const edge = hz.onLine ? view.ox + 10 * ui : view.ox + (hz.side > 0 ? hz.uMax : hz.uMin) * view.s + hz.side * 3 * ui;
       const txt = hazardText(hz);
       const tw = ctx.measureText(txt).width;
-      const ty = (yF + yB) / 2;
       const tx = hz.side > 0 ? edge + 4 * ui : edge - 4 * ui - tw;
-      const box = { x: tx - 2, y: ty - th / 2, w: tw + 4, h: th };
-      if (box.x < 2 || box.x + box.w > w - 2 || box.y < 2 || box.y + box.h > h - 2) continue;
-      if (placed.some((q) => box.x < q.x + q.w && q.x < box.x + box.w && box.y < q.y + q.h && q.y < box.y + box.h)) continue;
+      // beside the middle of its bracket, or a line above or below when a target or an
+      // earlier label is there
+      let ty = (yF + yB) / 2, box = null;
+      for (const k of [0, -1, 1, -2, 2]) {
+        const y = ty + k * (th + 3 * ui);
+        const b = { x: tx - 2, y: y - th / 2, w: tw + 4, h: th };
+        if (b.x < 2 || b.x + b.w > w - 2 || b.y < 2 || b.y + b.h > h - 2) continue;
+        if (placed.some((q) => b.x < q.x + q.w && q.x < b.x + b.w && b.y < q.y + q.h && q.y < b.y + b.h)) continue;
+        box = b; ty = y; break;
+      }
+      if (!box) continue;
       placed.push(box);
       const col = hz.kind === 'water' ? '#bfe2ff' : '#f0e2b8';
       ctx.globalAlpha = 0.75;
@@ -446,13 +467,15 @@ export class AimMap {
     const { ox, oy, s } = view;
     const L = Math.hypot(w, h);
     ctx.save();
-    if (this._hover != null && !this._dragging && this._hover !== this.aimOffset) {
+    if (this._hover != null && !this._dragging && !this._planDrag && this._hover !== this.aimOffset) {
       const b = this._hover * DEG;
       ctx.setLineDash([2 * ui, 5 * ui]);
       ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.1 * ui;
       ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + Math.sin(b) * L, oy - Math.cos(b) * L); ctx.stroke();
       ctx.setLineDash([]);
     }
+    // a full shot's plan carries the target (_drawPlan): no aim ring of its own
+    if (this._planFor(view)) { ctx.restore(); return null; }
     const a = this.aimOffset * DEG;
     const dYd = this.pred && !this.pred.isPutt && this.pred.carryYd > 0 ? this.pred.carryYd : this._pinYd();
     const R = dYd * YD * s;
@@ -529,7 +552,9 @@ export class AimMap {
       if (fill) { ctx.fillStyle = fill; ctx.fill(); }
       if (stroke) { ctx.setLineDash(dash || []); ctx.strokeStyle = stroke; ctx.lineWidth = 1.1 * ui; ctx.stroke(); ctx.setLineDash([]); }
     };
-    if (p.dispersion) {
+    const plan = this._planFor(view);
+    // (a plan's target crosshair stands for both: two markers, the target and the pin)
+    if (p.dispersion && !plan) {
       ring(p.dispersion.rest, null, 'rgba(255,255,255,0.35)', [3 * ui, 3 * ui]);
       ring(p.dispersion.land, 'rgba(255,210,31,0.17)', 'rgba(255,210,31,0.65)');
     }
@@ -556,22 +581,71 @@ export class AimMap {
       ctx.fillStyle = gold ? '#15130a' : '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillText(txt, bx + 5 * ui, Y + 0.5);
     };
-    if (p.land) {
+    if (p.land && !plan) {
       const [X, Y] = view.toPx(p.land.x, p.land.y);
       ctx.beginPath(); ctx.arc(X, Y, 5 * ui, 0, Math.PI * 2);
       ctx.fillStyle = '#15130a'; ctx.fill(); ctx.strokeStyle = '#ffd21f'; ctx.lineWidth = 2.2 * ui; ctx.stroke();
       label(X, Y, `${Math.round(p.carryYd)}`, true);
     }
     const legs = p.rest && !p.isPutt && !view.near;
-    if (p.rest && p.totalYd - p.carryYd > 3) {
+    if (p.rest && !plan && p.totalYd - p.carryYd > 3) {
       const [X, Y] = view.toPx(p.rest.x, p.rest.y);
       ctx.beginPath(); ctx.arc(X, Y, 3.6 * ui, 0, Math.PI * 2);
       ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#15130a'; ctx.lineWidth = 1.4 * ui; ctx.stroke();
       if (!legs) label(X - 2 * ui, Y - 15 * ui, `${Math.round(p.totalYd)}`, false);
     }
-    if (legs) this._drawLegs(ctx, view, ui, p, boxes);
+    if (plan) this._drawPlan(ctx, view, ui, plan, boxes);
+    else if (legs) this._drawLegs(ctx, view, ui, p, boxes);
     ctx.restore();
     return boxes;
+  }
+
+  // The plan (shot-plan.mjs): this shot's leg is its gold flight; the legs after it thin
+  // white lines, target to target to the pin; a crosshair at each target; a bubble of
+  // its length beside each leg. Remembers where the lay-up is drawn, to be dragged.
+  _drawPlan(ctx, view, ui, plan, boxes) {
+    const px = (q) => view.toPx(q.x, q.y);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 3 * ui;
+    plan.legs.forEach((leg, i) => {
+      if (i === 0) return;
+      const A = px(leg.from), Z = px(leg.to);
+      ctx.strokeStyle = 'rgba(255,255,255,0.82)'; ctx.lineWidth = 1.5 * ui;
+      ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(Z[0], Z[1]); ctx.stroke();
+    });
+    ctx.shadowBlur = 0;
+    this._layupPx = null;
+    plan.targets.forEach((t, i) => {
+      const [X, Y] = px(t);
+      const R = i === 0 ? 10.5 * ui : 9 * ui;
+      this._crosshair(ctx, X, Y, ui, R, t.kind === 'layup' && this._planDrag);
+      if (t.kind === 'layup') this._layupPx = [X, Y];
+      boxes.push({ x: X - R - 3 * ui, y: Y - R - 3 * ui, w: 2 * R + 6 * ui, h: 2 * R + 6 * ui });   // the hazards' labels keep off it
+    });
+    for (const leg of plan.legs) this._bubble(ctx, ui, px(leg.from), px(leg.to), leg.yd, boxes);
+    ctx.restore();
+  }
+
+  // A target, as a GPS card marks one: a ring with four ticks in toward a centre dot.
+  _crosshair(ctx, X, Y, ui, R, held = false) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(X, Y, R, 0, Math.PI * 2);
+    ctx.fillStyle = held ? 'rgba(255,255,255,0.22)' : 'rgba(10,12,14,0.3)'; ctx.fill();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 3 * ui;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.8 * ui; ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 1.4 * ui; ctx.lineCap = 'round';
+    for (const k of [1, 3, 5, 7]) {
+      const a = (k * Math.PI) / 4;
+      ctx.beginPath();
+      ctx.moveTo(X + Math.cos(a) * R * 0.45, Y + Math.sin(a) * R * 0.45);
+      ctx.lineTo(X + Math.cos(a) * R * 0.95, Y + Math.sin(a) * R * 0.95);
+      ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(X, Y, 1.9 * ui, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff'; ctx.fill();
+    ctx.restore();
   }
 
   // The shot in two legs, as a GPS card breaks it down: how far this one goes (ball to
@@ -581,38 +655,42 @@ export class AimMap {
     const { ball, pin } = this.hole;
     const B = view.toPx(ball.x, ball.y), R = view.toPx(p.rest.x, p.rest.y), P = view.toPx(pin[0], pin[1]);
     const leftYd = Math.hypot(pin[0] - p.rest.x, pin[1] - p.rest.y) / YD;
-    const bubble = (A, Z, yd) => {
-      const L = Math.hypot(Z[0] - A[0], Z[1] - A[1]);
-      if (L < 40 * ui) return;   // too short a leg to sit beside
-      // beside the leg's middle, on its left (the stop's and the hazards' labels go right)
-      const nx = (Z[1] - A[1]) / L, ny = -(Z[0] - A[0]) / L;
-      const num = `${Math.round(yd)}`;
-      ctx.font = `800 ${11 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
-      const tw = ctx.measureText(num).width;
-      ctx.font = `700 ${7.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
-      const uw = ctx.measureText('y').width;
-      const r = Math.max(13 * ui, (tw + uw) / 2 + 5 * ui);
-      const X = (A[0] + Z[0]) / 2 + nx * (r + 8 * ui), Y = (A[1] + Z[1]) / 2 + ny * (r + 8 * ui);
-      ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(14,16,18,0.78)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-      const x0 = X - (tw + uw) / 2, base = Y + 4 * ui;
-      ctx.font = `800 ${11 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
-      ctx.fillText(num, x0, base);
-      ctx.font = `700 ${7.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.fillText('y', x0 + tw + 0.5 * ui, base);
-      boxes.push({ x: X - r, y: Y - r, w: 2 * r, h: 2 * r });
-    };
     if (leftYd >= 15) {
       ctx.setLineDash([2 * ui, 4 * ui]);
       ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.2 * ui;
       ctx.beginPath(); ctx.moveTo(R[0], R[1]); ctx.lineTo(P[0], P[1]); ctx.stroke();
       ctx.setLineDash([]);
     }
-    bubble(B, R, p.totalYd);
-    if (leftYd >= 15) bubble(R, P, leftYd);
+    this._bubble(ctx, ui, B, R, p.totalYd, boxes);
+    if (leftYd >= 15) this._bubble(ctx, ui, R, P, leftYd, boxes);
+  }
+
+  // A leg's length in a quiet round bubble beside its middle, on its left (the stop's and
+  // the hazards' labels go right). Pushes the bubble's box.
+  _bubble(ctx, ui, A, Z, yd, boxes) {
+    const L = Math.hypot(Z[0] - A[0], Z[1] - A[1]);
+    if (L < 40 * ui) return;   // too short a leg to sit beside
+    const nx = (Z[1] - A[1]) / L, ny = -(Z[0] - A[0]) / L;
+    const num = `${Math.round(yd)}`;
+    ctx.save();
+    ctx.font = `800 ${11 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+    const tw = ctx.measureText(num).width;
+    ctx.font = `700 ${7.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+    const uw = ctx.measureText('y').width;
+    const r = Math.max(13 * ui, (tw + uw) / 2 + 5 * ui);
+    const X = (A[0] + Z[0]) / 2 + nx * (r + 8 * ui), Y = (A[1] + Z[1]) / 2 + ny * (r + 8 * ui);
+    ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(14,16,18,0.78)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    const x0 = X - (tw + uw) / 2, base = Y + 4 * ui;
+    ctx.font = `800 ${11 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+    ctx.fillText(num, x0, base);
+    ctx.font = `700 ${7.5 * ui}px Bahnschrift, "DIN Alternate", Inter, system-ui, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText('y', x0 + tw + 0.5 * ui, base);
+    ctx.restore();
+    boxes.push({ x: X - r, y: Y - r, w: 2 * r, h: 2 * r });
   }
 
   _drawShot(ctx, view, ui) {
@@ -686,8 +764,44 @@ export class AimMap {
     ctx.restore();
   }
 
-  // ---- click / drag to aim ----
+  // ---- click / drag to aim; drag the lay-up target to plan the next shot ----
   _bind() {
+    const local = (e) => { const r = this.canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+    const onLayup = (e) => {
+      if (!this._layupPx || !this.onPlan) return false;
+      const [x, y] = local(e);
+      return Math.hypot(x - this._layupPx[0], y - this._layupPx[1]) <= 16;
+    };
+    // the pointer in sim metres (the view's transform turned back)
+    const toSim = (e) => {
+      const r = this.canvas.getBoundingClientRect();
+      const view = this._view(r.width, r.height);
+      const [x, y] = local(e);
+      const u = (x - view.ox) / view.s, v = (view.oy - y) / view.s;
+      const { ball } = this.hole;
+      return { x: ball.x + u * view.right[0] + v * view.fwd[0], y: ball.y + u * view.right[1] + v * view.fwd[1] };
+    };
+    this.canvas.addEventListener('pointerdown', (e) => {
+      if (!onLayup(e)) return;
+      this._planDrag = true;
+      this.canvas.setPointerCapture(e.pointerId);
+      this.canvas.style.cursor = 'grabbing';
+      e.stopImmediatePropagation();
+      this.draw();
+    });
+    this.canvas.addEventListener('pointermove', (e) => {
+      if (this._planDrag) { this.onPlan?.(toSim(e)); return; }
+      if (e.pointerType !== 'touch' && !this._dragging) this.canvas.style.cursor = onLayup(e) ? 'grab' : '';
+    });
+    const endPlan = (e) => {
+      if (!this._planDrag) return;
+      this._planDrag = false;
+      try { this.canvas.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+      this.canvas.style.cursor = '';
+      this.draw();
+    };
+    this.canvas.addEventListener('pointerup', endPlan);
+    this.canvas.addEventListener('pointercancel', endPlan);
     const toOffset = (e) => {
       if (!this.hole) return null;
       const r = this.canvas.getBoundingClientRect();
@@ -697,6 +811,7 @@ export class AimMap {
       return clamp(Math.round(Math.atan2(x, y) / DEG * 2) / 2, -30, 30);
     };
     this.canvas.addEventListener('pointerdown', (e) => {
+      if (this._planDrag) return;
       const off = toOffset(e);
       if (off == null) return;
       this._dragging = true;
@@ -721,7 +836,7 @@ export class AimMap {
     this.canvas.addEventListener('pointercancel', end);
     // a ghost line where a click would aim, and a double-click back at the pin
     this.canvas.addEventListener('pointermove', (e) => {
-      if (this._dragging || e.pointerType === 'touch') return;
+      if (this._dragging || this._planDrag || e.pointerType === 'touch') return;
       const off = toOffset(e);
       if (off === this._hover) return;
       this._hover = off; this.draw();

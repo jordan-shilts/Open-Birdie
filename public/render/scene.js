@@ -1695,7 +1695,7 @@ export class GolfScene {
     // round the green the overlay goes bare and the cup is marked (none in flight)
     const pinM = Math.hypot(this.pinSim.x - this.ballSim.x, this.pinSim.y - this.ballSim.y);
     const near = !!this._lineupPred && isNearGreen(pinM / 0.9144, this._lineupPred.isPutt);
-    this.lineupFx?.setPrediction(this._lineupPred, { near });
+    this.lineupFx?.setPrediction(this._lineupPred, { near, pin: this.pinSim });
     this.lineupFx?.setCup(near ? { x: this.pinSim.x, y: this.pinSim.y, ft: pinM / 0.3048 } : null);
     this._lineupArcs();
   }

@@ -95,6 +95,7 @@ const conditions = new ConditionsUI({ onOpen: () => closeMenu() });
 const aimMap = new AimMap($('aim-canvas'), {
   onAim: (v) => lineup.setAim(v, { commit: false }),
   onAimEnd: (v) => lineup.setAim(v),
+  onPlan: (pt) => lineup.setLayup(pt),
 });
 const lineup = new Lineup({
   scene, flightView, aimMap, conditions,

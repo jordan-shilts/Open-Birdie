@@ -6,6 +6,7 @@
 // arc, landing zone, and the front and back of the hazards the club can reach).
 import { aimWords, hazardsInPlay, yardageMarks } from './yardages.mjs';
 import { isNearGreen } from './map-frame.mjs';
+import { shotPlan } from './shot-plan.mjs';
 
 const $ = (id) => document.getElementById(id);
 const YD = 0.9144, FT = 0.3048;
@@ -195,7 +196,7 @@ export class Lineup {
     this.lieKey = lie;
     this.condKey = cond;
     if (!this._dragging) this.aim = s.aimOffset || 0;
-    if (newLie) { this.autoSpot = null; this.aimMap.setAuto(null); this._autoAimLie = !s.practice; }
+    if (newLie) { this.autoSpot = null; this.aimMap.setAuto(null); this._autoAimLie = !s.practice; this.planLayup = null; }
     this.aimMap.setHole({
       ball: s.ball, pin: s.pin, baseAimDeg: base, aimOffset: this.aim,
       line: s.practice ? null : (this.scene.geo?.holes?.[s.hole - 1]?.line || null),
@@ -344,11 +345,45 @@ export class Lineup {
     const b = drawn?.band;
     $('pl-band').textContent = b ? `${Math.round(b.minYd)}–${Math.round(b.maxYd)} yd` : '–';
     this.aimMap.setPrediction(drawn);
+    this._renderPlan();
     this.flightView.showPrediction(pred);
     this.scene.setLineup?.(this.flying ? null : drawn);
     this._tagHazards(drawn);
     this.conditions?.setEffects(pred);
     this._followAuto(pred);
+  }
+
+  // The shots to the green (shot-plan.mjs), on the overhead map and as the 3D view's
+  // target: this shot to where it stops, a lay-up on a par 4 or 5 that's out of reach,
+  // the pin. For a full shot on a hole: not on the range or in the games, not round the
+  // green (where the cup is the mark) and not mid-flight.
+  _renderPlan() {
+    const s = this.state, p = this.pred;
+    const full = s && p && !p.isPutt && p.rest && !s.practice && !this.flying
+      && !isNearGreen(s.distToPinYd ?? Infinity);
+    if (!full) {
+      this.plan = null;
+      this.aimMap.setPlan(null);
+      return;
+    }
+    const holes = this.scene.geo?.holes || [];
+    const hole = holes[s.hole - 1] || null;
+    this.plan = shotPlan({
+      ball: s.ball, pin: s.pin, par: s.par, rest: p.rest,
+      carries: this.carries?.clubs || null,
+      line: hole?.line || null,
+      others: holes.filter((h) => h !== hole && Array.isArray(h?.line)).map((h) => h.line),
+      geo: this.scene.geo,
+      layup: this.planLayup,
+    });
+    this.aimMap.setPlan(this.plan);
+  }
+
+  // The lay-up target dragged on the map ({x, y} sim m): the plan runs through it until
+  // the next shot.
+  setLayup(pt) {
+    this.planLayup = pt && Number.isFinite(pt.x) && Number.isFinite(pt.y) ? { x: pt.x, y: pt.y } : null;
+    this._renderPlan();
   }
 
   // At a new lie, aim the full shot where AUTO does (see _autoAimLie): putts keep their
@@ -428,6 +463,6 @@ export class Lineup {
   setFlying(on) {
     this.flying = on;
     document.body.classList.toggle('flying', on);
-    if (on) { this.scene.setLineup?.(null); this._predAbort?.abort(); }
+    if (on) { this.scene.setLineup?.(null); this._predAbort?.abort(); this.plan = null; this.aimMap.setPlan(null); }
   }
 }
