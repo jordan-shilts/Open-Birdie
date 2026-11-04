@@ -259,6 +259,10 @@ export class GolfScene {
       if (sh.mapSize.x !== p.shadowMapSize) {
         sh.mapSize.set(p.shadowMapSize, p.shadowMapSize);
         if (sh.map) { sh.map.dispose(); sh.map = null; }
+        // the very next draw must run the shadow pass (shadows otherwise redraw on
+        // request): with no map, three binds a depth texture never put on the GPU to
+        // every lit material, and the rebuild's warm-up draw failed on each of them
+        this.renderer.shadowMap.needsUpdate = true;
       }
       sh.radius = p.shadowRadius;
       this._shadowsDirty = true;
@@ -730,6 +734,8 @@ export class GolfScene {
       if (o.isMesh) { touched.push([o, o.visible, o.frustumCulled]); o.visible = true; o.frustumCulled = false; }
     });
     const target = this._warmTarget || (this._warmTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }));
+    // no shadow map yet (a quality change just dropped it): this draw makes one first
+    if (this.sun?.castShadow && !this.sun.shadow.map) this.renderer.shadowMap.needsUpdate = true;
     const prev = this.renderer.getRenderTarget();
     this.renderer.setRenderTarget(target);
     try { this.renderer.render(this.scene, this.camera); } finally {
@@ -1575,6 +1581,11 @@ export class GolfScene {
       group.add(m);
     }
   }
+
+  // The sea round the course (sea.js), as the yardage marks measure it: the water the
+  // server plays as a penalty area wherever this draws it.
+  hasSea() { return !!this._sea; }
+  isSea(x, y) { return !!this._sea && seaAt(this._sea, x, y); }
 
   // ---------- gameplay state ----------
   setHole(hole, ballPos, aimDeg) {

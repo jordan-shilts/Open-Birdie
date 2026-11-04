@@ -203,7 +203,10 @@ export class Lineup {
     // the green's front and back and the hazards near the line, once per lie
     if (newLie || this._marksGeo !== this.scene.geo) {
       this._marksGeo = this.scene.geo;
-      this.marks = yardageMarks(this.scene.geo, { ball: s.ball, pin: s.pin, baseAimDeg: base, practice: !!s.practice });
+      this.marks = yardageMarks(this.scene.geo, {
+        ball: s.ball, pin: s.pin, baseAimDeg: base, practice: !!s.practice,
+        sea: this.scene.hasSea?.() ? (x, y) => this.scene.isSea(x, y) : null,
+      });
       this.aimMap.setYardages(this.marks);
       this._hazKey = '';
       this.scene.setHazardMarks?.([]);   // the last lie's tags go now; the next prediction picks new ones

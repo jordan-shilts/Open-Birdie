@@ -135,10 +135,12 @@ export class AimMap {
     ctx.drawImage(this._static, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this._drawArcs(ctx, view, w, h, ui);
-    this._drawAim(ctx, view, w, h, ui);
-    // label boxes so far: the prediction's carry and stop, then the green's front and
-    // back, then the hazards by importance; each later label steers clear of the earlier
+    const aimBox = this._drawAim(ctx, view, w, h, ui);
+    // label boxes so far: the aim's, the prediction's carry, stop and legs, then the
+    // green's front and back, then the hazards by importance; each later label steers
+    // clear of the earlier
     const placed = this._drawPrediction(ctx, view, ui);
+    if (aimBox) placed.push(aimBox);
     this._drawGreenMarks(ctx, view, w, h, ui, placed);
     this._drawHazards(ctx, view, w, h, ui, placed);
     this._drawShot(ctx, view, ui);
@@ -490,6 +492,7 @@ export class AimMap {
     ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(txt, bx + 5 * ui, ty + 0.5);
     ctx.restore();
+    return { x: bx, y: by, w: tw, h: th };
   }
 
   // the pin's distance from the ball (yd)

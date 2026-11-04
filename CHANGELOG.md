@@ -110,6 +110,18 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **No failed draws when the graphics level changes** — when Auto dropped to Low (a slow machine, or a busy
+  one just after start-up) or the level was changed by hand, about 230 draws a switch failed with a GL error,
+  the pin, buildings and ground among them. The level change drops the sun's shadow map to resize it, and the
+  rebuild's warm-up draw ran before shadows were next redrawn (they redraw on request), so three.js bound a
+  depth texture never put on the GPU in its place. The shadow pass now runs on the next draw whenever the
+  map is missing (`scene.js` `setQuality`, `_warmTerrain`).
+- **The sea in the yardages** — the sea round a coastal course is measured like the course's own water: its
+  carry where the line of play runs over it, and its shore beside the corridor (`yardages.mjs`
+  `hazardsAlong` `sea`). And water across the line counts as in play only when the shot is played down that
+  line (its landing area spans it): aimed away round a dogleg or a bay, as AUTO aims off Pebble Beach's 18th
+  tee, the water the line to the pin crosses is no carry. The map's aim label now keeps the hazard numbers
+  off it too.
 - **A ball in the sea is in a penalty area** — the sea is now played as water wherever it is drawn: a drive
   off Pebble Beach's 18th tee into the bay sat on the water as if in the rough, and at Bandon Dunes the
   Pacific played as out of bounds. The server finds the same sea the renderer does (`lib/course.js`

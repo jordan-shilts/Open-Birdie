@@ -110,7 +110,10 @@ export const hazardText = (hz) => (hz.open ? `${Math.round(hz.frontYd)}+` : `${M
 //   for a while, so it reads as the stretch beside you, not one span from tee to green.
 // Edges are sampled every few metres so a long straight shore still has points in the
 // corridor. Nearest first.
-export function hazardsAlong(geo, ball, aimDeg, { maxM = Infinity, step = 3 } = {}) {
+// sea: (x, y) => true over the sea or a great lake round the course (render/sea.js, the
+// water lib/course.js plays as a penalty area), which no polygon outlines: the line is
+// walked for its carries, and each side of the corridor for the nearest shore.
+export function hazardsAlong(geo, ball, aimDeg, { maxM = Infinity, step = 3, sea = null } = {}) {
   const a = aimDeg * DEG;
   const fx = Math.sin(a), fy = Math.cos(a);     // along the line
   const rx = Math.cos(a), ry = -Math.sin(a);    // to its right
@@ -167,6 +170,14 @@ export function hazardsAlong(geo, ball, aimDeg, { maxM = Infinity, step = 3 } = 
       if (m.backYd - m.frontYd >= 2 / YD) add(m);
       continue;
     }
+    shoreRuns(pts);
+  }
+  if (sea) seaMarks();
+  return out.sort((p, q) => p.frontYd - q.frontYd);
+
+  // a shore's points beside the line, split where it leaves the corridor for 20 m
+  function shoreRuns(pts) {
+    if (!pts.length) return;
     pts.sort((p, q) => p.v - q.v);
     let run = [pts[0]];
     const flush = () => { const m = mark('water', run); if (m.backYd - m.frontYd >= 4 / YD) add(m); };
@@ -176,13 +187,45 @@ export function hazardsAlong(geo, ball, aimDeg, { maxM = Infinity, step = 3 } = 
     }
     flush();
   }
-  return out.sort((p, q) => p.frontYd - q.frontYd);
+
+  function seaMarks() {
+    const end = Number.isFinite(maxM) ? maxM : 600, STEP = 2;
+    // the carries: where the line itself runs over the sea
+    const carries = [];
+    let from = null;
+    for (let v = 5; v <= end + STEP; v += STEP) {
+      const wet = v <= end && sea(...onLine(v));
+      if (wet && from === null) from = v;
+      if (!wet && from !== null) {
+        const b = Math.min(end, v - STEP);
+        if (b - from >= 4) {
+          carries.push([from, b]);
+          add({ kind: 'water', frontYd: from / YD, backYd: b / YD, front: onLine(from), back: onLine(b), at: onLine((from + b) / 2), uMin: 0, uMax: 0, side: 1, onLine: true, open: v > end });
+        }
+        from = null;
+      }
+    }
+    // the shore each side: the nearest sea across the corridor, every few metres along it
+    for (const side of [-1, 1]) {
+      const pts = [];
+      for (let v = 35; v <= end; v += 4) {
+        if (carries.some(([v0, v1]) => v > v0 - 8 && v < v1 + 8)) continue;   // its banks there are the carry
+        const half = 24 + 0.09 * v;
+        for (let u = 2; u <= half; u += 3) {
+          const x = ball.x + fx * v + rx * u * side, y = ball.y + fy * v + ry * u * side;
+          if (sea(x, y)) { pts.push({ x, y, u: u * side, v }); break; }
+        }
+      }
+      shoreRuns(pts);
+    }
+  }
 }
 
 // Everything the lineup marks for one lie: the green's front and back, the hazards out
 // to just past the pin, and the line they are measured along (frame). baseAimDeg is the
 // default line of play.
-export function yardageMarks(geo, { ball, pin, baseAimDeg, practice = false }) {
+// sea: as hazardsAlong (null: no sea round the course).
+export function yardageMarks(geo, { ball, pin, baseAimDeg, practice = false, sea = null }) {
   if (!geo || !ball || !pin || practice) return { green: null, greenPoly: null, hazards: [], frame: null };
   const greenPoly = greenFor(geo, pin);
   const a = baseAimDeg * DEG;
@@ -190,7 +233,7 @@ export function yardageMarks(geo, { ball, pin, baseAimDeg, practice = false }) {
   return {
     green: greenPoly ? greenFrontBack(ball, pin, greenPoly) : null,
     greenPoly,
-    hazards: hazardsAlong(geo, ball, baseAimDeg, { maxM: pinV + 25 }),
+    hazards: hazardsAlong(geo, ball, baseAimDeg, { maxM: pinV + 25, sea }),
     frame: { ball: { x: ball.x, y: ball.y }, aimDeg: baseAimDeg },
   };
 }
@@ -198,9 +241,11 @@ export function yardageMarks(geo, { ball, pin, baseAimDeg, practice = false }) {
 // The hazards this shot can find, the only ones the 3D view tags and the map numbers:
 // bunkers and water reaching into where it can come down and roll out (the prediction's
 // landing and resting areas as drawn, at the spread chosen, spareM to spare), and water
-// across the line short of there that a short one finds (within shortM). Water first,
-// then nearest where the ball comes down; max at most. None for a putt or without a
-// prediction.
+// across the line short of there that a short one finds (within shortM), so long as the
+// shot is played down that line: its landing area spans it. Aimed away (AUTO round a
+// dogleg, or round the bay off Pebble Beach's 18th tee) the water the line to the pin
+// crosses is no carry. Water first, then nearest where the ball comes down; max at most.
+// None for a putt or without a prediction.
 export function hazardsInPlay(marks, pred, { max = 3, spareM = 5, shortM = 27 } = {}) {
   const list = marks?.hazards || [];
   if (!list.length || !marks.frame || !pred || pred.isPutt || !pred.land) return [];
@@ -218,7 +263,7 @@ export function hazardsInPlay(marks, pred, { max = 3, spareM = 5, shortM = 27 } 
   }
   const front = (hz) => hz.frontYd * YD, back = (hz) => hz.backYd * YD;
   const inPlay = (hz) => front(hz) <= v1 + spareM && (hz.onLine
-    ? back(hz) >= v0 - shortM
+    ? back(hz) >= v0 - shortM && u0 - spareM <= 0 && u1 + spareM >= 0
     : back(hz) >= v0 - spareM && hz.uMin <= u1 + spareM && hz.uMax >= u0 - spareM);
   const [lv, lu] = vu(pred.land);
   const gap = (hz) => Math.hypot(Math.max(0, front(hz) - lv, lv - back(hz)), hz.onLine ? 0 : Math.max(0, hz.uMin - lu, lu - hz.uMax));
