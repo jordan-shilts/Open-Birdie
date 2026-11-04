@@ -1,6 +1,6 @@
 // Post-processing for GolfScene — bloom + SMAA over the base render.
 // Stock three.js passes only (see docs/visual-upgrade-plan.md, Step 1):
-//   RenderPass -> UnrealBloomPass -> OutputPass (tone map + sRGB) -> SMAAPass.
+//   RenderPass -> UnrealBloomPass -> OutputPass (tone map + sRGB + grade) -> SMAAPass -> CAS.
 // SAO/SSAO are intentionally omitted: the terrain is a flat height grid with
 // nothing to self-occlude, and SAO haloes over the 12000m far plane.
 import * as THREE from 'three';
@@ -15,31 +15,42 @@ import { RENDER_CONFIG } from './config.js';
 import { replaceGtaoNoiseTexture } from './gtao-noise.js';
 
 // Cinematic grade in display space (after tone-map/sRGB): gentle contrast +
-// saturation, a warm-highlight / cool-shadow split-tone, and a soft vignette.
-const GRADE_SHADER = {
-  uniforms: {
-    tDiffuse: { value: null },
-    // natural: the old 1.16 saturation pushed sunlit turf toward lime once the sun
-    // became the key light
-    uContrast: { value: 1.08 },
-    uSaturation: { value: 1.08 },
-    uVignette: { value: 0.34 },
-  },
-  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `
-    uniform sampler2D tDiffuse; uniform float uContrast, uSaturation, uVignette; varying vec2 vUv;
-    void main(){
-      vec4 c = texture2D(tDiffuse, vUv);
-      vec3 col = (c.rgb - 0.5) * uContrast + 0.5;            // contrast
-      float l = dot(col, vec3(0.299, 0.587, 0.114));
-      col = mix(vec3(l), col, uSaturation);                 // saturation
-      col += vec3(0.006, 0.004, -0.012) * (1.0 - l);        // warm, desaturated shadows (turf greens, not blue)
-      col += vec3(0.028, 0.018, -0.012) * l;                // warm highlights
-      float v = smoothstep(0.85, 0.42, length(vUv - 0.5));  // vignette
-      col *= mix(1.0, v, uVignette);
-      gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a);
-    }`,
+// saturation, a warm-highlight / cool-shadow split-tone, and a soft vignette. It runs at
+// the end of the OutputPass (gradeInto), not as a pass of its own: that was one more
+// full-screen read and write a frame for a few multiply-adds a pixel (~0.2 ms at 1.3 MP
+// on the dev Mac, several ms on the sim PC's integrated GPU; docs/machines.md).
+const GRADE_UNIFORMS = {
+  // natural: the old 1.16 saturation pushed sunlit turf toward lime once the sun
+  // became the key light
+  uContrast: 1.08,
+  uSaturation: 1.08,
+  uVignette: 0.34,
 };
+const GRADE_GLSL = `
+  {
+    vec3 col = (gl_FragColor.rgb - 0.5) * uContrast + 0.5;   // contrast
+    float l = dot(col, vec3(0.299, 0.587, 0.114));
+    col = mix(vec3(l), col, uSaturation);                 // saturation
+    col += vec3(0.006, 0.004, -0.012) * (1.0 - l);        // warm, desaturated shadows (turf greens, not blue)
+    col += vec3(0.028, 0.018, -0.012) * l;                // warm highlights
+    float v = smoothstep(0.85, 0.42, length(vUv - 0.5));  // vignette
+    col *= mix(1.0, v, uVignette);
+    gl_FragColor = vec4(clamp(col, 0.0, 1.0), gl_FragColor.a);
+  }`;
+
+// The grade appended to an OutputPass's shader, after its tone mapping and sRGB encode.
+// OutputPass rebuilds only its defines when the tone mapping changes, never the shader
+// text, so the grade stays.
+export function gradeInto(pass) {
+  const m = pass.material;
+  for (const [k, v] of Object.entries(GRADE_UNIFORMS)) m.uniforms[k] = { value: v };
+  const fs = m.fragmentShader.replace('varying vec2 vUv;', 'varying vec2 vUv;\nuniform float uContrast, uSaturation, uVignette;');
+  const end = fs.lastIndexOf('}');
+  if (end < 0 || fs === m.fragmentShader) throw new Error('OutputPass shader changed: the grade has nowhere to go');
+  m.fragmentShader = fs.slice(0, end) + GRADE_GLSL + '\n' + fs.slice(end);
+  m.needsUpdate = true;
+  return pass;
+}
 
 // Contrast-adaptive sharpening (after AMD FidelityFX CAS): restores detail when the frame
 // is rendered under the display's resolution (dynamic resolution, retina budgets),
@@ -135,11 +146,11 @@ export class PostFX {
     this.composer.addPass(this.bloom);
 
     // OutputPass applies renderer.toneMapping + toneMappingExposure and converts
-    // to the renderer's output color space (composer render targets are linear).
-    this.composer.addPass(new OutputPass());
-
-    // Cinematic grade — after tone-map/sRGB (display space), before SMAA.
-    if (RENDER_CONFIG.colorGrade) this.composer.addPass(new ShaderPass(GRADE_SHADER));
+    // to the renderer's output color space (composer render targets are linear); the
+    // cinematic grade runs at its end, in display space, before SMAA.
+    const output = new OutputPass();
+    if (RENDER_CONFIG.colorGrade) gradeInto(output);
+    this.composer.addPass(output);
 
     // Composer render targets carry no MSAA; SMAA antialiases the final image.
     // (The last pass renders to the default framebuffer, so preserveDrawingBuffer

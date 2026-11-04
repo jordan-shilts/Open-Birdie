@@ -56,6 +56,21 @@ All notable changes to Open-Birdie are documented here.
   the map is as it was.
 
 ### Changed
+- **Lighter frames for the sim PC's integrated GPU** (`docs/machines.md`; measured on the dev Mac, Apple M3
+  Pro, in the sim PC's 1920x1080 window, not yet on the sim PC). At Low (~1520x855), a frame went 4.7 -> 3.6 ms
+  on Hazeltine's 1st tee, 5.5 -> 3.9 ms on Whistling Straits' 3rd and 5.2 -> 4.3 ms on Pebble Beach's 18th; at
+  High, 13.8 -> 12.1 ms on Whistling's 3rd:
+  - bunkers are merged into one mesh per 250 m square: a mesh per bunker was 934 draw calls a frame from
+    Whistling's 3rd tee (1,371 bunkers), and its JavaScript per frame drops 2.5 -> 0.8 ms at Low (5.3 -> 2.2 ms at
+    High);
+  - the links rough's fescue tufts are drawn in 120 m cells, skipped off screen and past 400 m (220 m at Low):
+    as one mesh, every tuft on the course went through the GPU each frame, ~1 M triangles at Low on Whistling;
+  - an HD hole's ground is built in tiles, each stepping down from 1 m to 2 m and 4 m with distance, instead of
+    one mesh at 1 m wherever the camera stood on it (0.65 M triangles of HD ground from Pebble's 18th tee);
+  - the colour grade runs at the end of the tone-mapping pass instead of as a full-screen pass of its own (the
+    same picture);
+  - at Low: no bloom (it only lifted sun glints off water and the brightest sand), trees past 450 m use their
+    far model (from 1,100 m), and the ground steps down to coarser cells at 0.6 of the distances.
 - **Round the green, the hole is easy to find** — inside 40 yd (and on the green) the overhead map frames the
   green itself, ball and cup on it, with rings every 10 ft and the cup ringed with its distance, instead of a
   long view that was mostly water (`public/map-frame.mjs`, `aim-map.js`). In 3D the wide landing arcs, the

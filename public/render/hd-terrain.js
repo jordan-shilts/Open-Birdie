@@ -204,16 +204,25 @@ export function buildCoarseTerrainLod({ grid, cutouts = [], material, normals, t
   return root;
 }
 
-// One HD patch at full (1 m) and half detail. Its rect sits on the coarse grid's 2 m
-// lattice, so 2 m cells stay exact against the earlier patches' rects (skipBounds).
-export function buildHdTerrainLod({ grid, material, uvBounds, skipBounds = [] }) {
+// One HD patch as tiles of `tile` cells, each at full (1 m), half and quarter detail by
+// its own distance. As one mesh, standing anywhere on a hole put all of it at 1 m (Pebble
+// Beach's 18th tee drew 0.65 M triangles of HD ground this way, most of them hundreds of
+// metres off); tiles also let the parts behind the camera be culled. The patch rect sits
+// on the coarse grid's 2 m lattice, so its 2 m cells stay exact against the earlier
+// patches' rects (skipBounds), and the tiles' skirts close the seams between levels.
+export function buildHdTerrainLod({ grid, material, uvBounds, skipBounds = [], tile = 128 }) {
   const { nx, ny, heights, cellM } = grid;
   const normals = smoothGridNormalsRaw(heights, nx, ny, cellM);
   const skip = skipBounds.length ? (i0, j0, i1, j1) => spanInAnyRect(grid, i0, j0, i1, j1, skipBounds) : null;
   const root = new THREE.Group();
   root.name = 'hdTerrainLod';
-  const entry = lodEntry(grid, { i0: 0, j0: 0, i1: nx - 1, j1: ny - 1 }, [1, 2], [240], { skip, uvBounds, normals, material });
-  if (entry) root.add(entry);
+  for (let j0 = 0; j0 < ny - 1; j0 += tile) {
+    for (let i0 = 0; i0 < nx - 1; i0 += tile) {
+      const span = { i0, j0, i1: Math.min(i0 + tile, nx - 1), j1: Math.min(j0 + tile, ny - 1) };
+      const entry = lodEntry(grid, span, [1, 2, 4], [240, 600], { skip, uvBounds, normals, material });
+      if (entry) root.add(entry);
+    }
+  }
   return root;
 }
 
@@ -236,9 +245,11 @@ function smoothGridNormalsRaw(heights, nx, ny, cellM) {
 
 // Show each tile's level for this camera. Distance is 3D to the tile's footprint (a
 // camera high above a tile is far from its detail too); a 12% band of hysteresis keeps
-// a tile at the ring from flickering between two levels.
-export function updateTerrainLod(root, camera) {
+// a tile at the ring from flickering between two levels. `scale` brings every ring in
+// (quality.js terrainLodScale: Low steps down sooner).
+export function updateTerrainLod(root, camera, scale = 1) {
   if (!root) return;
+  const k = Number.isFinite(scale) && scale > 0 ? scale : 1;
   const cx = camera.position.x, cy = -camera.position.z, cz = camera.position.y;
   root.traverse((o) => {
     const L = o.userData && o.userData.lod;
@@ -246,7 +257,7 @@ export function updateTerrainLod(root, camera) {
     const dx = Math.max(L.minX - cx, 0, cx - L.maxX), dy = Math.max(L.minY - cy, 0, cy - L.maxY);
     const d = Math.hypot(dx, dy, Math.max(0, cz - 60) * 0.8);
     let level = 0;
-    while (level < L.far.length && d > L.far[level] * (level < L.level ? 0.88 : 1)) level++;
+    while (level < L.far.length && d > L.far[level] * k * (level < L.level ? 0.88 : 1)) level++;
     if (level !== L.level) {
       L.meshes[L.level].visible = false;
       L.meshes[level].visible = true;
