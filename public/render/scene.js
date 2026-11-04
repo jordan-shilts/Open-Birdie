@@ -18,7 +18,7 @@ import { buildWater } from './water.js';
 import { buildBuildings } from './buildings.js';
 import { SKY_PRESETS, parseSkySetting } from './sky-presets.js';
 import { coursePonds, carveBeds } from './water-shore.js';
-import { findSea, carveSea, seaAt, playPoints, shoreGround } from './sea.js';
+import { findSea, carveSea, seaAt, playPoints, shoreGround, penaltyArea } from './sea.js';
 import { makeWaterDepth } from './water-depth.js';
 import { makeTurfMaterial, makeSandMaterial } from './turf.js';
 import { srgbToLinear, averageLinearColor } from './macro-tint.js';
@@ -617,8 +617,10 @@ export class GolfScene {
     }
     // the ground the sea meets (sand, rock, wet), painted by the turf shader
     this._shore = null;
+    this._seaPenalty = null;
     if (this._sea) {
       const sg = shoreGround(this.elev, this._sea);
+      this._seaPenalty = penaltyArea(this._sea, sg);   // what the server plays as water (lib/course.js)
       const tex = new THREE.DataTexture(sg.data, sg.nx, sg.ny, THREE.RGBAFormat, THREE.UnsignedByteType);
       tex.magFilter = tex.minFilter = THREE.LinearFilter;
       tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -1582,10 +1584,10 @@ export class GolfScene {
     }
   }
 
-  // The sea round the course (sea.js), as the yardage marks measure it: the water the
-  // server plays as a penalty area wherever this draws it.
-  hasSea() { return !!this._sea; }
-  isSea(x, y) { return !!this._sea && seaAt(this._sea, x, y); }
+  // The sea round the course (sea.js), as the yardage marks measure it: its penalty area,
+  // the water and the beach, rocks and cliffs down to it, as the server plays it.
+  hasSea() { return !!this._seaPenalty; }
+  isSea(x, y) { return !!this._seaPenalty && seaAt(this._seaPenalty, x, y); }
 
   // ---------- gameplay state ----------
   setHole(hole, ballPos, aimDeg) {

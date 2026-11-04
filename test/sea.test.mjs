@@ -2,7 +2,7 @@
 // terrain, flooded in from the grid's edge, kept off the course, carved under.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findSea, carveSea, seaAt, distanceToLand, playPoints, shoreGround } from '../public/render/sea.js';
+import { findSea, carveSea, seaAt, distanceToLand, playPoints, shoreGround, penaltyArea } from '../public/render/sea.js';
 
 // 100 x 60 cells of 2 m: sea in the west (x < 60 m) at `sea`, then the shore rising
 // 0.4 m per metre to land that rolls about 8 m up.
@@ -99,4 +99,9 @@ test('the shore: sand on a low gentle beach, rock on a cliff, wet at the waterli
   assert.equal(px(62, 20).sand, 0, 'no sand on a cliff');
   for (const [x, y] of [[180, 90], [180, 20]]) assert.deepEqual(px(x, y), { sand: 0, rock: 0, wet: 0 }, 'inland: grass');
   assert.deepEqual(px(20, 50), { sand: 0, rock: 0, wet: 0 }, 'the sea itself: the water covers it');
+  // the penalty area: the water, and the beach, waterline and cliff down to it; inland stays dry
+  const area = penaltyArea(s, shoreGround(g, s));
+  for (const [x, y] of [[20, 50], [76, 90], [62, 90], [62, 20]]) assert.equal(seaAt(area, x, y), true, `${x}, ${y}`);
+  for (const [x, y] of [[180, 90], [180, 20]]) assert.equal(seaAt(area, x, y), false, `${x}, ${y}`);
+  assert.equal(seaAt(s, 76, 90), false, 'the sea itself stops at the water line');
 });

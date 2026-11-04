@@ -209,6 +209,9 @@ test('a drive sliced into the sea is a penalty, dropped by the shore it crossed'
   assert.equal(r.note, 'Water — lateral drop (+1)');
   assert.ok(r.end.x >= 118 && r.end.x < 150, `dropped at ${r.end.x.toFixed(1)}, ${r.end.y.toFixed(1)}`);
   assert.notEqual(r.lie, 'water');
+  // up the bank, where the ball crossed into the penalty area, not at the water's edge
+  const h = 0.6 + (r.end.x - 120) * 0.4;
+  assert.ok(h > 1.5, `dropped ${h.toFixed(1)} m over the water`);
 });
 
 // ---------- Overpass timeout + backoff ----------

@@ -168,6 +168,20 @@ export function shoreGround(grid, sea, { beachM = 60, beachHighM = 3, cliffM = 7
   return { data: out, nx, ny, minX: grid.minX, minY: grid.minY, cellM };
 }
 
+// The penalty area round the sea, as the courses mark it: the water and its foreshore,
+// the beach, the rocks at the waterline and the cliff faces (shoreGround's sand, rock
+// or wet over half way), up to the top of the bank. A ball that finds the beach below
+// Pebble Beach's 18th tee was otherwise dropped there, at the water's edge, not up top
+// where it crossed the line. -> the sea with that mask (seaAt's argument).
+export function penaltyArea(sea, shore) {
+  const mask = Uint8Array.from(sea.mask);
+  const d = shore.data;
+  for (let k = 0; k < mask.length; k++) {
+    if (!mask[k] && (d[k * 4] >= 128 || d[k * 4 + 1] >= 128 || d[k * 4 + 2] >= 128)) mask[k] = 1;
+  }
+  return { ...sea, mask };
+}
+
 // Is (x, y) sea? The nearest cell of the grid, and past its edge the edge's.
 export function seaAt(sea, x, y) {
   const i = Math.min(sea.nx - 1, Math.max(0, Math.round((x - sea.minX) / sea.cellM)));
