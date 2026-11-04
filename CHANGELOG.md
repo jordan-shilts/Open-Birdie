@@ -127,7 +127,8 @@ All notable changes to Open-Birdie are documented here.
   Whistling Straits joins it (`course-character.js`, with its copy in `lib/tree-obstacles.js`). On a links the
   fescue tufts fill the open ground within 70 m of each hole's line, off the first cut and out of the sand,
   instead of thinning out over the whole course, and around the camera the grass field (otherwise off) grows
-  tall wispy straw that thins out toward its reach (`grass-field.js`, about 0.5 ms a frame).
+  tall wispy straw that thins out toward its reach (`grass-field.js`, about 0.5 ms a frame on the dev Mac;
+  High graphics only, so Low, which Auto picks on a laptop GPU like the sim PC's, skips it).
 
 ### Added
 - **Players and leagues** — a roster of everyone who plays on the simulator (a name and an optional handicap
