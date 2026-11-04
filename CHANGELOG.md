@@ -12,9 +12,11 @@ All notable changes to Open-Birdie are documented here.
   line of play, on its fairway and out of its sand and water, leaving a full pitching wedge in. Drag that one to
   plan it somewhere else; the plan runs through it until the next shot. The 3D view has the same two markers: a
   crosshair on the ground where the shot stops with how far it goes, and the pin's distance over the flag. They
-  replace the landing ring, the carry pin and the band's numbers in 3D, and the aim ring, AUTO's diamond, the
-  stop dot and the landing outline on the map (the panel still gives carry, total and where it lands). Round
-  the green, on the range and in the games the views are as before.
+  replace the landing ring and outline, the carry pin and the band's numbers in 3D, and the aim ring, AUTO's
+  diamond, the stop dot, the carry band and the landing outline on the map (the panel still gives carry, total
+  and where it lands). A full shot is otherwise bare: the distance rings and the hazards' and the green's
+  numbers are off unless Menu → View → **Yardage details** is on (they are still in the shot card and the
+  panel). Round the green, on the range and in the games the views are as before.
 - **A course library to pick from** — the course picker opens on every course at once: your downloaded
   courses as cards (the hole layout as a little map, where it is, holes, par and yardage, HD and scorecard
   tags, when you last played it), the one you're playing first and the rest by when you last played them, then
