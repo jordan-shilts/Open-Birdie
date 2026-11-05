@@ -5,6 +5,13 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Augusta National's Par 3 Course** — the nine-hole course (1,055 yd, par 27) beside Ike's Pond and DeSoto Springs
+  Pond. OpenStreetMap maps only its holes, numbered 1-9 inside Augusta National's outline, so its researched
+  scorecard (`docs/research/course-data/courses/augusta-national-par-3.json`) is keyed to its first hole and names
+  the course it sits in (`"within"`). The game plays it in Augusta National's outline and takes only its own nine
+  holes, each number's par 3 nearest the card's length (two of its holes map more than 15% longer than the card,
+  and holes 4 and 6 share their numbers with the main course's par 3s). Featured in the picker; built on the dev
+  Mac with every hole in HD.
 - **Nine more courses in the picker** — Whistling Straits, Torrey Pines (South), TPC Scottsdale (Stadium),
   Kiawah Island's Ocean Course, Augusta National, Shinnecock Hills, Oakmont, Harbour Town and Spyglass Hill are
   featured with their places (`lib/course-library.js`), and each has its turf character (links and sandy seaside
@@ -198,6 +205,12 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **No tree stands in a par 3's shot** — a tree whose crown comes within 3 m of a par 3's tee-to-pin line is
+  neither drawn nor an obstacle, the same on the server and in the renderer (`lib/tree-obstacles.js` and
+  `render/tree-placement.js` `par3LineBlock`, kept equal by a test). Canopy data can predate a hole: two trees stood
+  in front of the Par 3 Course's re-routed 4th tee and stopped every wedge at 9-16 yd. Fairways already kept trees
+  off longer holes' lines. Elsewhere it clears 1-3 trees each on Harbour Town 14, Hazeltine 13, Spyglass 15 and
+  Augusta 4.
 - **Courses mapped as multipolygon relations load** — the outline query asked OpenStreetMap for tags and
   geometry only, which leaves out a relation's members, so such a course (Oakmont, Harbour Town, Kiawah's Ocean
   Course) had no outline and loaded only when a bounding box came with it. The outer ways are now fetched and

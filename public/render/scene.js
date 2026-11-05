@@ -8,7 +8,7 @@ import { makeAerialFog } from './atmosphere.js';
 import { buildGroundApron, buildHorizonHaze } from './horizon.js';
 import { buildCardTrees } from './tree-cards.js';
 import { TreeField } from './trees.js';
-import { placeCourseTrees, speciesAt } from './tree-placement.js';
+import { placeCourseTrees, speciesAt, par3LineBlock } from './tree-placement.js';
 import { buildGrounding } from './grounding.js';
 import { buildPineStraw, buildFlowers, vegetationTexturePixelChecksums } from './vegetation.js';
 import { buildRakes } from './props.js';
@@ -1194,9 +1194,10 @@ export class GolfScene {
         for (const [x, y] of s.poly) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
         return { poly: s.poly, minX: minX - 2, minY: minY - 2, maxX: maxX + 2, maxY: maxY + 2 };
       });
-    const blocked = (x, y) => {
+    const onPar3Line = par3LineBlock(geo.holes);   // no tree in a par 3's shot (tree-placement.js)
+    const blocked = (x, y, r) => {
       for (const b of block) if (x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY && pointInPoly(x, y, b.poly)) return true;
-      return false;
+      return onPar3Line(x, y, r);
     };
     this._placedTrees = placeCourseTrees({
       trees: geo.trees || [], woods: geo.woods || [],

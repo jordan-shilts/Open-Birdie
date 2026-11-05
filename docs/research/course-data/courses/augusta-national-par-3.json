@@ -1,0 +1,169 @@
+{
+  "course": "Augusta National Par 3 Course",
+  "slug": "augusta-national-par-3",
+  "osm": "way/1481448305",
+  "within": "way/871993734",
+  "location": {
+    "city": "Augusta",
+    "region": "Georgia",
+    "country": "USA",
+    "lat": 33.5026,
+    "lon": -82.0172
+  },
+  "data_as_of": "the card after holes 1-5 were re-routed before the 2023 Masters",
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Augusta National Par-3 Course: Scorecard, Handicaps, Flyover, History",
+      "url": "https://www.golfcompendium.com/2021/03/augusta-national-par-3-course.html",
+      "publisher": "Golf Compendium"
+    }
+  ],
+  "tees": [
+    {
+      "name": "Par 3",
+      "total_yards": 1055,
+      "par": 27,
+      "rating": null,
+      "slope": null,
+      "sex": "M",
+      "source": "S1"
+    }
+  ],
+  "greens": null,
+  "boundaries": null,
+  "holes": [
+    {
+      "number": 1,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Par 3": 115
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 2,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Par 3": 100
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 3,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Par 3": 105
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 4,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Par 3": 70
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 5,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Par 3": 155
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 6,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Par 3": 140
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 7,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Par 3": 115
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 8,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Par 3": 120
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 9,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Par 3": 135
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    }
+  ],
+  "gaps": [
+    "The course has no outline of its own in OpenStreetMap, only its nine hole lines inside Augusta National's: the file is keyed to hole 1's way (osm) and names the course it sits in (within).",
+    "The source gives yardages to the nearest five yards and one set of tees; ratings, slope and handicaps are not published.",
+    "It plays round and over Ike's Pond and DeSoto Springs Pond (S1), but which holes border which pond is not given; hole names: none (the holes are not named).",
+    "Elevation, out of bounds, penalty areas and green data were not researched here."
+  ]
+}

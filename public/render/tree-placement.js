@@ -142,6 +142,24 @@ export function realTreeSize({ h, r }, modelH, modelCrownR, a = 0.5, b = 0.5) {
 // Real trees within this distance of a hole line are the ones a golfer walks past:
 // they get contact shadows and litter, like OSM trees and woods edges.
 const NEAR_PLAY_M = 60;
+const PAR3_CLEAR_M = 3;      // par3LineBlock: a crown this close to a par 3's tee-to-pin line
+const OSM_CROWN_M = 3;       // the crown a point tree (no measured crown) is taken to have
+
+// A par 3's shot is the line from the tee to the pin, and no tree stands in it: a tree
+// whose crown comes within PAR3_CLEAR_M of that line is not drawn and not an obstacle
+// (public/render/tree-placement.js par3LineBlock and lib/tree-obstacles.js, kept the
+// same by a test). Canopy data can predate a hole: Augusta's Par 3 Course re-routed
+// holes 1-5 in 2023, and a tree stood a few metres in front of the 4th tee, stopping
+// every wedge. Fairways already keep trees off longer holes' lines.
+export function par3LineBlock(holes) {
+  const lines = (holes || []).filter((h) => h && h.par === 3 && Array.isArray(h.tee) && Array.isArray(h.pin))
+    .map((h) => [h.tee[0], h.tee[1], h.pin[0], h.pin[1]]);
+  return (x, y, r = OSM_CROWN_M) => {
+    const reach = PAR3_CLEAR_M + (r > 0 ? r : OSM_CROWN_M);
+    for (const [ax, ay, bx, by] of lines) if (distToSegment(x, y, ax, ay, bx, by) < reach) return true;
+    return false;
+  };
+}
 
 // All course tree spots, prioritised under a cap: explicit OSM trees, then every
 // woods EDGE tree (the visible faces), then interior trees nearest the holes.
@@ -184,7 +202,7 @@ function placeRealTrees({ canopy, trees, holeLines, cap, courseDry, blocked, rnd
   const cells = new Map(); // 3 m hash grid for the OSM de-duplication
   const cellKey = (cx, cy) => `${cx},${cy}`;
   for (const [x, y, h, r] of canopy) {
-    if (!(h > 0) || (blocked && blocked(x, y))) continue;
+    if (!(h > 0) || (blocked && blocked(x, y, r))) continue;
     const p = { x, y, h, r, s: 1 };
     real.push(p);
     const k = cellKey(Math.floor(x / 3), Math.floor(y / 3));
