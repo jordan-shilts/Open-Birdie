@@ -65,6 +65,16 @@ they take 17-35% off a Low frame. Still to do: measure them on the sim PC the sa
 queries (`EXT_disjoint_timer_query_webgl2`) gave per-pass times on the dev Mac that didn't add up (ANGLE on Metal),
 so per-pass splits there came from switching parts off; on the sim PC (ANGLE on D3D11) the timers should work.
 
+## Measuring on the sim PC: the Performance check
+
+Menu → View → **Performance check** in the game on the sim PC (desktop app, or a browser at the game's address
+with `?perfcheck` added, which runs it once the course is in) draws frames back to back at the graphics level in
+use, at full resolution and at dynamic resolution's floor (half per axis), then with each part hidden in turn, and
+shows what each part costs there (`public/perf-check.mjs`; about 17 seconds on the dev Mac, longer on the sim PC).
+A copy lands on the game computer in `data/perf-reports/<time>.json`, with the GPU's name, so numbers from both
+machines can sit side by side. Run it on the same hole and level on `main` and on a branch to measure a change on
+the sim PC itself.
+
 ## Rendering on the MX130 instead
 
 Windows Settings → System → Display → Graphics → add the app (`node_modules\electron\dist\electron.exe`

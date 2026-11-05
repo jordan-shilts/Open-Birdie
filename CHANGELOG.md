@@ -5,6 +5,13 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **A Performance check that measures the computer it runs on** — Menu → View → **Performance check** (or a
+  page opened with `?perfcheck`, which runs it once the course is in) times the frame at the graphics level in
+  use, at full resolution and at dynamic resolution's floor, then with each part of the scene hidden in turn
+  (trees, ground shading, HD ground, rough grass, water, buildings, shadows, sky, antialiasing, sharpening, bloom,
+  ambient occlusion), and shows what each costs (`public/perf-check.mjs`). A copy goes to the game computer
+  (`POST /api/perf-report` → `data/perf-reports/`), so the sim PC's own GPU says what to make cheaper. On the
+  dev Mac it takes about 17 seconds; everything it hides is put back.
 - **The hole planned shot by shot, with two markers: the target and the pin** — the overhead map lays a
   full shot out the way a GPS card does (`public/shot-plan.mjs`): a crosshair where this shot stops, a thin line
   on to the pin, and each leg's length in a quiet bubble beside it. On a par 4 or 5 whose pin is out of reach
@@ -68,6 +75,19 @@ All notable changes to Open-Birdie are documented here.
   the map is as it was.
 
 ### Changed
+- **A lighter Low** (measured on the dev Mac by throughput, Hazeltine's 1st tee in the sim PC's 1920x1080
+  window, not yet on the sim PC): a Low frame at its full 1516x853 went 3.62 -> 2.98 ms (-18%), and 2.20 -> 1.95 ms
+  at 960x540.
+  - Low antialiases with FXAA, one pass where SMAA takes three (0.31 ms of it): a touch softer on leaf edges,
+    which shimmer less for it. High keeps SMAA.
+  - Low's turf takes the two big octaves of its grain and of the rough's broad drift (the finer two were under a
+    pixel a few metres out), and one-sided slopes for the sun's rake (`render/turf.js`, v43). At both levels the
+    green's roll is only worked out on greens.
+  - Far trees keep their trunk below the crown and no limbs, which their leaf cards hid: from Hazeltine's 1st
+    tee the frame's triangles go 882k -> 724k at Low and 3.47M -> 3.05M at High (no measurable time on the dev
+    Mac, whose GPU shrugs off vertex work; the sim PC's integrated one is where it can show).
+  Fixed-time stills against `main`: at Low 0.03% of pixels differ by more than 4 levels before the antialiasing
+  change, at High none to 0.01%.
 - **Lighter frames for the sim PC's integrated GPU** (`docs/machines.md`; measured on the dev Mac, Apple M3
   Pro, in the sim PC's 1920x1080 window, not yet on the sim PC). At Low (~1520x855), a frame went 4.7 -> 3.6 ms
   on Hazeltine's 1st tee, 5.5 -> 3.9 ms on Whistling Straits' 3rd and 5.2 -> 4.3 ms on Pebble Beach's 18th; at
@@ -168,6 +188,13 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **The first drive goes into your bag as a driver** — a session starts on the driver in the club box but on
+  no club at the game, which only heard about a club when the box changed. So the first drive of a session (from
+  a launch monitor that names no club) was put down to no club: the bag dropped it ("unknown-club"), and the shot
+  panel guessed the club from ball speed, calling the game's own typical 152 mph driver a 3 wood and moving the
+  club box to it. The club box now tells the game its club at every new lie when the game's differs, the panel
+  names the club the shot was put down to (the monitor's, else the one in hand), and the club box follows only a
+  club the monitor or the game named, never a guess (`public/lineup.js`, `public/app.js`).
 - **HD ground by default** — a course with HD holes plays its HD ground from the moment it loads when the
   game runs on its own (`node server.js`, opened in a browser or on the LAN). It used to ignore launch-monitor
   shots for 15 s after every course load, waiting for an acknowledgement only the desktop app can send, and then
