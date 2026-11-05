@@ -92,6 +92,13 @@ All notable changes to Open-Birdie are documented here.
   the map is as it was.
 
 ### Changed
+- **Trees in front of the camera are see-through** — a tree within 45 m ahead of the camera, across the middle of
+  the view (where the ball and the shot are), or within 9 m of the camera anywhere it looks, is drawn at about an
+  eighth of its pixels, dithered, so the shot is never hidden behind a trunk or a crown (`render/trees.js`). It
+  still casts its shadow and still stops a ball. About 3% of a frame on the dev Mac (Low 3.44 -> 3.55 ms, High
+  12.67 -> 13.01 ms, the Par 3 Course's 4th tee).
+- **Softer azaleas** — the beds' colours are toned down from hot pink and red, and the bushes are a size smaller;
+  only the blossoms take the colour (`render/vegetation.js`).
 - **A lighter Low** (measured on the dev Mac by throughput, Hazeltine's 1st tee in the sim PC's 1920x1080
   window, not yet on the sim PC): a Low frame at its full 1516x853 went 3.62 -> 2.98 ms (-18%), and 2.20 -> 1.95 ms
   at 960x540.
