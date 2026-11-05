@@ -280,7 +280,7 @@ export class GolfScene {
       sh.radius = p.shadowRadius;
       this._shadowsDirty = true;
     }
-    this.postfx?.setQuality({ gtao: p.gtao, bloom: p.bloom, aoScale: p.aoScale ?? 1 });
+    this.postfx?.setQuality({ gtao: p.gtao, bloom: p.bloom, aoScale: p.aoScale ?? 1, aa: p.aa || 'smaa' });
     if (this.container) this.resize();
     this._frameIntervals.length = 0;
     this._qualityHoldUntil = performance.now() + 5000;

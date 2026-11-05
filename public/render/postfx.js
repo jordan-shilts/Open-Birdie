@@ -1,6 +1,6 @@
 // Post-processing for GolfScene — bloom + SMAA over the base render.
 // Stock three.js passes only (see docs/visual-upgrade-plan.md, Step 1):
-//   RenderPass -> UnrealBloomPass -> OutputPass (tone map + sRGB + grade) -> SMAAPass -> CAS.
+//   RenderPass -> UnrealBloomPass -> OutputPass (tone map + sRGB + grade) -> SMAAPass (FXAA at Low) -> CAS.
 // SAO/SSAO are intentionally omitted: the terrain is a flat height grid with
 // nothing to self-occlude, and SAO haloes over the 12000m far plane.
 import * as THREE from 'three';
@@ -10,6 +10,7 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { FXAAPass } from 'three/addons/postprocessing/FXAAPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { RENDER_CONFIG } from './config.js';
 import { replaceGtaoNoiseTexture } from './gtao-noise.js';
@@ -155,17 +156,24 @@ export class PostFX {
     // Composer render targets carry no MSAA; SMAA antialiases the final image.
     // (The last pass renders to the default framebuffer, so preserveDrawingBuffer
     // still captures the composited frame for the screenshot/recording path.)
-    this.composer.addPass(new SMAAPass());
+    this.smaa = new SMAAPass();
+    this.composer.addPass(this.smaa);
+    // Low's antialiasing instead (setQuality, quality.js aa): one pass where SMAA takes three
+    this.fxaa = new FXAAPass();
+    this.fxaa.enabled = false;
+    this.composer.addPass(this.fxaa);
     // sharpening last, over the antialiased frame (setSharpness follows the upscale)
     this.cas = new ShaderPass(CAS_SHADER);
     this.composer.addPass(this.cas);
   }
 
   // Graphics quality (quality.js): toggle the optional passes live.
-  setQuality({ gtao = true, bloom = true, aoScale = 1 } = {}) {
+  setQuality({ gtao = true, bloom = true, aoScale = 1, aa = 'smaa' } = {}) {
     this.aoScale = aoScale;
     if (this.gtao) this.gtao.enabled = !!gtao;
     if (this.bloom) this.bloom.enabled = !!bloom;
+    this.smaa.enabled = aa !== 'fxaa';
+    this.fxaa.enabled = aa === 'fxaa';
   }
 
   setSize(w, h) {
