@@ -6,7 +6,7 @@ import { toPar, forwardLabel, verdict } from './scoring.mjs';
 import { FlightView } from './flight-view.js';
 import { AimMap } from './aim-map.js';
 import { ConditionsUI } from './conditions-ui.js';
-import { Lineup, clubByLabel, writeAutoClub } from './lineup.js';
+import { Lineup, CLUBS, clubByLabel, writeAutoClub } from './lineup.js';
 import { LeaguesUI } from './leagues-ui.js';
 import { parseQualitySetting, qualityLabel } from './render/quality.js';
 import { parseSkySetting, SKY_ORDER, SKY_PRESETS } from './render/sky-presets.js';
@@ -459,8 +459,12 @@ function showShotData(shot, plan = null, view = 'live') {
   $('shotpanel').classList.toggle('mulled', mulled);
   $('sp-label').textContent = view === 'replay' ? 'SAVED SHOT' : mulled ? 'MULLIGAN' : 'LAST SHOT';
   const l = shot.launch, sim = shot.sim;
-  const club = shot.club ? prettyClub(shot.club) : clubFromShot(l.speedMph, sim.isPutt);
-  if (view === 'live') lineup.markClubLabel(club);
+  // the club the server put the shot down to (the monitor's, else the one in hand, as the
+  // bag records it); a guess from ball speed only when neither is known. The guess alone
+  // read the game's own typical driver (152 mph) as a 3 wood, and moved the club dock to it.
+  const keyed = shot.clubKey ? CLUBS.find((c) => c.key === shot.clubKey)?.label : null;
+  const club = shot.club ? prettyClub(shot.club) : (keyed || clubFromShot(l.speedMph, sim.isPutt));
+  if (view === 'live' && (shot.club || keyed)) lineup.markClubLabel(club);   // never move the dock to a guess
   $('sp-club').textContent = clubByLabel(club)?.name || club;
   setVal('sd-speed', l.speedMph.toFixed(1), 'mph');
   setVal('sd-launch', `${l.vla.toFixed(1)}° ${l.hla > 0 ? 'R' : l.hla < 0 ? 'L' : ''}${Math.abs(l.hla).toFixed(1)}°`, '');
