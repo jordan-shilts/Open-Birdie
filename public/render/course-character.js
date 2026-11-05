@@ -57,6 +57,16 @@ export const COURSE_DRY = {
   'St Andrews Old Course': 0.7,
   'Bandon Dunes Golf Resort': 0.8,
   'Whistling Straits': 0.75,
+  // added with the courses built 2026-11-04: links and sandy seaside courses lean tan,
+  // desert target golf half way (green corridors, desert round them), parkland lush
+  'Torrey Pines Golf Course (South)': 0.3,
+  'TPC Scottsdale (Stadium Course)': 0.5,
+  'Kiawah Island Golf Resort (Ocean Course)': 0.55,
+  'Augusta National Golf Club': 0.0,
+  'Shinnecock Hills Golf Club': 0.75,
+  'Oakmont Country Club': 0.1,
+  'Harbour Town Golf Links': 0.0,
+  'Spyglass Hill Golf Course': 0.25,
 };
 
 const clamp01 = (v) => (Number.isFinite(v) ? Math.min(Math.max(v, 0), 1) : 0);

@@ -6,8 +6,9 @@
 //   npm run build:course-reference            rewrite lib/generated/course-reference.json
 //   npm run build:course-reference -- --check exit 1 if it is out of date
 //
-// A research file names a course and its location, not an OSM id; it gets the id of the
-// courses/featured.json entry nearest its location (within NEAR_KM of that entry's bbox).
+// A research file names a course and its location, and may name its OSM id ("osm":
+// "way/871993734"); without one it gets the id of the courses/featured.json entry
+// nearest its location (within NEAR_KM of that entry's bbox).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -131,7 +132,10 @@ function compileHole(h) {
 
 export function compileCourse(research, featured) {
   const { lat, lon } = research.location || {};
-  const entry = Number.isFinite(lat) && Number.isFinite(lon) ? featuredFor({ lat, lon }, featured) : null;
+  // the file's own OSM id ("osm": "way/871993734") when it names one, else the nearest
+  // courses/featured.json entry's (a course needn't be on the cloud's build list)
+  const own = /^(way|relation)\/\d+$/.test(research.osm || '') ? { osm: research.osm, name: research.course } : null;
+  const entry = own || (Number.isFinite(lat) && Number.isFinite(lon) ? featuredFor({ lat, lon }, featured) : null);
   const [osmType, osmId] = entry ? entry.osm.split('/') : [];
   return {
     slug: research.slug,

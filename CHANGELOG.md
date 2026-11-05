@@ -5,6 +5,16 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Nine more courses in the picker** — Whistling Straits, Torrey Pines (South), TPC Scottsdale (Stadium),
+  Kiawah Island's Ocean Course, Augusta National, Shinnecock Hills, Oakmont, Harbour Town and Spyglass Hill are
+  featured with their places (`lib/course-library.js`), and each has its turf character (links and sandy seaside
+  courses lean tan, desert target golf half way, parkland lush; `course-character.js` and
+  `lib/tree-obstacles.js`). The eight new ones were built with their HD holes on the dev Mac (the cloud's own
+  hole builder, `cloud/hd-holes.js`) and a 0.3 m aerial photo (`tools/add-course-aerial.mjs`); they are not in
+  the cloud yet, so on another computer a pick of one asks the cloud to build it.
+- **Augusta National's scorecard** (`docs/research/course-data/courses/augusta-national.json`, the 2026 Masters
+  card): it steers the round to the championship course's holes, which OpenStreetMap numbers like the Par 3
+  Course's inside the same outline. A research file can now name its own OpenStreetMap id (`"osm"`).
 - **A Performance check that measures the computer it runs on** — Menu → View → **Performance check** (or a
   page opened with `?perfcheck`, which runs it once the course is in) times the frame at the graphics level in
   use, at full resolution and at dynamic resolution's floor, then with each part of the scene hidden in turn
@@ -188,6 +198,16 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **Courses mapped as multipolygon relations load** — the outline query asked OpenStreetMap for tags and
+  geometry only, which leaves out a relation's members, so such a course (Oakmont, Harbour Town, Kiawah's Ocean
+  Course) had no outline and loaded only when a bounding box came with it. The outer ways are now fetched and
+  joined into rings (a boundary split over several ways was cut to its longest piece, and the outline is the
+  out-of-bounds line); a course mapped as several areas takes in the holes of all of them, with no
+  out-of-bounds line from the outline (`lib/course.js`).
+- **A canal that crosses a course no longer flattens its ground** — TPC Scottsdale's outline crosses a canal
+  mapped as one 48 km water polygon, which stretched the course's area until its ground fell back to flat and its
+  photo and scenery were fetched for the whole valley. A surface or wood reaching 3 km past the holes now keeps
+  its part within 500 m of them (every course on disk ends within 2 km, so they load as before).
 - **The first drive goes into your bag as a driver** — a session starts on the driver in the club box but on
   no club at the game, which only heard about a club when the box changed. So the first drive of a session (from
   a launch monitor that names no club) was put down to no club: the bag dropped it ("unknown-club"), and the shot

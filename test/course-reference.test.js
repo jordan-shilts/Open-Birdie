@@ -43,6 +43,8 @@ test('the generated reference file is current with docs/research/course-data', a
 test('every researched course maps to its featured OSM course, with 18 holes and clean notes', () => {
   const ids = Object.fromEntries(REFERENCE.courses.map((c) => [c.slug, c.courseId]));
   assert.deepEqual(ids, {
+    // its file names its own OSM id: Augusta isn't on courses/featured.json (the cloud's build list)
+    'augusta-national': 'osm:way:871993734',
     'bandon-dunes': 'osm:way:362513477',
     'chambers-bay': 'osm:way:26787026',
     'pebble-beach': 'osm:relation:3741806',
@@ -54,7 +56,8 @@ test('every researched course maps to its featured OSM course, with 18 holes and
     assert.deepEqual(c.holes.map((h) => h.number), Array.from({ length: 18 }, (_, i) => i + 1), c.slug);
     assert.equal(new Set(c.tees.map((t) => t.name)).size, c.tees.length, `${c.slug}: one row per tee`);
     for (const h of c.holes) {
-      assert.ok(h.par >= 3 && h.par <= 5 && h.handicap >= 1 && h.handicap <= 18, `${c.slug} #${h.number}`);
+      // a handicap the scorecard doesn't publish (Augusta's Masters card) stays null
+      assert.ok(h.par >= 3 && h.par <= 5 && (h.handicap == null || (h.handicap >= 1 && h.handicap <= 18)), `${c.slug} #${h.number}`);
       for (const text of [h.note, h.green]) {
         if (text) assert.doesNotMatch(text, /\(S\d+|\bper S\d+/, `${c.slug} #${h.number}: source ids stripped`);
       }
