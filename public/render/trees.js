@@ -64,13 +64,17 @@ function barkGeometry(m, lod) {
   const pos = [], nor = [], uv = [];
   for (const s of m.branches) {
     if (s.ra < minR) continue;
+    // The far level keeps the trunk below the crown, three-sided: the limbs inside a crown
+    // a few dozen pixels tall are hidden by its leaf cards, and they were most of its
+    // triangles (at Low, 195k of the 447k the far trees drew from Hazeltine's 1st tee).
+    if (lod === 2 && Math.min(s.a[1], s.b[1]) > m.crownBase) continue;
     const ax = sub(s.b, s.a);
     const L = Math.hypot(ax[0], ax[1], ax[2]);
     if (L < 1e-3) continue;
     const d = [ax[0] / L, ax[1] / L, ax[2] / L];
     const t1 = nrm(cross(d, Math.abs(d[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0]));
     const t2 = cross(d, t1);
-    const n = LOD_SIDES[lod] + (s.ra > 0.15 ? 2 : 0);
+    const n = LOD_SIDES[lod] + (lod < 2 && s.ra > 0.15 ? 2 : 0);
     // overlap the ends a little so forks never show a seam
     const ea = Math.min(0.06, s.ra * 0.5), eb = Math.min(0.04, s.rb * 0.5);
     const A = [s.a[0] - d[0] * ea, s.a[1] - d[1] * ea, s.a[2] - d[2] * ea];
