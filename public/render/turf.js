@@ -412,9 +412,17 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           // sheet. Strong on purpose — this is the fix for the "Minecraft" look.
           // Multi-scale variation so the field is never the same twice (real grass
           // isn't). fbm clusters near its mean, so use a big gain (re-center ~0.47).
+          #ifdef TURF_HQ
           float fine  = tFbm(vec2(wx, wy) * 0.40) - 0.47;        // ~0.7-3m blade grain
           float broad = tFbm(vec2(wy, wx) * 0.10 + 11.3) - 0.47; // ~8-15m growth/wear patches
           float zone  = tFbm(vec2(wx, wy) * 0.026 + 3.7) - 0.47; // ~30-80m big regions
+          #else
+          // Low: two octaves each, half the taps (the finer two are under a pixel at Low's
+          // resolution a few metres out, where they only shimmered)
+          float fine  = tFbm2(vec2(wx, wy) * 0.40) - 0.375;
+          float broad = tFbm2(vec2(wy, wx) * 0.10 + 11.3) - 0.375;
+          float zone  = tFbm2(vec2(wx, wy) * 0.026 + 3.7) - 0.375;
+          #endif
           // Manicured rebalance (Phase 2): the loud mid-scale grain read as blotch/wear
           // and BURIED the mow stripes — the opposite of manicured. Tame fine+broad,
           // keep the large zone (it survives the orbit-cam mip-collapse and carries the
@@ -497,8 +505,10 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           float gs1 = (smoothstep(-0.6, 0.6, gb1) - 0.5) * (0.3 + 0.7 * dot(toCamH, vec2(-0.34, 0.94)));
           float gs2 = (smoothstep(-0.6, 0.6, gb2) - 0.5) * (0.3 + 0.7 * dot(toCamH, vec2(-0.94, -0.34)));
           grass *= 1.0 + 0.11 * (gs1 + gs2) * gEdge * sFade;
-          float gRoll = tFbm(vec2(wx, wy) * 0.06 + 7.0) - 0.5;   // ~16 m gentle undulation
-          grass *= 1.0 + 0.05 * gRoll * gEdge;                  // shaped green, not a flat disc
+          if (gEdge > 0.0) {   // greens only: four noise taps nothing else needs
+            float gRoll = tFbm(vec2(wx, wy) * 0.06 + 7.0) - 0.5;   // ~16 m gentle undulation
+            grass *= 1.0 + 0.05 * gRoll * gEdge;                  // shaped green, not a flat disc
+          }
           // Procedural sun-play — directional shading from a low-frequency undulation
           // field so the sun visibly rakes across gentle rolls instead of lighting a
           // flat sheet. The DIRECTIONAL gradient (one flank of a roll lit, the other
@@ -506,8 +516,14 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           // reads as texture. Faked in albedo — cheap, GTAO-safe, turf normal is ~flat.
           vec2 sp = vec2(wx, wy) * 0.085;                  // ~12m roll wavelength (survives distance)
           // v41: the broad ~12 m roll only needs two octaves (half the taps; gain doubled below)
+          #ifdef TURF_HQ
           float gx = tFbm2(sp + vec2(0.07, 0.0)) - tFbm2(sp - vec2(0.07, 0.0));
           float gy = tFbm2(sp + vec2(0.0, 0.07)) - tFbm2(sp - vec2(0.0, 0.07));
+          #else
+          float r0 = tFbm2(sp);   // Low: one-sided differences, three evaluations instead of four
+          float gx = 2.0 * (tFbm2(sp + vec2(0.07, 0.0)) - r0);
+          float gy = 2.0 * (tFbm2(sp + vec2(0.0, 0.07)) - r0);
+          #endif
           vec2 sunDir = normalize(vec2(0.55, -0.84));      // HDRI sun's horizontal bearing
           float rake = clamp((gx * sunDir.x + gy * sunDir.y) * 14.0, -0.6, 0.6);
           grass *= 1.0 + 0.09 * rake * mix(1.0, 0.25, uTurfClean); // GENTLE — 0.22 was carving dark shade-bands into the hills
@@ -552,8 +568,13 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
             float roughOnly = roughK * (1.0 - firstCut);
             if (roughK > 0.0) {   // v41: the rough's own patches (12 noise taps) skip mown ground and greens
               float straw = smoothstep(0.50, 0.80, tFbm(vec2(wy, wx) * 0.065 + 21.0));
+              #ifdef TURF_HQ
               float macroR = tFbm(vec2(wx, wy) * 0.0075 + 9.0) - 0.47;
               float macroR2 = tFbm(vec2(wy, wx) * 0.021 + 2.0) - 0.47;
+              #else
+              float macroR = tFbm2(vec2(wx, wy) * 0.0075 + 9.0) - 0.375;    // Low: the broad drift's two big octaves
+              float macroR2 = tFbm2(vec2(wy, wx) * 0.021 + 2.0) - 0.375;
+              #endif
               vec3 dryTint = mix(vec3(1.20, 1.08, 0.70), vec3(1.06, 1.03, 0.92), uCourseDry);
               grass *= mix(vec3(1.0), dryTint, straw * 0.55 * roughOnly * mix(1.0, 0.05, uTurfClean)); // straw / olive patches (links; watered parkland rough stays green)
               grass *= 1.0 + (0.34 * macroR + 0.18 * macroR2) * roughK * mix(1.0, 0.2, uTurfClean); // broad drift, to the horizon
@@ -707,7 +728,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           }
         }`);
   };
-  mat.customProgramCacheKey = () => `turf-grain-v42-divots${macro ? '-macro' : ''}${hq ? '' : '-lq'}${shore ? '-shore' : ''}`; // v42: divots, crisp tee box, rough sheen (v41: distance/surface-gated taps; v40: texture value noise)
+  mat.customProgramCacheKey = () => `turf-grain-v43${macro ? '-macro' : ''}${hq ? '' : '-lq'}${shore ? '-shore' : ''}`; // v43: Low's lighter grain (v42: divots, crisp tee box, rough sheen; v41: distance/surface-gated taps; v40: texture value noise)
   // textures injected via onBeforeCompile (+ the canvas masks) aren't reachable from
   // the standard material slots, so register them for disposal on course reload.
   mat.userData.disposeTextures = [detail, sand, maskTex, bunkerMaskTex, ...(surfaceMaskRaw ? [maskRawTex] : []), ...(shore ? [shore.tex] : [])];

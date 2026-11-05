@@ -178,9 +178,14 @@ export class Lineup {
     this.club = key;
     if (manual) this.manualClub = true;
     this._renderDock();
-    if (tell && changed) fetch('/api/club', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ club: key }) }).catch(() => {});
+    if (tell && (changed || this.state?.selectedClub !== key)) this._tellClub(key);
     if (changed) this.onClubChange?.(key);
     this.predict();
+  }
+
+  // the server keeps the club in hand: each shot, and the bag, is put down to it
+  _tellClub(key) {
+    fetch('/api/club', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ club: key }) }).catch(() => {});
   }
 
   // a shot came in with the monitor's own club: show it in hand
@@ -249,6 +254,9 @@ export class Lineup {
       const pick = s.lie === 'green' ? 'PT' : this.carries.recommended;
       if (this.autoClub && !this.manualClub && pick !== this.club) { this.selectClub(pick); return; }
     }
+    // a session's first lie starts on the driver here but on no club at the server, which
+    // then put the drive down to no club (a guess on the panel, nothing in the bag)
+    if (s?.loaded && s.selectedClub !== this.club) this._tellClub(this.club);
     this._renderDock();
     this.predict();
   }

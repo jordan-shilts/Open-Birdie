@@ -6,7 +6,7 @@ import { toPar, forwardLabel, verdict } from './scoring.mjs';
 import { FlightView } from './flight-view.js';
 import { AimMap } from './aim-map.js';
 import { ConditionsUI } from './conditions-ui.js';
-import { Lineup, clubByLabel, writeAutoClub } from './lineup.js';
+import { Lineup, CLUBS, clubByLabel, writeAutoClub } from './lineup.js';
 import { LeaguesUI } from './leagues-ui.js';
 import { parseQualitySetting, qualityLabel } from './render/quality.js';
 import { parseSkySetting, SKY_ORDER, SKY_PRESETS } from './render/sky-presets.js';
@@ -459,8 +459,12 @@ function showShotData(shot, plan = null, view = 'live') {
   $('shotpanel').classList.toggle('mulled', mulled);
   $('sp-label').textContent = view === 'replay' ? 'SAVED SHOT' : mulled ? 'MULLIGAN' : 'LAST SHOT';
   const l = shot.launch, sim = shot.sim;
-  const club = shot.club ? prettyClub(shot.club) : clubFromShot(l.speedMph, sim.isPutt);
-  if (view === 'live') lineup.markClubLabel(club);
+  // the club the server put the shot down to (the monitor's, else the one in hand, as the
+  // bag records it); a guess from ball speed only when neither is known. The guess alone
+  // read the game's own typical driver (152 mph) as a 3 wood, and moved the club dock to it.
+  const keyed = shot.clubKey ? CLUBS.find((c) => c.key === shot.clubKey)?.label : null;
+  const club = shot.club ? prettyClub(shot.club) : (keyed || clubFromShot(l.speedMph, sim.isPutt));
+  if (view === 'live' && (shot.club || keyed)) lineup.markClubLabel(club);   // never move the dock to a guess
   $('sp-club').textContent = clubByLabel(club)?.name || club;
   setVal('sd-speed', l.speedMph.toFixed(1), 'mph');
   setVal('sd-launch', `${l.vla.toFixed(1)}° ${l.hla > 0 ? 'R' : l.hla < 0 ? 'L' : ''}${Math.abs(l.hla).toFixed(1)}°`, '');
@@ -1064,6 +1068,60 @@ scene.setFreeCamCallback((on) => {
 });
 $('btn-free').onclick = () => { closeMenu(); scene.enterFreeCam(scene.camMode !== 'free'); };
 
+// Performance check (perf-check.mjs): times this computer's frame, and each part of it,
+// shows the numbers and keeps a copy on the game computer (data/perf-reports), so the
+// sim PC's own GPU says what to make cheaper. A page opened with ?perfcheck runs it once
+// the course is in.
+let perfRunning = false;
+async function perfCheck() {
+  if (perfRunning) return;
+  closeMenu();
+  const msg = $('perf-msg'), out = $('perf-out');
+  $('perf-modal').classList.remove('hidden');
+  out.innerHTML = '';
+  if (!state?.loaded || !scene.geo || animating) {
+    msg.textContent = animating ? 'Wait for the ball to stop, then run it again.' : 'Load a course first: the check measures the hole on screen.';
+    return;
+  }
+  perfRunning = true;
+  msg.textContent = 'Measuring. The picture flickers while parts are hidden in turn (about half a minute).';
+  try {
+    const { runPerfCheck, summarizePerf } = await import('./perf-check.mjs');
+    const report = await runPerfCheck(scene, {
+      state, onProgress: (n, total, label) => { msg.textContent = `Measuring ${n} of ${total}: ${label}`; },
+    });
+    const fps = (ms) => (ms > 0 ? Math.round(1000 / ms) : 0);
+    const full = report.frames[0]?.canvas;
+    const row = (a, b) => `<div class="perf-row"><span>${esc(a)}</span><b>${esc(b)}</b></div>`;
+    msg.textContent = `${report.gpu || 'Unknown GPU'} · ${report.level === 'low' ? 'Low' : 'High'} graphics · ${String(report.course || '').split(',')[0]}${report.hole != null ? `, hole ${report.hole}` : ''}`;
+    out.innerHTML = '<div class="perf-sec">THE WHOLE FRAME</div>'
+      + report.frames.map((f) => row(`${f.canvas}${f.scale < 1 ? ' (dynamic resolution\'s floor)' : ''}`, `${f.ms.toFixed(1)} ms · up to ${fps(f.ms)} fps`)).join('')
+      + `<div class="perf-sec">WHAT EACH PART COSTS AT ${esc(full || '')}</div>`
+      + report.parts.filter((p) => p.canvas === full).sort((a, b) => b.savedMs - a.savedMs)
+        .map((p) => row(p.part, `${Math.max(0, p.savedMs).toFixed(1)} ms · ${Math.round(Math.max(0, p.savedMs) / p.ofMs * 100)}%`)).join('')
+      + '<div class="perf-note" id="perf-saved">Saving a copy…</div>';
+    console.log('[perf]', summarizePerf(report));
+    try {
+      const r = await fetch('/api/perf-report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(report) });
+      const j = await r.json().catch(() => ({}));
+      $('perf-saved').textContent = r.ok && j.ok ? `A copy is saved on the game computer (${j.file}).` : `No copy saved (${j.error || `HTTP ${r.status}`}).`;
+    } catch {
+      $('perf-saved').textContent = 'No copy saved: the game computer did not answer.';
+    }
+  } catch (e) {
+    msg.textContent = `The check stopped: ${e.message}`;
+  } finally {
+    perfRunning = false;
+  }
+}
+$('btn-perfcheck').onclick = perfCheck;
+$('perf-close').onclick = () => { if (!perfRunning) $('perf-modal').classList.add('hidden'); };
+if (query.has('perfcheck')) {
+  const wait = setInterval(() => {
+    if (state?.loaded && state.runtimeReady && scene.geo && !animating) { clearInterval(wait); setTimeout(perfCheck, 4000); }
+  }, 500);
+}
+
 // Hole flyover (render/flyover.js): the Flyover button or F; any key or click skips it.
 $('btn-flyover').onclick = () => { if (!animating) scene.flyover.start(); };
 // keys: F flyover, W conditions, arrows aim (shift: 2°), A auto-aim, 0 straight, Esc closes
@@ -1077,6 +1135,7 @@ window.addEventListener('keydown', (e) => {
     closeMenu();
     lineup.openDock(false);
     for (const id of ['conditions', 'practice', 'games-menu', 'scorecard', 'league-panel', 'player-menu']) $(id).classList.add('hidden');
+    if (!perfRunning) $('perf-modal').classList.add('hidden');
     leaguesUI.closeResult();
     $('btn-score').classList.remove('active');
     $('btn-league').classList.remove('active');
