@@ -205,6 +205,12 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **No tree stands in a par 3's shot** — a tree whose crown comes within 3 m of a par 3's tee-to-pin line is
+  neither drawn nor an obstacle, the same on the server and in the renderer (`lib/tree-obstacles.js` and
+  `render/tree-placement.js` `par3LineBlock`, kept equal by a test). Canopy data can predate a hole: two trees stood
+  in front of the Par 3 Course's re-routed 4th tee and stopped every wedge at 9-16 yd. Fairways already kept trees
+  off longer holes' lines. Elsewhere it clears 1-3 trees each on Harbour Town 14, Hazeltine 13, Spyglass 15 and
+  Augusta 4.
 - **Courses mapped as multipolygon relations load** — the outline query asked OpenStreetMap for tags and
   geometry only, which leaves out a relation's members, so such a course (Oakmont, Harbour Town, Kiawah's Ocean
   Course) had no outline and loaded only when a bounding box came with it. The outer ways are now fetched and
