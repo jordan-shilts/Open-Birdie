@@ -45,6 +45,8 @@ test('every researched course maps to its featured OSM course, with 18 holes and
   assert.deepEqual(ids, {
     // its file names its own OSM id: Augusta isn't on courses/featured.json (the cloud's build list)
     'augusta-national': 'osm:way:871993734',
+    // keyed to its first hole's way: the Par 3 Course has no outline of its own
+    'augusta-national-par-3': 'osm:way:1481448305',
     'bandon-dunes': 'osm:way:362513477',
     'chambers-bay': 'osm:way:26787026',
     'pebble-beach': 'osm:relation:3741806',
@@ -53,7 +55,8 @@ test('every researched course maps to its featured OSM course, with 18 holes and
     'whistling-straits': 'osm:way:205111637',
   });
   for (const c of REFERENCE.courses) {
-    assert.deepEqual(c.holes.map((h) => h.number), Array.from({ length: 18 }, (_, i) => i + 1), c.slug);
+    const n = c.withinId ? 9 : 18;   // a nine inside another course (Augusta's Par 3 Course)
+    assert.deepEqual(c.holes.map((h) => h.number), Array.from({ length: n }, (_, i) => i + 1), c.slug);
     assert.equal(new Set(c.tees.map((t) => t.name)).size, c.tees.length, `${c.slug}: one row per tee`);
     for (const h of c.holes) {
       // a handicap the scorecard doesn't publish (Augusta's Masters card) stays null

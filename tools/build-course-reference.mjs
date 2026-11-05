@@ -137,10 +137,14 @@ export function compileCourse(research, featured) {
   const own = /^(way|relation)\/\d+$/.test(research.osm || '') ? { osm: research.osm, name: research.course } : null;
   const entry = own || (Number.isFinite(lat) && Number.isFinite(lon) ? featuredFor({ lat, lon }, featured) : null);
   const [osmType, osmId] = entry ? entry.osm.split('/') : [];
+  // a course mapped only as its holes, inside another course's outline ("within":
+  // Augusta's Par 3 Course in Augusta National's): it plays in that outline
+  const within = own && /^(way|relation)\/\d+$/.test(research.within || '') ? research.within.split('/') : null;
   return {
     slug: research.slug,
     name: research.course,
     ...(entry ? { courseId: `osm:${osmType}:${osmId}`, osmName: entry.name } : {}),
+    ...(within ? { withinId: `osm:${within[0]}:${within[1]}` } : {}),
     lat,
     lon,
     dataAsOf: clean(research.data_as_of),

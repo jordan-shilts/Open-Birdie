@@ -5,6 +5,13 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Augusta National's Par 3 Course** — the nine-hole course (1,055 yd, par 27) beside Ike's Pond and DeSoto Springs
+  Pond. OpenStreetMap maps only its holes, numbered 1-9 inside Augusta National's outline, so its researched
+  scorecard (`docs/research/course-data/courses/augusta-national-par-3.json`) is keyed to its first hole and names
+  the course it sits in (`"within"`). The game plays it in Augusta National's outline and takes only its own nine
+  holes, each number's par 3 nearest the card's length (two of its holes map more than 15% longer than the card,
+  and holes 4 and 6 share their numbers with the main course's par 3s). Featured in the picker; built on the dev
+  Mac with every hole in HD.
 - **Nine more courses in the picker** — Whistling Straits, Torrey Pines (South), TPC Scottsdale (Stadium),
   Kiawah Island's Ocean Course, Augusta National, Shinnecock Hills, Oakmont, Harbour Town and Spyglass Hill are
   featured with their places (`lib/course-library.js`), and each has its turf character (links and sandy seaside
