@@ -121,6 +121,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/></svg>
         <span id="btn-free-label">Free look camera</span><kbd>C</kbd>
       </button>
+      <button id="btn-perfcheck" class="menu-item">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-6"/><circle cx="12" cy="17" r="1.3"/></svg>
+        <span>Performance check</span>
+      </button>
     </section>
     <section class="drawer-sec" aria-label="My bag">
       <span class="lbl">MY BAG</span>
@@ -407,6 +411,18 @@
     <div id="course-msg" class="muted"></div>
     <div id="course-results"></div>
     <div id="course-lib" class="cm-lib" aria-label="Courses"></div>
+  </div>
+</div>
+
+<!-- Performance check (perf-check.mjs): where this computer's frame time goes -->
+<div id="perf-modal" class="modal hidden">
+  <div class="modal-box perf-box" role="dialog" aria-labelledby="perf-title">
+    <header class="cm-head">
+      <div><span class="lbl">PERFORMANCE CHECK</span><h2 id="perf-title">Where the frame time goes</h2></div>
+      <button id="perf-close" class="panel-x" aria-label="Close" title="Close (Esc)">×</button>
+    </header>
+    <p id="perf-msg" class="muted"></p>
+    <div id="perf-out"></div>
   </div>
 </div>
 
