@@ -24,6 +24,7 @@ export const QUALITY_PRESETS = Object.freeze({
     shadowRadius: 3,        // PCF kernel scale -> soft penumbra
     gtao: true,             // ambient occlusion pass
     bloom: true,
+    aa: 'smaa',             // the antialiasing pass (postfx.js): SMAA, or FXAA at Low
     waterReflect: true,
     waterFoam: true,
     treeDensity: 1.0,       // woods fill spacing multiplier (1 = dense)
@@ -48,6 +49,10 @@ export const QUALITY_PRESETS = Object.freeze({
     // postfx.js), and its 13 draws were about a sixth of a Low frame on the dev Mac
     // (docs/machines.md), a cost the sim PC's integrated GPU can't spare.
     bloom: false,
+    // FXAA, one pass where SMAA takes three: 0.3 ms off Low's 3.3 ms frame at its full
+    // resolution on the dev Mac (Hazeltine's 1st tee). A touch softer on leaf edges, which
+    // also shimmer less; Low's frame is upscaled and sharpened after it anyway.
+    aa: 'fxaa',
     waterReflect: false,
     waterFoam: false,
     treeDensity: 0.55,

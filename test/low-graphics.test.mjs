@@ -93,3 +93,8 @@ test('the grade runs at the end of the OutputPass, after the sRGB encode', () =>
   assert.ok(/uniform float uContrast, uSaturation, uVignette;/.test(fs));
   assert.equal(fs.trim().slice(-1), '}');
 });
+
+test('Low antialiases with FXAA, High keeps SMAA', () => {
+  assert.equal(QUALITY_PRESETS.low.aa, 'fxaa');
+  assert.equal(QUALITY_PRESETS.high.aa, 'smaa');
+});

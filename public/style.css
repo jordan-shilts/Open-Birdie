@@ -1191,3 +1191,10 @@ body.flying #bottombar .aim-ctl, body.flying #cond-widget { opacity: 0.35; point
   .lgx-th span:nth-child(3) { display: none; }
   .lgr-box { width: calc(100% - 24px); }
 }
+
+/* ---------- performance check (perf-check.mjs) ---------- */
+.perf-box { width: 560px; }
+#perf-out .perf-sec { margin: 10px 0 4px; font-size: 11px; letter-spacing: 0.08em; color: var(--muted); }
+#perf-out .perf-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+#perf-out .perf-row b { font-variant-numeric: tabular-nums; }
+#perf-out .perf-note { margin-top: 12px; font-size: 12px; color: var(--muted); }

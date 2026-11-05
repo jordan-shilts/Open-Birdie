@@ -518,6 +518,23 @@ const server = http.createServer(async (req, res) => {
         broadcast('state', game.state());
         return json(res, { ok: true });
       }
+      // Performance check (public/perf-check.mjs): a computer's frame times, kept as
+      // DATA_DIR/perf-reports/<time>.json for tuning the sim PC's graphics
+      if (p === '/api/perf-report') {
+        const text = JSON.stringify(body);
+        if (body?.version !== 1 || !Array.isArray(body.frames) || !Array.isArray(body.parts) || text.length > 65536) {
+          return json(res, { ok: false, error: 'not a performance report' }, 400);
+        }
+        const dir = path.join(DATA_DIR, 'perf-reports');
+        const file = `${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, file), JSON.stringify({ receivedAt: new Date().toISOString(), from: req.socket.remoteAddress, ...body }, null, 1));
+        const frames = body.frames.map((f) => `${Number(f.ms).toFixed(1)} ms at ${String(f.canvas).slice(0, 12)}`).join(', ');
+        const top = body.parts.filter((x) => x.canvas === body.frames[0]?.canvas).sort((a, b) => b.savedMs - a.savedMs).slice(0, 3)
+          .map((x) => `${String(x.part).slice(0, 24)} ${Number(x.savedMs).toFixed(1)}`).join(', ');
+        console.log(`[perf] ${String(body.gpu || 'unknown GPU').slice(0, 80)}, ${body.level}: ${frames}; most: ${top} (perf-reports/${file})`);
+        return json(res, { ok: true, file: `perf-reports/${file}` });
+      }
       if (p === '/api/club') {
         oc.setPlayer({ Club: toOpenConnectClub(body.club) });
         const selectedClub = game.setSelectedClub(body.club);
