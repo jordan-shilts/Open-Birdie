@@ -6,7 +6,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { outerRing } = require('../lib/course');
+const { outerRing, outerRings } = require('../lib/course');
 
 const P = (lat, lon) => ({ lat, lon });
 const A = P(0, 0), B = P(0, 2), C = P(1, 2), D = P(1, 0);
@@ -39,4 +39,18 @@ test('of two separate outer rings the bigger is the outline; members without geo
 
 test('a relation with no members (the old tags-only answer) has no outline', () => {
   assert.equal(outerRing({ type: 'relation', tags: { leisure: 'golf_course' } }), null);
+});
+
+test('a course mapped as two areas side by side has both, the bigger first', () => {
+  // Kiawah's Ocean Course: two closed outer rings sharing an edge, nine holes in each
+  const west = [P(0, 0), P(0, 2), P(1, 2), P(1, 0), P(0, 0)];
+  const east = [P(0, 2), P(0, 3), P(1, 3), P(1, 2), P(0, 2)];
+  const rel = { type: 'relation', members: [
+    { type: 'way', role: 'outer', geometry: east },
+    { type: 'way', role: 'outer', geometry: west },
+  ] };
+  assert.deepEqual(outerRings(rel), [west, east]);
+  assert.deepEqual(outerRing(rel), west);
+  assert.deepEqual(outerRings({ type: 'way', geometry: west }), [west]);
+  assert.deepEqual(outerRings({ type: 'node' }), []);
 });
