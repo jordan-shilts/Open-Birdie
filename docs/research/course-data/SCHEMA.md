@@ -6,6 +6,7 @@ One JSON file per course, written to `courses/<slug>.json` (this folder). The da
 {
   "course": "Pebble Beach Golf Links",
   "slug": "pebble-beach",
+  "osm": "relation/3741806 (optional: the course's OpenStreetMap feature; without it, the nearest courses/featured.json entry's)",
   "location": { "city": "Pebble Beach", "region": "California", "country": "USA", "lat": 36.5683, "lon": -121.9506 },
   "data_as_of": "the scorecard/edition year the yardages come from, e.g. 2025 scorecard",
   "sources": [

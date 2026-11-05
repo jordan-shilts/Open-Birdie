@@ -1,0 +1,293 @@
+{
+  "course": "Augusta National Golf Club",
+  "slug": "augusta-national",
+  "osm": "way/871993734",
+  "location": {
+    "city": "Augusta",
+    "region": "Georgia",
+    "country": "USA",
+    "lat": 33.4998,
+    "lon": -82.0228
+  },
+  "data_as_of": "2026 Masters scorecard",
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Augusta National Golf Club: Scorecard and course breakdown for 2026 Masters, Augusta National Women's Amateur host",
+      "url": "https://thegolfnewsnet.com/golfnewsnetteam/2026/04/06/augusta-national-golf-club-scorecard-and-course-breakdown-for-2026-masters-augusta-national-womens-amateur-host-141778/",
+      "publisher": "The Golf News Net"
+    }
+  ],
+  "tees": [
+    {
+      "name": "Masters",
+      "total_yards": 7565,
+      "par": 72,
+      "rating": null,
+      "slope": null,
+      "sex": "M",
+      "source": "S1"
+    }
+  ],
+  "greens": null,
+  "boundaries": null,
+  "holes": [
+    {
+      "number": 1,
+      "name": null,
+      "par": 4,
+      "handicap": null,
+      "yards": {
+        "Masters": 445
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 2,
+      "name": null,
+      "par": 5,
+      "handicap": null,
+      "yards": {
+        "Masters": 585
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 3,
+      "name": null,
+      "par": 4,
+      "handicap": null,
+      "yards": {
+        "Masters": 350
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 4,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Masters": 240
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 5,
+      "name": null,
+      "par": 4,
+      "handicap": null,
+      "yards": {
+        "Masters": 495
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 6,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Masters": 180
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 7,
+      "name": null,
+      "par": 4,
+      "handicap": null,
+      "yards": {
+        "Masters": 450
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 8,
+      "name": null,
+      "par": 5,
+      "handicap": null,
+      "yards": {
+        "Masters": 570
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 9,
+      "name": null,
+      "par": 4,
+      "handicap": null,
+      "yards": {
+        "Masters": 460
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 10,
+      "name": null,
+      "par": 4,
+      "handicap": null,
+      "yards": {
+        "Masters": 495
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 11,
+      "name": null,
+      "par": 4,
+      "handicap": null,
+      "yards": {
+        "Masters": 520
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 12,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Masters": 155
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 13,
+      "name": null,
+      "par": 5,
+      "handicap": null,
+      "yards": {
+        "Masters": 545
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 14,
+      "name": null,
+      "par": 4,
+      "handicap": null,
+      "yards": {
+        "Masters": 440
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 15,
+      "name": null,
+      "par": 5,
+      "handicap": null,
+      "yards": {
+        "Masters": 550
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 16,
+      "name": null,
+      "par": 3,
+      "handicap": null,
+      "yards": {
+        "Masters": 170
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    },
+    {
+      "number": 17,
+      "name": null,
+      "par": 4,
+      "handicap": null,
+      "yards": {
+        "Masters": 450
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": "Lengthened by 10 yards for the 2026 Masters (S1)."
+    },
+    {
+      "number": 18,
+      "name": null,
+      "par": 4,
+      "handicap": null,
+      "yards": {
+        "Masters": 465
+      },
+      "elevation": null,
+      "out_of_bounds": null,
+      "penalty_areas": null,
+      "green": null,
+      "notes": null
+    }
+  ],
+  "gaps": [
+    "Only the Masters tees are published; member tees, course rating, slope and handicaps are not.",
+    "The source's In subtotal reads 3,780 yards, but its hole yardages add up to 3,790 (Out 3,775 + In 3,790 = the published 7,565 total); the hole figures are used.",
+    "Hole names, elevation, out of bounds, penalty areas and green data were not researched here: this file exists so the game picks the championship course's holes, not the Par 3 Course's, from OpenStreetMap."
+  ]
+}
