@@ -29,11 +29,11 @@ const { hdManifestsFor } = require('../cloud/hd-holes');
 
 // The holes this repository has reviewed 1 m HD manifests for (tools/hd-course/manifests);
 // the cloud plans the others of a US course itself (auto-pinned).
-const repoHdHoles = (course) => hdManifestsFor(normalizeCourseSource(course).courseId).map((m) => m.hole);
-const packageHdHoles = (manifest) => (Array.isArray(manifest.hd) ? manifest.hd.map((h) => h.hole) : []);
-const holesText = (holes) => holes.join(', ');
+export const repoHdHoles = (course) => hdManifestsFor(normalizeCourseSource(course).courseId).map((m) => m.hole);
+export const packageHdHoles = (manifest) => (Array.isArray(manifest.hd) ? manifest.hd.map((h) => h.hole) : []);
+export const holesText = (holes) => holes.join(', ');
 // [{hole, code}] -> "5, 6 (HD_NAIP_NO_COVERAGE); 13 (HD_3DEP_HTTP)"
-const missingText = (missing) => {
+export const missingText = (missing) => {
   const byCode = new Map();
   for (const { hole, code } of missing) byCode.set(code, [...(byCode.get(code) || []), hole]);
   return [...byCode].map(([code, holes]) => `${holesText(holes)} (${code})`).join('; ');
@@ -84,8 +84,8 @@ export async function resolveCourse(entry, { search, featured = [] }) {
   return { name: hit.name, osmType: hit.osmType, osmId: hit.osmId, bbox: hit.bbox || null };
 }
 
-const label = (c) => `${(c.name || `${c.osmType}/${c.osmId}`).split(',')[0]} (${c.osmType}/${c.osmId})`;
-const mb = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
+export const label = (c) => `${(c.name || `${c.osmType}/${c.osmId}`).split(',')[0]} (${c.osmType}/${c.osmId})`;
+export const mb = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
 
 // One course: skip it when the cloud has the complete package with every HD hole a
 // retry could add (unless force); else ask for a build (an HD upgrade resumes from the
