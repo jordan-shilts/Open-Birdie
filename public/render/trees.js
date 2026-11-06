@@ -165,8 +165,39 @@ const WIND_VERT = /* glsl */`
     #endif
   }`;
 
+// A tree in front of the camera is drawn see-through: dithered to FADE_SHOWN of its
+// pixels (no sorting; it still casts its shadow and still stops a ball). In front means
+// ahead of the camera across the middle of the view, within uFadeNear metres (a cone a
+// crown wide that widens with distance: the ball and the shot are in the middle of the
+// frame), or within uFadeHug metres of the camera anywhere it looks. Per tree, from the
+// instance's foot in view space, so a tree fades whole.
+const FADE_NEAR_M = 45;
+const FADE_HUG_M = 9;
+const FADE_SHOWN = 0.12;
+const FADE_VERT = /* glsl */`
+  {
+    float treeH = length(instanceMatrix[1].xyz) * uTreeH;
+    // the tree's foot (its instance origin) in view space: camera at 0, looking down -z
+    vec3 fv = (modelViewMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz;
+    float depth = -fv.z;
+    float halfW = 0.3 * treeH + 1.0 + 0.06 * max(depth, 0.0);
+    float cone = (1.0 - smoothstep(halfW, halfW + 3.0, abs(fv.x)))
+               * (1.0 - smoothstep(uFadeNear * 0.75, uFadeNear, depth)) * step(-1.0, depth);
+    float hug = (1.0 - smoothstep(uFadeHug * 0.7, uFadeHug, length(fv.xz))) * step(-halfW, depth);
+    vFade = uFadeOn * max(cone, hug);
+  }`;
+const FADE_FRAG = /* glsl */`
+  if (vFade > 0.0) {
+    vec2 q = mod(floor(gl_FragCoord.xy), 4.0);
+    const float B[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
+    if ((B[int(q.x) + int(q.y) * 4] + 0.5) / 16.0 < vFade * (1.0 - ${FADE_SHOWN.toFixed(2)})) discard;
+  }`;
+
 function addTreeShader(mat, shared, { flutter = false, foliage = false, key }) {
   mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uFadeNear = shared.uFadeNear;
+    shader.uniforms.uFadeHug = shared.uFadeHug;
+    shader.uniforms.uFadeOn = shared.uFadeOn;
     shader.uniforms.uTime = shared.uTime;
     shader.uniforms.uWindAmp = shared.uWindAmp;
     shader.uniforms.uTreeH = shared.uTreeH;
@@ -175,11 +206,13 @@ function addTreeShader(mat, shared, { flutter = false, foliage = false, key }) {
       .replace('#include <common>', `#include <common>
         ${flutter ? '#define TREE_FLUTTER' : ''}
         uniform float uTime; uniform float uWindAmp; uniform float uTreeH;
+        uniform float uFadeNear; uniform float uFadeHug; uniform float uFadeOn;
         attribute float aAO;
-        varying float vAO; varying float vTreeT;`)
+        varying float vAO; varying float vTreeT; varying float vFade;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vAO = aAO; vTreeT = clamp(position.y / uTreeH, 0.0, 1.0);
-        ${WIND_VERT}`);
+        ${WIND_VERT}
+        ${FADE_VERT}`);
     if (foliage) {
       shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         // leaf cards carry crown-volume normals (out of the crown): a back-facing card
@@ -189,7 +222,9 @@ function addTreeShader(mat, shared, { flutter = false, foliage = false, key }) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         uniform vec3 uSunView;
-        varying float vAO; varying float vTreeT;`)
+        varying float vAO; varying float vTreeT; varying float vFade;`)
+      .replace('#include <clipping_planes_fragment>', `${FADE_FRAG}
+        #include <clipping_planes_fragment>`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         {
           ${foliage ? `
@@ -214,7 +249,7 @@ function addTreeShader(mat, shared, { flutter = false, foliage = false, key }) {
           totalEmissiveRadiance += diffuseColor.rgb * back * 0.55 * vAO;
         }` : ''}`);
   };
-  mat.customProgramCacheKey = () => `tree3d-v2-${key}`;
+  mat.customProgramCacheKey = () => `tree3d-v3-fade-${key}`;
 }
 
 // depth material for shadows with the same wind (and alpha for leaf cards)
@@ -274,6 +309,11 @@ export class TreeField {
       uWindAmp: { value: 0.012 + (RENDER_CONFIG.windStrength ?? 0.5) * 0.03 },
       uTreeH: { value: 14 },
       uSunView: { value: new THREE.Vector3(0, 1, 0) },
+      // see-through trees (FADE_VERT): ahead of the camera across the middle of the view
+      // within uFadeNear m, and any tree within uFadeHug m of it; uFadeOn 0 turns it off
+      uFadeNear: { value: FADE_NEAR_M },
+      uFadeHug: { value: FADE_HUG_M },
+      uFadeOn: { value: 1 },
     };
     this._sunDir = sunDir || new THREE.Vector3(0.4, 0.8, 0.3).normalize();
     this.variants = [];

@@ -207,7 +207,8 @@ function bushGeometry() {
 // Augusta-ish azalea palette: vivid hot-pink/magenta/red dominate so the beds
 // read as colour at distance (pale blossoms just pick up the bluish aerial fog);
 // one near-white kept for variety.
-const AZALEA = [0xe24b8a, 0xc4327a, 0xd83a5a, 0xe8629c, 0xf07ab0, 0xf2dfe6];
+// Softened from the first pass (0xe24b8a, ...), whose solid tinted cards read as blobs.
+const AZALEA = [0xd06a95, 0xb4517f, 0xc65a6c, 0xd982a8, 0xe29ab9, 0xeee0e6];
 
 // spots: [{x,y,s}], hAt, V. One instanced mesh of crossed-quad bushes, each
 // tinted to a random azalea color. Returns { meshes }.
@@ -217,6 +218,15 @@ export function buildFlowers(spots, hAt, V) {
     map: flowerTexture(), alphaTest: 0.4, side: THREE.DoubleSide,
     roughness: 0.9, metalness: 0,
   });
+  // the bush's colour tints its blossoms (white in the texture) and leaves its leaves green
+  mat.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `
+      #if defined( USE_COLOR ) || defined( USE_COLOR_ALPHA )
+        float bloom = smoothstep(0.45, 0.8, min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b)));
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vColor.rgb, bloom);
+      #endif`);
+  };
+  mat.customProgramCacheKey = () => 'azalea-v2';
   const mesh = new THREE.InstancedMesh(bushGeometry(), mat, spots.length);
   mesh.castShadow = false;
   mesh.receiveShadow = false;
@@ -227,7 +237,7 @@ export function buildFlowers(spots, hAt, V) {
     const sp = spots[i];
     const h = hAt(sp.x, sp.y);
     q.setFromAxisAngle(up, rnd() * Math.PI * 2);
-    const sz = 0.9 + rnd() * 0.7;
+    const sz = 0.75 + rnd() * 0.5;
     sc.set(sz * (sp.s || 1), sz * (0.85 + rnd() * 0.4) * (sp.s || 1), sz * (sp.s || 1));
     m4.compose(V(sp.x, sp.y, h), q, sc);
     mesh.setMatrixAt(i, m4);
