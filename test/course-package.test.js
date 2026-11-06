@@ -262,6 +262,38 @@ test('the LRU cache evicts least recently played courses past the cap, never a p
   assert.deepEqual(createCourseCache({ dataDir, maxBytes: Infinity, log: quiet }).enforce(), [], 'no cap: nothing evicted');
 });
 
+test('the cache index knows a course downloaded ahead of time has not been played', async () => {
+  const dataDir = tempDir('birdie-played-');
+  for (const c of [makeCourse(1), makeCourse(2)]) await seedCourse(dataDir, c, { hd: false, bytes: 1000 });
+  let clock = 1000;
+  const cache = createCourseCache({ dataDir, now: () => clock, log: quiet });
+  // course 1 is downloaded, then played; course 2 is only downloaded
+  assert.equal(cache.record('osm-way-1', { lastUsed: clock }).played, false);
+  assert.equal(cache.record('osm-way-2', { lastUsed: clock }).played, false);
+  clock = 2000;
+  assert.equal(cache.touch('osm-way-1').played, true);
+  clock = 3000;
+  assert.equal(cache.record('osm-way-1', { lastUsed: clock }).played, true, 'downloading it again keeps it played');
+  const reopened = createCourseCache({ dataDir, now: () => clock, log: quiet });
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(reopened.entries()).map(([k, e]) => [k, [e.lastUsed, e.played]])),
+    { 'osm-way-1': [3000, true], 'osm-way-2': [1000, false] },
+  );
+  // an index entry written before the field existed counts as played; a course found by
+  // scanning (built or copied into the data dir) does not
+  const index = JSON.parse(fs.readFileSync(path.join(dataDir, INDEX_FILE), 'utf8'));
+  delete index.entries['osm-way-2'].played;
+  fs.writeFileSync(path.join(dataDir, INDEX_FILE), JSON.stringify(index));
+  const legacy = createCourseCache({ dataDir, now: () => clock, log: quiet });
+  assert.equal(legacy.record('osm-way-2').played, true);
+  const fresh = tempDir('birdie-played-scan-');
+  await seedCourse(fresh, makeCourse(3), { hd: false, bytes: 1000 });
+  const scanned = createCourseCache({ dataDir: fresh, log: quiet });
+  scanned.scan();
+  assert.equal(scanned.entries()['osm-way-3'].played, false);
+  assert.equal(scanned.touch('osm-way-3').played, true, 'until it is played');
+});
+
 test('scanning an empty data dir writes nothing', () => {
   const dataDir = tempDir('birdie-lru-');
   const cache = createCourseCache({ dataDir, log: quiet });
