@@ -8,6 +8,7 @@ import { AimMap } from './aim-map.js';
 import { ConditionsUI } from './conditions-ui.js';
 import { Lineup, CLUBS, clubByLabel, writeAutoClub } from './lineup.js';
 import { LeaguesUI } from './leagues-ui.js';
+import { renderClubPanel } from './club-panel.js';
 import { parseQualitySetting, qualityLabel } from './render/quality.js';
 import { parseSkySetting, SKY_ORDER, SKY_PRESETS } from './render/sky-presets.js';
 
@@ -116,6 +117,24 @@ segmented($('seg-details'), [['off', 'Off'], ['on', 'On']], lineup.details ? 'on
   lineup.setDetails(v === 'on');
   markSeg($('seg-details'), v);
 });
+// the club delivery card beside the last shot (club-panel.js): on unless turned off
+const CLUBCARD_KEY = 'open-birdie.clubcard';
+let clubCardOn = (() => { try { return localStorage.getItem(CLUBCARD_KEY) !== 'off'; } catch { return true; } })();
+let clubCardShot = null;   // the shot whose club data the card shows
+segmented($('seg-clubcard'), [['on', 'On'], ['off', 'Off']], clubCardOn ? 'on' : 'off', (v) => {
+  clubCardOn = v === 'on';
+  try { localStorage.setItem(CLUBCARD_KEY, v); } catch { /* private window */ }
+  markSeg($('seg-clubcard'), v);
+  showClubCard(clubCardShot);
+});
+function showClubCard(shot) {
+  clubCardShot = shot;
+  const el = $('clubpanel');
+  const d = clubCardOn && shot && !$('shotpanel').classList.contains('hidden') && !$('shotpanel').classList.contains('no-room') ? shot.clubData : null;
+  const label = $('sp-club').textContent;
+  renderClubPanel(el, d || null, { clubName: label, wood: /driver|wood|^dr$|^\dw$/i.test(label) });
+  el.style.top = $('shotpanel').style.top;
+}
 
 let state = null;
 let pendingState = null;
@@ -483,6 +502,7 @@ function showShotData(shot, plan = null, view = 'live') {
       + (Math.abs(off) >= 1 ? `, <b>${Math.abs(off)} yd ${off > 0 ? 'right' : 'left'}</b> of the line` : ', on line');
   } else vs.innerHTML = '';
   stackShotPanel();
+  showClubCard(shot);
 }
 
 // While a game is on, the last shot's numbers stack under its board in the left column,
@@ -1047,7 +1067,7 @@ async function replaySaved(id) {
   const pts = rec.points.map(([t, x, y, z]) => ({ t, x, y, z }));
   const r = rec.result;
   const shot = {
-    launch: rec.launch, club: rec.club, strokes: null, note: r.note, lie: r.lie,
+    launch: rec.launch, club: rec.club, clubData: rec.clubData ?? null, strokes: null, note: r.note, lie: r.lie,
     sim: { points: pts, carryYd: r.carryYd, totalYd: r.totalYd, offlineYd: r.offlineYd, apexFt: r.apexFt, flightTime: r.flightTime, isPutt: r.isPutt, events: [] },
   };
   const token = { id, doneTimer: null };
@@ -1098,7 +1118,7 @@ function endReplay() {
   pendingState = null;
   if (s) applyState(s);
   if (lastShot) showShotData(lastShot.shot, lastShot.plan, 'restore');
-  else $('shotpanel').classList.add('hidden');
+  else { $('shotpanel').classList.add('hidden'); showClubCard(null); }
   setSaveButton();
   updateMulligan();
 }

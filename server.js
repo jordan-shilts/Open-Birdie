@@ -29,6 +29,7 @@ const { normalizeCourseSource } = require('./lib/course-identity');
 const { packageKeyFor, parsePackageKey } = require('./lib/course-package');
 const { prepareCourseCandidate } = require('./lib/resolved-course-package');
 const { Game, CLUB_FULL } = require('./lib/game');
+const { clubDelivery } = require('./lib/club-delivery');
 const { PRESETS, conditionsState, loadConditionsFile, saveConditionsFile } = require('./lib/conditions');
 const { normalizeSettings, loadSettingsFile, saveSettingsFile } = require('./lib/settings');
 const { createBag } = require('./lib/bag');
@@ -138,7 +139,7 @@ oc.on('shot', (shot) => {
   if (SPEED_SCALE !== 1 && typeof shot.ball.Speed === 'number') shot.ball.Speed *= SPEED_SCALE;
   console.log(`[OC] shot: ${shot.ball.Speed} mph, VLA ${shot.ball.VLA}, HLA ${shot.ball.HLA}, spin ${shot.ball.TotalSpin}${shot.clubName ? ' (' + shot.clubName + ')' : ''}`);
   const from = shotOrigin();
-  const result = playShot(shot.ball, shot.clubName);
+  const result = playShot(shot.ball, shot.clubName, shot.club);
   recordBagShot(shot, result, from);
 });
 oc.on('error', (err) => {
@@ -147,11 +148,13 @@ oc.on('error', (err) => {
   } else console.error('[OC]', err.message);
 });
 
-function playShot(ballData, clubName) {
+function playShot(ballData, clubName, clubData = null) {
   const before = game.course ? game.state() : null;   // where the ball is hit from
   const result = game.handleShot(ballData, clubName);
   if (!result) return null;
   result.shotId = ++shotSeq;
+  // the club card (public/club-panel.js): the monitor's club data, the rest from the ball
+  result.clubData = clubDelivery(clubData, ballData, result.clubKey, { isPutt: !!result.sim?.isPutt });
   const pr = before.practice || null;
   lastShot = {
     result,
@@ -485,10 +488,13 @@ const server = http.createServer(async (req, res) => {
       }
       if (p === '/api/test-shot') {
         // practice panel / testing without a launch monitor
+        // club: optional Open Connect ClubData fields (Speed, Path, FaceToTarget,
+        // AngleOfAttack, Loft, HorizontalFaceImpact, VerticalFaceImpact) to try the club card
+        const club = body.club && typeof body.club === 'object' ? body.club : null;
         playShot({
           Speed: +body.speed, VLA: +body.vla, HLA: +body.hla || 0,
           TotalSpin: +body.spin || 0, SpinAxis: +body.spinAxis || 0,
-        });
+        }, undefined, club);
         return json(res, { ok: true });
       }
       if (p === '/api/aim') {

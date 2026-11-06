@@ -5,6 +5,15 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Club delivery beside the last shot** — a card like the launch monitors' club screens (`public/club-panel.js`):
+  club path, face angle and face to path from above (drawn three times their angle), attack angle, dynamic loft
+  and spin loft from the side, and the strike: smash factor against the club's best (centered / slightly off /
+  off-center), club speed, and the impact point on the face when the monitor measures it. The server turns the
+  Open Connect club data into it (`lib/club-delivery.js`, tested): measured numbers pass through; what the
+  monitor doesn't measure comes from the ball by the D-plane and is marked *est* (OpenFlight sends club speed and
+  path, so its face angle and face to path are estimates; attack and loft show a dash until it sends an attack
+  angle). Saved shots keep it. Menu → View → **Club delivery** turns it off. `POST /api/test-shot` takes `club`
+  (Open Connect ClubData fields) to try it without a monitor.
 - **Augusta National's Par 3 Course** — the nine-hole course (1,055 yd, par 27) beside Ike's Pond and DeSoto Springs
   Pond. OpenStreetMap maps only its holes, numbered 1-9 inside Augusta National's outline, so its researched
   scorecard (`docs/research/course-data/courses/augusta-national-par-3.json`) is keyed to its first hole and names
