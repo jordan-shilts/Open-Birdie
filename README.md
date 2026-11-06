@@ -101,6 +101,13 @@ routing lines to be playable; the loader tells you if they're missing. First loa
 geometry + elevation (10–90 s) and caches it in `data/courses/` — afterwards it's instant
 and works offline.
 
+To get courses ready before you play them (for an offline session, say), download them from the
+course picker without playing: the button beside a featured course, **Download all**, or
+**Download** on a map search result. They download in the background, one at a time, while you play,
+and show their progress at the top of the picker; whatever is still waiting when the app closes
+carries on at the next start. A downloaded course is kept until you clear the finished downloads,
+even past the cache cap; when the cache is full, the rest wait.
+
 Once a course is playable, its missing scenery follows in the background — real buildings and
 the lakes and ponds around the course (OpenStreetMap), every real tree (canopy height map; needs
 the optional `geotiff` package or the cloud service) and the course-wide aerial photo (USGS, US
@@ -119,7 +126,7 @@ once per course.
 | `BIRDIE_OVERPASS_URLS` | (unset) | comma-separated Overpass interpreter URLs to try before the built-in public mirrors (overpass-api.de, maps.mail.ru, kumi.systems, private.coffee) — useful when they are all at capacity or you run your own |
 | `GOOGLE_MAPS_API_KEY` | (unset) | your own Google Map Tiles API key — turns on the optional Google 3D surroundings (below). Unset = no requests to Google at all |
 | `BIRDIE_ENRICH` | 1 | set to `0` to stop fetching missing scenery (buildings, trees, aerial photo) in the background |
-| `BIRDIE_CACHE_MAX_MB` | 1024 | size cap of the local course cache; the least recently played courses are deleted past it (never the one being played) and are downloaded again when picked. `0` = no cap |
+| `BIRDIE_CACHE_MAX_MB` | 1024 | size cap of the local course cache; the least recently played courses are deleted past it (never the one being played, nor one in the picker's finished downloads) and are downloaded again when picked. `0` = no cap |
 | `BIRDIE_CLOUD_URL` | (unset) | base URL of an Open-Birdie cloud course service (see [Cloud courses](#cloud-courses)). Unset = everything is built on this computer and no cloud request is ever made |
 | `BIRDIE_CLOUD_BUILD_TOKEN` | (unset) | lets this app ask the cloud to build a course it does not have yet (must match the service's token); without it, such courses are built locally |
 

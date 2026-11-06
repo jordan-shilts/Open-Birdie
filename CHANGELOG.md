@@ -5,6 +5,19 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Courses download ahead of time** — the course picker can download a course without playing it: the button
+  beside a featured card, **Download all** over the featured courses, or **Download** on a map search result. The
+  courses download in the background, one at a time (the public OpenStreetMap servers are shared), while the round
+  goes on, and land in *Your courses*, ready to play offline. They take the same path as a pick (the local cache,
+  then the cloud package, else a build on this computer), so a pick of a course while it downloads joins the
+  download instead of starting again. A **Downloads** list at the top of the picker shows each one's progress
+  with Cancel, Retry, Play and Clear finished. A busy server or a network failure is retried twice (1, then 2
+  minutes later) while the next course goes ahead; a course that cannot be loaded at all fails at once with the
+  loader's words. Nothing new starts while a pick is loading, or while the course cache is full (the list says
+  so); downloaded courses are kept from cache eviction until the list is cleared. The queue outlives a restart
+  (`data/course-downloads.json`). The engine is `lib/course-downloads.js`; its API is `GET /api/downloads`,
+  `POST /api/downloads` (`{courses: [...]}`), `/api/downloads/cancel`, `/retry` and `/clear`, and a `downloads`
+  server-sent event.
 - **Augusta National's Par 3 Course** — the nine-hole course (1,055 yd, par 27) beside Ike's Pond and DeSoto Springs
   Pond. OpenStreetMap maps only its holes, numbered 1-9 inside Augusta National's outline, so its researched
   scorecard (`docs/research/course-data/courses/augusta-national-par-3.json`) is keyed to its first hole and names
@@ -212,6 +225,13 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **A course load stops only when nobody wants it** — the course loader shared one load per course but ignored
+  every caller's abort signal, and each pick cancelled every other load in progress. Each caller now holds a claim
+  on the load (`lib/course.js` `createCourseAcquisitionCoordinator`): its signal withdraws its own claim, a newer
+  pick withdraws the older pick's, and the load is aborted only when no claim is left. A cloud build that is
+  cancelled or times out now stops fetching the course it was building.
+- **A downloaded course that was never played no longer says "played just now"** — the cache index records
+  whether a course has been played (`played`), and the picker shows a played time only for those.
 - **No tree stands in a par 3's shot** — a tree whose crown comes within 3 m of a par 3's tee-to-pin line is
   neither drawn nor an obstacle, the same on the server and in the renderer (`lib/tree-obstacles.js` and
   `render/tree-placement.js` `par3LineBlock`, kept equal by a test). Canopy data can predate a hole: two trees stood
