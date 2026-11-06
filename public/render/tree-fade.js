@@ -9,7 +9,7 @@
 // blended — and still casts its shadow and still stops a ball.
 export const FADE_NEAR_M = 45;
 export const FADE_HUG_M = 9;
-export const FADE_SHOWN = 0.1;    // opacity of a see-through tree
+export const FADE_SHOWN = 0.07;   // opacity of a see-through tree: barely there
 export const FADE_AT = 0.35;      // this far into the zone (0-1) a tree is drawn see-through
 
 const smooth = (a, b, x) => {

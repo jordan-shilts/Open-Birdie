@@ -110,7 +110,7 @@ All notable changes to Open-Birdie are documented here.
   `tree-placement.js` `canopyHeight`, mirrored for the ball). Augusta's pines read as a wall, not a hedge.
 - **Trees in front of the camera are see-through** — a tree within 45 m ahead of the camera, across the middle of
   the view (where the ball and the shot are), or within 9 m of the camera anywhere it looks, is drawn as a faint
-  alpha-blended ghost at 10% (`render/tree-fade.js` picks them; `render/trees.js` draws them in their own
+  alpha-blended ghost at 7% (`render/tree-fade.js` picks them; `render/trees.js` draws them in their own
   bucket), so the shot is never hidden behind a trunk or a crown. It still casts its shadow and still stops a
   ball. (The first version dithered it to an eighth of its pixels, which showed as a dot pattern.)
 - **Azaleas are bushes, not cut-outs** — low domes of leafy clumps facing the camera with the blossoms over their
