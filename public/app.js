@@ -840,23 +840,25 @@ document.querySelectorAll('#main-menu .hub-tile').forEach((t) => t.addEventListe
 // the one opened last stays and the others close, every button shows what is open, and
 // body.stage-open puts the dimmed backdrop behind it and steps the play HUD aside
 // (style.css). A click on the backdrop closes it.
+// [panel, its buttons, dims the stage]: the practice-shot panel stays open while its
+// shots fly, so it keeps the course and the HUD in view
 const STAGE = [
-  ['scorecard', ['btn-score', 'btn-score-tile']],
-  ['saved-panel', ['btn-saved']],
-  ['games-menu', ['btn-games']],
-  ['league-panel', ['btn-league']],
-  ['conditions', ['cond-widget']],
-  ['practice', ['btn-practice']],
+  ['scorecard', ['btn-score', 'btn-score-tile'], true],
+  ['saved-panel', ['btn-saved'], true],
+  ['games-menu', ['btn-games'], true],
+  ['league-panel', ['btn-league'], true],
+  ['conditions', ['cond-widget'], true],
+  ['practice', ['btn-practice'], false],
 ];
 const stageOpen = (id) => !$(id).classList.contains('hidden');
 function syncStage() {
-  let any = false;
-  for (const [id, btns] of STAGE) {
+  let dim = false;
+  for (const [id, btns, dims] of STAGE) {
     const open = stageOpen(id);
-    any = any || open;
+    dim = dim || (open && dims);
     for (const b of btns) $(b)?.classList.toggle('active', open);
   }
-  document.body.classList.toggle('stage-open', any);
+  document.body.classList.toggle('stage-open', dim);
 }
 function closeStage() {
   for (const [id] of STAGE) $(id).classList.add('hidden');

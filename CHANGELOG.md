@@ -92,13 +92,42 @@ All notable changes to Open-Birdie are documented here.
   the map is as it was.
 
 ### Changed
+- **Trees built like the pro sims' trees** — a crown is a few hundred dense leaf clumps (broadleaves) or needle
+  tufts (pines) on cards that turn to face the camera, the way SpeedTree-style game trees build canopy, instead of
+  single twig cards: crowns read as solid, lumpy masses with leafy edges and sky only between their lobes, where
+  they were sparse and full of bare spokes (`render/leaf-atlas.js`, `render/tree-gen.js`, `render/trees.js`). In
+  the shadow pass the clumps turn to the sun, so a crown's shadow is as full as it looks. The pine is now a
+  southern yellow pine (loblolly / longleaf): a tall clean trunk under a lumpy crown of tufts. Each clump carries
+  a little light variation and the crowns show more sun against shade. Fewer cards than before: the Par 3
+  Course's 4th tee went 3.55 -> 3.10 ms at Low and 13.01 -> 10.19 ms at High on the dev Mac (not yet measured on
+  the sim PC).
+- **Each course grows its own trees** — `course-character.js` `COURSE_FLORA`: Augusta National and its Par 3
+  Course are loblolly pines with oaks (no birch or spruce in Georgia), Harbour Town and Kiawah live oaks and
+  pines, Spyglass Hill Monterey pines, Torrey Pines its pines, and so on; other courses keep the default mix. The
+  ball's tree obstacles (`lib/tree-obstacles.js`) follow the same species, as tested.
+- **Taller trees where they are tall** — the canopy height map runs low on tall trees (it is learned from
+  satellite photos), so heights over 8 m are stretched by a third (a 20 m reading stands 24 m:
+  `tree-placement.js` `canopyHeight`, mirrored for the ball). Augusta's pines read as a wall, not a hedge.
 - **Trees in front of the camera are see-through** — a tree within 45 m ahead of the camera, across the middle of
-  the view (where the ball and the shot are), or within 9 m of the camera anywhere it looks, is drawn at about an
-  eighth of its pixels, dithered, so the shot is never hidden behind a trunk or a crown (`render/trees.js`). It
-  still casts its shadow and still stops a ball. About 3% of a frame on the dev Mac (Low 3.44 -> 3.55 ms, High
-  12.67 -> 13.01 ms, the Par 3 Course's 4th tee).
-- **Softer azaleas** — the beds' colours are toned down from hot pink and red, and the bushes are a size smaller;
-  only the blossoms take the colour (`render/vegetation.js`).
+  the view (where the ball and the shot are), or within 9 m of the camera anywhere it looks, is drawn as a faint
+  alpha-blended ghost at 10% (`render/tree-fade.js` picks them; `render/trees.js` draws them in their own
+  bucket), so the shot is never hidden behind a trunk or a crown. It still casts its shadow and still stops a
+  ball. (The first version dithered it to an eighth of its pixels, which showed as a dot pattern.)
+- **Azaleas are bushes, not cut-outs** — low domes of leafy clumps facing the camera with the blossoms over their
+  tops, in deeper pinks and reds (`render/vegetation.js`); they keep off fairways, greens, tees, bunkers and
+  water, and a bush in front of the shot is not drawn.
+- **Clean fairways and greens** — mown surfaces are one even tone carrying their mowing pattern: no aerial-photo
+  tint or far photo on fairways and greens (their blotches were capture-day tree shadows and dry patches), and
+  much less mottling (`render/turf.js` v44). The fairway stripes now run down the hole being played, the way
+  fairways are cut for play, bolder, and out to about 400 m; looking back up the hole they swap light for dark
+  instead of vanishing.
+- **Lighter shade** — midday's sky fill went 0.32 -> 0.4, so the ground under trees is shaded, not near-black.
+- **The interface, made for the sim screen** — the top bar keeps Flyover, Scorecard and the Menu; the menu opens
+  as a hub of big tiles (Courses, Conditions, Range & games, Leagues, Saved shots, Scorecard) above the settings.
+  One panel opens at a time, on a dimmed stage that steps the play HUD aside (a click on it closes the panel).
+  Larger type and targets throughout the menu, the panels, a full-width scorecard, saved shots, games, leagues
+  and a four-column course picker. The play screen no longer shows a number twice: the shot card has the
+  distance to the pin and its front and back, the club picker has the club.
 - **A lighter Low** (measured on the dev Mac by throughput, Hazeltine's 1st tee in the sim PC's 1920x1080
   window, not yet on the sim PC): a Low frame at its full 1516x853 went 3.62 -> 2.98 ms (-18%), and 2.20 -> 1.95 ms
   at 960x540.
@@ -212,6 +241,15 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **Fairways mapped as multipolygons were played as rough** — the course loader asked OpenStreetMap for tags only,
+  which leaves out a relation's members, so every surface mapped as a multipolygon was dropped: all 18 of Augusta
+  National's fairways (it loaded 4 of 34 fairway areas) and many at Kiawah, Torrey Pines and TPC Scottsdale. The
+  loader now takes relations in full and joins their outer pieces into rings (`lib/course.js`); the projection
+  origin still comes from the ways alone, so a course without such surfaces loads exactly as before and keeps its
+  HD holes. A course already on disk keeps the old surfaces until it is built again.
+- **Menu buttons stayed lit after their panel closed** — closing saved shots (Esc or ×) left its button
+  highlighted, and opening one panel didn't always close the others; one observer now keeps one panel open and
+  every button in step.
 - **No tree stands in a par 3's shot** — a tree whose crown comes within 3 m of a par 3's tee-to-pin line is
   neither drawn nor an obstacle, the same on the server and in the renderer (`lib/tree-obstacles.js` and
   `render/tree-placement.js` `par3LineBlock`, kept equal by a test). Canopy data can predate a hole: two trees stood
