@@ -375,6 +375,7 @@ es.addEventListener('course-progress', (e) => {
   el.textContent = text;
   el.classList.remove('hidden');
 });
+es.addEventListener('downloads', (e) => setDownloads(JSON.parse(e.data)));
 es.addEventListener('leagues', (e) => leaguesUI.setData(JSON.parse(e.data)));
 es.addEventListener('league-card', (e) => leaguesUI.cardPosted(JSON.parse(e.data)));
 es.addEventListener('lm', (e) => {
@@ -1244,27 +1245,33 @@ function cardHtml(c, kind, i) {
   const stats = [c.holes ? `${c.holes} holes` : null, c.par ? `Par ${c.par}` : null,
     c.yards ? `${Math.round(c.yards).toLocaleString('en-US')} yd` : null].filter(Boolean).join(' · ');
   const tags = kind === 'featured'
-    ? '<i class="tag get">Download</i>' + (c.researched ? '<i class="tag">Scorecard</i>' : '')
+    ? featuredTags(c)
     : (c.current ? '<i class="tag now">Playing</i>' : '') + (c.hd ? '<i class="tag">HD</i>' : '') +
       (c.researched ? '<i class="tag">Scorecard</i>' : '') + (playedAgo(c.lastUsed) ? `<i class="tag dim">${playedAgo(c.lastUsed)}</i>` : '');
   const words = `${c.name} ${c.place || ''}`.toLowerCase();
-  return `<button type="button" class="cm-card${c.current ? ' current' : ''}" data-kind="${kind}" data-i="${i}" data-words="${esc(words)}">
+  const card = `<button type="button" class="cm-card${c.current ? ' current' : ''}" data-kind="${kind}" data-i="${i}" data-words="${esc(words)}">
     <span class="cm-map">${kind === 'featured' ? sketchSvg(null) : sketchSvg(c.sketch)}</span>
-    <span class="cm-body"><b class="cm-name">${esc(c.name.split(',')[0])}</b>${c.place ? `<span class="cm-place">${esc(c.place)}</span>` : ''}
+    <span class="cm-body"><b class="cm-name">${esc(shortName(c.name))}</b>${c.place ? `<span class="cm-place">${esc(c.place)}</span>` : ''}
       ${stats ? `<span class="cm-stats">${stats}</span>` : ''}<span class="cm-tags">${tags}</span></span>
   </button>`;
+  if (kind !== 'featured') return card;
+  // a featured course can also be downloaded without playing it: the button beside the card
+  return `<div class="cm-cell" data-i="${i}">${card}<button type="button" class="cm-dl${dlQueued(c) ? ' hidden' : ''}" data-i="${i}"
+    title="Download without playing" aria-label="Download ${esc(shortName(c.name))} without playing">${DL_ICON}</button></div>`;
 }
 function renderLibrary() {
   const el = $('course-lib');
   if (!library) { el.innerHTML = '<div class="cm-empty"><span class="loading-spin"></span>Loading your courses…</div>'; return; }
   const yours = library.courses || [], feat = library.featured || [];
-  el.innerHTML =
+  el.innerHTML = '<div id="cm-dls"></div>' +
     (yours.length ? `<div class="cm-sec"><span class="lbl">YOUR COURSES · <b data-count="yours">${yours.length}</b></span><span class="cm-sub">Downloaded, so they load in seconds</span></div>
       <div class="cm-grid" data-sec="yours">${yours.map((c, i) => cardHtml(c, 'yours', i)).join('')}</div>` : '') +
-    (feat.length ? `<div class="cm-sec"><span class="lbl">FEATURED · <b data-count="featured">${feat.length}</b></span><span class="cm-sub">A click downloads one: about a minute the first time</span></div>
+    (feat.length ? `<div class="cm-sec"><span class="lbl">FEATURED · <b data-count="featured">${feat.length}</b></span><span class="cm-sub">A click downloads one and plays it: about a minute the first time</span>
+      <button type="button" class="cm-link" data-dl="all" title="Download every featured course in the background">Download all</button></div>
       <div class="cm-grid" data-sec="featured">${feat.map((c, i) => cardHtml(c, 'featured', i)).join('')}</div>` : '') +
     '<div id="cm-none" class="cm-empty hidden"></div>';
   el.querySelectorAll('.cm-card').forEach((card) => { card.onclick = () => playCard(card); });
+  paintDownloads();
   applyFilter();
 }
 // show the cards with a word starting with each word typed (name or place); pick the first
@@ -1274,7 +1281,9 @@ function applyFilter() {
   const words = wordsOf(q);
   for (const card of document.querySelectorAll('#course-lib .cm-card')) {
     const have = wordsOf(card.dataset.words);
-    card.classList.toggle('hidden', !words.every((w) => have.some((h) => h.startsWith(w))));
+    const hide = !words.every((w) => have.some((h) => h.startsWith(w)));
+    card.classList.toggle('hidden', hide);
+    card.closest('.cm-cell')?.classList.toggle('hidden', hide);
   }
   for (const sec of ['yours', 'featured']) {
     const n = document.querySelectorAll(`#course-lib .cm-grid[data-sec="${sec}"] .cm-card:not(.hidden)`).length;
@@ -1323,8 +1332,23 @@ async function doSearch(q) {
       const d = document.createElement('div');
       d.className = 'result';
       const isCourse = r.type === 'golf_course';
-      d.innerHTML = `<span class="badge ${isCourse ? '' : 'other'}">${isCourse ? 'golf course' : esc(r.type)}</span> ${esc(r.name)}`;
-      d.onclick = () => pickCourse({ name: r.name, bbox: r.bbox, osmType: r.osmType, osmId: r.osmId });
+      d.innerHTML = `<span class="badge ${isCourse ? '' : 'other'}">${isCourse ? 'golf course' : esc(r.type)}</span> <span class="result-name">${esc(r.name)}</span>`;
+      const course = { name: r.name, bbox: r.bbox, osmType: r.osmType, osmId: r.osmId };
+      d.onclick = () => pickCourse(course);
+      if (isCourse) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'cm-link';
+        b.textContent = 'Download';
+        b.title = 'Download without playing';
+        b.onclick = async (ev) => {
+          ev.stopPropagation();
+          b.disabled = true;
+          b.textContent = (await downloadCourses([course])) ? 'Queued' : 'Download';
+          b.disabled = b.textContent === 'Queued';
+        };
+        d.appendChild(b);
+      }
       $('course-results').appendChild(d);
     }
   } catch (err) {
@@ -1332,6 +1356,144 @@ async function doSearch(q) {
     msg.textContent = 'Search failed: ' + err.message;
   }
 }
+
+// ---------- course downloads ----------
+// Courses downloaded ahead of time (lib/course-downloads.js): from a featured card's
+// download button, "Download all", or a map search result. They download in the
+// background, one at a time, while the round goes on, and land in YOUR COURSES. Their
+// list sits at the top of the picker; the 'downloads' event keeps it current.
+let downloads = null;   // the last snapshot: { jobs, downloading, waiting, paused, blocked }
+const DL_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 10.5l5 5 5-5"/><path d="M5 20h14"/></svg>';
+const shortName = (name) => String(name || '').split(',')[0];
+const dlJob = (courseId) => (downloads && downloads.jobs.find((j) => j.courseId === courseId)) || null;
+// queued, downloading or done (a failed one can be asked for again)
+const dlQueued = (c) => { const j = dlJob(c.courseId); return !!j && j.status !== 'failed'; };
+const dlWords = (j) => (j.status === 'downloading'
+  ? (Number.isFinite(j.pct) ? `Downloading ${Math.round(j.pct)}%` : 'Downloading')
+  : { queued: 'Queued', retrying: 'Retrying soon', done: 'Downloaded', failed: 'Download failed' }[j.status] || j.status);
+
+function featuredTags(c) {
+  const j = dlJob(c.courseId);
+  const lead = j ? `<i class="tag ${j.status === 'failed' ? 'bad' : 'dl'}">${esc(dlWords(j))}</i>` : '<i class="tag get">Download</i>';
+  return lead + (c.researched ? '<i class="tag">Scorecard</i>' : '');
+}
+
+function setDownloads(next) {
+  if (!next || !Array.isArray(next.jobs)) return;
+  // a reply and the change event can arrive in either order: never go back to an older list
+  if (downloads && Number.isFinite(next.seq) && next.seq < downloads.seq) return;
+  const before = new Map((downloads ? downloads.jobs : []).map((j) => [j.courseId, j.status]));
+  downloads = next;
+  // a course that just finished moves from FEATURED into YOUR COURSES
+  if (next.jobs.some((j) => j.status === 'done' && before.get(j.courseId) !== 'done')) loadLibrary();
+  paintDownloads();
+}
+
+function dlRowHtml(j) {
+  const why = j.status === 'failed' && j.error ? [j.error.message, j.error.recovery].filter(Boolean).join(' ') : (j.message || '');
+  const known = Number.isFinite(j.pct);
+  const bar = j.status === 'downloading'
+    ? `<span class="dl-bar${known ? '' : ' busy'}"><span style="width:${known ? Math.round(j.pct) : 100}%"></span></span>` : '';
+  const id = esc(j.courseId);
+  const acts = j.status === 'done' ? `<button type="button" class="btn dl-act" data-dl="play" data-id="${id}">Play</button>`
+    : j.status === 'failed' ? `<button type="button" class="btn dl-act" data-dl="retry" data-id="${id}">Retry</button>
+      <button type="button" class="btn dl-act x" data-dl="cancel" data-id="${id}" title="Remove from the list" aria-label="Remove ${esc(shortName(j.name))} from the list">×</button>`
+    : `<button type="button" class="btn dl-act" data-dl="cancel" data-id="${id}">Cancel</button>`;
+  return `<div class="dl-row ${esc(j.status)}" data-id="${id}">
+    <span class="dl-name" title="${esc(j.name)}">${esc(shortName(j.name))}</span>
+    <span class="dl-state" title="${esc(why)}"><b class="dl-tag">${esc(dlWords(j))}</b> <span class="dl-msg">${esc(j.status === 'done' ? 'In your courses' : why)}</span></span>
+    <span class="dl-acts">${acts}</span>${bar}
+  </div>`;
+}
+
+function downloadsHtml() {
+  const jobs = downloads ? downloads.jobs : [];
+  if (!jobs.length) return '';
+  const left = jobs.filter((j) => j.status !== 'done' && j.status !== 'failed').length;
+  const finished = jobs.length - left;
+  const note = downloads.blocked ? `<div class="dl-note bad">${esc(downloads.blocked.message)}</div>`
+    : downloads.paused && left ? '<div class="dl-note">Waiting for the course you picked to load…</div>' : '';
+  return `<div class="cm-sec"><span class="lbl">DOWNLOADS · <b>${left ? `${left} to go` : 'all done'}</b></span>
+      <span class="cm-sub">${left ? 'In the background, one at a time: keep playing' : 'Ready to play, offline too'}</span>
+      ${finished ? '<button type="button" class="cm-link" data-dl="clear">Clear finished</button>' : ''}</div>
+    ${note}<div class="dl-list">${jobs.map(dlRowHtml).join('')}</div>`;
+}
+
+// Redraw the list when its jobs or their states change; otherwise only move the words and
+// bars (progress arrives several times a second, and a redraw would drop keyboard focus).
+function paintDownloads() {
+  const box = $('cm-dls');
+  if (box) {
+    const jobs = downloads ? downloads.jobs : [];
+    const sig = JSON.stringify([jobs.map((j) => [j.courseId, j.status]), downloads && downloads.paused, downloads && downloads.blocked && downloads.blocked.code]);
+    if (box.dataset.sig !== sig) {
+      box.innerHTML = downloadsHtml();
+      box.dataset.sig = sig;
+    } else {
+      for (const j of jobs) {
+        const row = box.querySelector(`.dl-row[data-id="${CSS.escape(j.courseId)}"]`);
+        if (!row) continue;
+        row.querySelector('.dl-tag').textContent = dlWords(j);
+        if (j.status !== 'failed' && j.status !== 'done') row.querySelector('.dl-msg').textContent = j.message || '';
+        const fill = row.querySelector('.dl-bar > span');
+        if (fill && Number.isFinite(j.pct)) {
+          fill.parentElement.classList.remove('busy');
+          fill.style.width = `${Math.round(j.pct)}%`;
+        }
+      }
+    }
+  }
+  const feat = (library && library.featured) || [];
+  document.querySelectorAll('#course-lib .cm-cell').forEach((cell) => {
+    const c = feat[+cell.dataset.i];
+    if (!c) return;
+    cell.querySelector('.cm-tags').innerHTML = featuredTags(c);
+    cell.querySelector('.cm-dl').classList.toggle('hidden', dlQueued(c));
+  });
+  const all = document.querySelector('#course-lib [data-dl="all"]');
+  if (all) all.classList.toggle('hidden', !feat.some((c) => !dlQueued(c)));
+}
+
+// POST to a downloads route; the reply's list is shown at once. null on failure (said in the picker).
+async function downloadsCall(route, body) {
+  try {
+    const r = await fetch(route, { method: 'POST', body: JSON.stringify(body) });
+    const out = await r.json();
+    if (out.downloads) setDownloads(out.downloads);
+    const refused = out.results ? out.results.find((x) => x.error) : null;
+    if (!r.ok || refused) throw new Error((refused && refused.error.message) || out.error || `HTTP ${r.status}`);
+    return out;
+  } catch (err) {
+    const msg = $('course-msg');
+    msg.className = 'muted error';
+    msg.textContent = `Download: ${err.message}`;
+    return null;
+  }
+}
+const downloadCourses = (courses) => downloadsCall('/api/downloads', {
+  courses: courses.map((c) => ({ osmType: c.osmType, osmId: c.osmId, name: c.name, bbox: c.bbox, lat: c.lat, lon: c.lon })),
+});
+
+// the picker's download buttons (its content is redrawn, so one listener on the list)
+$('course-lib').addEventListener('click', (e) => {
+  const corner = e.target.closest('.cm-dl');
+  if (corner) {
+    const c = library && library.featured[+corner.dataset.i];
+    if (c) downloadCourses([c]);
+    return;
+  }
+  const b = e.target.closest('[data-dl]');
+  if (!b) return;
+  const act = b.dataset.dl;
+  if (act === 'all') downloadCourses(((library && library.featured) || []).filter((c) => !dlQueued(c)));
+  else if (act === 'clear') downloadsCall('/api/downloads/clear', {});
+  else if (act === 'retry' || act === 'cancel') downloadsCall(`/api/downloads/${act}`, { courseId: b.dataset.id });
+  else if (act === 'play') {
+    const j = dlJob(b.dataset.id);
+    const [, osmType, osmId] = b.dataset.id.split(':');
+    if (j) pickCourse({ osmType, osmId: Number(osmId), name: j.name });
+  }
+});
 
 async function pickCourse(body) {
   const msg = $('course-msg');
@@ -1379,6 +1541,7 @@ $('course-name').onclick = () => openCourseModal();
     const s = await (await fetch('/api/state')).json();
     applyState(s);
     loadLibrary();
+    fetch('/api/downloads').then((r) => r.json()).then(setDownloads).catch(() => { /* the event brings it */ });
     if (!s.loaded) openCourseModal();
     else closeCourseModal();
   } catch (err) {

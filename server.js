@@ -17,6 +17,7 @@ const {
 } = require('./lib/cloud-client');
 const { createCourseActivationManager } = require('./lib/course-activation');
 const { createCourseCache } = require('./lib/course-cache');
+const { QUEUE_FILE, createCourseDownloads } = require('./lib/course-downloads');
 const { createCourseLibrary } = require('./lib/course-library');
 const {
   applySceneryUpdate,
@@ -252,15 +253,42 @@ function deriveActivationSource(request) {
   return normalizeCourseSource(null);
 }
 
+// The one way a course is fetched, for a pick and a download alike: the local cache,
+// then (not cached here) the cloud's package, else a build on this computer.
+function fetchCourse(request, options) {
+  return loadCourse(request, {
+    ...options,
+    ...(cloudCourses ? { remote: cloudCourses.acquire } : {}),
+  });
+}
+
 async function acquireActivationCourse(request, { abortDifferent, source }) {
   const preloadedCourse = request.cached ? loadCached(request.cached) : null;
-  return loadCourse(request, {
+  return fetchCourse(request, {
     abortDifferent,
     source,
     ...(preloadedCourse ? { preloadedCourse } : {}),
-    // not cached here: try the cloud's package before building it locally
-    ...(cloudCourses ? { remote: cloudCourses.acquire } : {}),
   });
+}
+
+// The course a pick is loading (null for a pick of a downloaded file): its cloud
+// progress shows in the course picker; a background download's shows on its job.
+let pickingCourseId = null;
+function requestCourseId(request) {
+  if (!request || !(request.source || (request.osmType && request.osmId != null))) return null;
+  try { return normalizeCourseSource(request.source || request).courseId; } catch (_) { return null; }
+}
+
+// A pick: nothing new starts downloading until it is loaded (a download in progress
+// carries on, and a pick of the course downloading joins it).
+async function activateCourse(request) {
+  const courseId = requestCourseId(request);
+  pickingCourseId = courseId;
+  try {
+    return await courseDownloads.yieldTo(() => activationManager.activate(request));
+  } finally {
+    if (pickingCourseId === courseId) pickingCourseId = null;
+  }
 }
 
 function commitPreparedActivation({ candidate, resolvedPackage }) {
@@ -298,10 +326,11 @@ function applyActiveScenery({ courseId, layer, course }) {
   broadcast('scenery', { courseId, courseRevision: current.courseRevision, layers: [layer] });
 }
 
-// Keep the cache under its cap; the active course (and any extra key, e.g. one
-// being installed) is never evicted.
+// Keep the cache under its cap; the active course, the courses downloaded or
+// downloading (lib/course-downloads.js), and any extra key (e.g. one being
+// installed) are never evicted.
 function trimCourseCache(...extraKeys) {
-  const keep = [...extraKeys];
+  const keep = [...extraKeys, ...courseDownloads.protectedKeys()];
   const current = activationManager.current();
   if (current) {
     try { keep.push(packageKeyFor(parsePackageKey(current.courseId))); } catch (_) { /* no key form */ }
@@ -313,7 +342,10 @@ function trimCourseCache(...extraKeys) {
 const cloudCourses = cloudClient ? createCloudCourseSource({
   client: cloudClient,
   dataDir: DATA_DIR,
-  onProgress: (progress) => broadcast('course-progress', progress),
+  onProgress(progress) {
+    courseDownloads.report(progress);
+    if (progress.courseId === pickingCourseId) broadcast('course-progress', progress);
+  },
   onInstalled({ key, manifest }) {
     courseCache.record(key, { origin: 'cloud', packageId: manifest.packageId, lastUsed: Date.now() });
     trimCourseCache(key);
@@ -389,6 +421,29 @@ const activationManager = createCourseActivationManager({
   },
 });
 
+// Courses downloaded ahead of time (the course picker's Download buttons): the same
+// fetch as a pick, one at a time, kept across restarts in course-downloads.json.
+const courseDownloads = createCourseDownloads({
+  acquire(request, { signal }) {
+    if (!cloudCourses) {
+      courseDownloads.report({ courseId: requestCourseId(request), message: 'Building it from open data: 10 to 90 s…' });
+    }
+    return fetchCourse(request, { signal });
+  },
+  onInstalled({ key }) {
+    courseCache.record(key, { lastUsed: Date.now() });
+    trimCourseCache(key);
+  },
+  // make room first (least recently played courses go), then: is there any left?
+  hasRoom() {
+    trimCourseCache();
+    const usage = courseCache.usage();
+    return usage.bytes < usage.limitBytes;
+  },
+  onChange: (snapshot) => broadcast('downloads', snapshot),
+  file: path.join(DATA_DIR, QUEUE_FILE),
+});
+
 // ---------- HTTP ----------
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.wasm': 'application/wasm' };
 // ES modules served from node_modules (keeps the app fully offline-capable). three.js is
@@ -418,6 +473,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
       res.write(`event: state\ndata: ${JSON.stringify(game.state())}\n\n`);
       res.write(`event: lm\ndata: ${JSON.stringify(lmStatus)}\n\n`);
+      res.write(`event: downloads\ndata: ${JSON.stringify(courseDownloads.snapshot())}\n\n`);
       sseClients.add(res);
       req.on('close', () => sseClients.delete(res));
       return;
@@ -450,6 +506,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/courses') {
       return json(res, courseLibrary.list({ entries: courseCache.entries(), currentId: activationManager.current()?.courseId || null }));
     }
+    if (p === '/api/downloads' && req.method !== 'POST') return json(res, courseDownloads.snapshot());
     if (p === '/api/search') {
       // Raw query: appending " golf" made Nominatim match addresses like
       // "Golf Place" (St Andrews' starter hut) instead of the course itself.
@@ -458,7 +515,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST') {
       const body = await readBody(req);
       if (p === '/api/load-course') {
-        const result = await activationManager.activate(body);
+        const result = await activateCourse(body);
         if (result.status === 'superseded') {
           return json(res, {
             ok: false,
@@ -482,6 +539,24 @@ const server = http.createServer(async (req, res) => {
           contentRevision: result.package.contentRevision,
           ...(result.observerDiagnostic ? { diagnostics: [result.observerDiagnostic] } : {}),
         });
+      }
+      // { courses: [course, ...] } or one course: { osmType, osmId, name, bbox?, lat?, lon? }
+      if (p === '/api/downloads') {
+        const results = courseDownloads.add(Array.isArray(body.courses) ? body.courses : body);
+        const refused = results.filter((r) => r.error);
+        if (results.length && refused.length === results.length) {
+          return json(res, { ok: false, error: refused[0].error.message, code: refused[0].error.code, results }, 400);
+        }
+        return json(res, { ok: true, results, downloads: courseDownloads.snapshot() });
+      }
+      if (p === '/api/downloads/cancel') {
+        return json(res, { ok: courseDownloads.cancel(body.courseId), downloads: courseDownloads.snapshot() });
+      }
+      if (p === '/api/downloads/retry') {
+        return json(res, { ok: courseDownloads.retry(body.courseId), downloads: courseDownloads.snapshot() });
+      }
+      if (p === '/api/downloads/clear') {
+        return json(res, { ok: true, cleared: courseDownloads.clearFinished(), downloads: courseDownloads.snapshot() });
       }
       if (p === '/api/test-shot') {
         // practice panel / testing without a launch monitor
@@ -649,7 +724,7 @@ const server = http.createServer(async (req, res) => {
           ? game.course.source && normalizeCourseSource(game.course.source).courseId === c.courseId
           : game.course.name === c.name);
         if (!loaded) {
-          const result = await activationManager.activate({ cached: c.cached, name: c.name });
+          const result = await activateCourse({ cached: c.cached, name: c.name });
           if (result.status === 'superseded' || result.status === 'failed') {
             return json(res, { ok: false, error: result.diagnostic.message }, result.status === 'failed' ? 500 : 409);
           }
@@ -872,6 +947,9 @@ async function bootstrap() {
       }
     }
   }
+  // downloads left waiting when the app last closed carry on, after the autoload
+  const waiting = courseDownloads.start().jobs.filter((j) => j.status !== 'failed').length;
+  if (waiting) console.log(`[downloads] ${waiting} course download(s) to finish`);
   return new Promise((resolve, reject) => {
     const onError = (error) => reject(error);
     server.once('error', onError);
@@ -897,6 +975,7 @@ function close() {
     readyTimer = null;
   }
   if (sceneryEnricher) sceneryEnricher.cancelAll();
+  courseDownloads.stop().catch(() => { /* stopping only */ });
   for (const res of sseClients) { try { res.end(); } catch (_) { /* gone */ } }
   sseClients.clear();
   try { server.close(); } catch (_) { /* already closed */ }
@@ -911,5 +990,6 @@ module.exports = {
   close,
   primaryNonce: PRIMARY_NONCE,
   activationManager,
+  courseDownloads,
   sceneryEnricher,
 };
