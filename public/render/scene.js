@@ -1719,7 +1719,7 @@ export class GolfScene {
     // round the green the overlay goes bare and the cup is marked (none in flight)
     const pinM = Math.hypot(this.pinSim.x - this.ballSim.x, this.pinSim.y - this.ballSim.y);
     const near = !!this._lineupPred && isNearGreen(pinM / 0.9144, this._lineupPred.isPutt);
-    this.lineupFx?.setPrediction(this._lineupPred, { near, pin: this.pinSim });
+    this.lineupFx?.setPrediction(this._lineupPred, { near, pin: this.pinSim, zone: !!this._yardageDetails });
     this.lineupFx?.setCup(near ? { x: this.pinSim.x, y: this.pinSim.y, ft: pinM / 0.3048 } : null);
     this._lineupArcs();
   }
@@ -1732,7 +1732,8 @@ export class GolfScene {
   // Yardage details (the menu's option): the 3D distance rings ahead of the ball.
   setYardageDetails(on) {
     this._yardageDetails = !!on;
-    this._lineupArcs();
+    if (this._lineupPred) this.setLineup(this._lineupPred);   // the landing zone follows it
+    else this._lineupArcs();
   }
 
   // Yardage arcs out past the pin or the club's total, whichever is farther (no arcs

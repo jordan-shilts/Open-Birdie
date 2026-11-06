@@ -131,6 +131,9 @@ All notable changes to Open-Birdie are documented here.
   fairways are cut for play, bolder, and out to about 400 m; looking back up the hole they swap light for dark
   instead of vanishing.
 - **Lighter shade** — midday's sky fill went 0.32 -> 0.4, so the ground under trees is shaded, not near-black.
+- **No gold slab over the water** — the predicted landing zone's soft gold patch is drawn only with Menu → View →
+  Yardage details on. With a long club and a generous band it spread across ponds and banks as an orange slab in
+  front of the shot; the target's crosshair already marks the landing (`render/lineup-fx.js`).
 - **The interface, made for the sim screen** — the top bar keeps Flyover, Scorecard and the Menu; the menu opens
   as a hub of big tiles (Courses, Conditions, Range & games, Leagues, Saved shots, Scorecard) above the settings.
   One panel opens at a time, on a dimmed stage that steps the play HUD aside (a click on it closes the panel).
