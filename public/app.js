@@ -809,6 +809,7 @@ function toggleScorecard() {
   if (state) buildScorecard(state);
 }
 $('btn-score').onclick = toggleScorecard;
+$('btn-score-tile').onclick = toggleScorecard;
 $('btn-league').onclick = () => leaguesUI.toggle();
 $('stat-hole').onclick = toggleScorecard;   // the HOLE badge opens the scorecard (phone hole-nav)
 $('stat-hole').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleScorecard(); } };
@@ -830,6 +831,46 @@ $('btn-menu').onclick = (e) => {
   setMenu(!$('main-menu').classList.contains('open'));
 };
 $('menu-close').onclick = closeMenu;
+// a tile in the menu opens its screen in place of the menu
+document.querySelectorAll('#main-menu .hub-tile').forEach((t) => t.addEventListener('click', closeMenu));
+
+// ---------- one panel at a time ----------
+// The mid-screen panels and the buttons that open them. An observer watches the panels'
+// class lists, so however one opens (its button, a menu tile, a key, the league flow)
+// the one opened last stays and the others close, every button shows what is open, and
+// body.stage-open puts the dimmed backdrop behind it and steps the play HUD aside
+// (style.css). A click on the backdrop closes it.
+const STAGE = [
+  ['scorecard', ['btn-score', 'btn-score-tile']],
+  ['saved-panel', ['btn-saved']],
+  ['games-menu', ['btn-games']],
+  ['league-panel', ['btn-league']],
+  ['conditions', ['cond-widget']],
+  ['practice', ['btn-practice']],
+];
+const stageOpen = (id) => !$(id).classList.contains('hidden');
+function syncStage() {
+  let any = false;
+  for (const [id, btns] of STAGE) {
+    const open = stageOpen(id);
+    any = any || open;
+    for (const b of btns) $(b)?.classList.toggle('active', open);
+  }
+  document.body.classList.toggle('stage-open', any);
+}
+function closeStage() {
+  for (const [id] of STAGE) $(id).classList.add('hidden');
+  reviewHole = null;
+}
+const stageObserver = new MutationObserver((records) => {
+  const opened = records.filter((r) => /\bhidden\b/.test(r.oldValue || '') && stageOpen(r.target.id)).map((r) => r.target.id);
+  const keep = opened[opened.length - 1];
+  if (keep) for (const [id] of STAGE) if (id !== keep && stageOpen(id)) $(id).classList.add('hidden');
+  syncStage();
+});
+for (const [id] of STAGE) stageObserver.observe($(id), { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+$('stage-scrim').onclick = closeStage;
+syncStage();
 document.addEventListener('pointerdown', (e) => {
   if (!$('main-menu').contains(e.target) && !$('btn-menu').contains(e.target)) closeMenu();
 });
@@ -1134,7 +1175,7 @@ window.addEventListener('keydown', (e) => {
   if (k === 'Escape') {
     closeMenu();
     lineup.openDock(false);
-    for (const id of ['conditions', 'practice', 'games-menu', 'scorecard', 'league-panel', 'player-menu']) $(id).classList.add('hidden');
+    for (const id of ['conditions', 'practice', 'games-menu', 'scorecard', 'league-panel', 'saved-panel', 'player-menu']) $(id).classList.add('hidden');
     if (!perfRunning) $('perf-modal').classList.add('hidden');
     leaguesUI.closeResult();
     $('btn-score').classList.remove('active');

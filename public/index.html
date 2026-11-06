@@ -21,6 +21,9 @@
 <!-- Everything over the 3D view. #hud is zoomed to the window (app.js), so one layout
      reads the same on a laptop, a 1080p monitor and a 4K TV. -->
 <div id="hud">
+<!-- behind an open panel (scorecard, games, leagues, saved shots, conditions, practice):
+     dims the course and takes the play HUD's place; a click closes the panel -->
+<div id="stage-scrim" aria-hidden="true"></div>
 
 <header id="topbar">
   <div class="round-card">
@@ -54,15 +57,6 @@
     <button id="btn-score" class="icon-btn" title="Scorecard">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M9.5 4.5v15"/></svg><span>Scorecard</span>
     </button>
-    <button id="btn-saved" class="icon-btn" title="Your saved shots">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.8l2.5 5.1 5.6.8-4 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-4 5.6-.8z"/></svg><span>Saved</span><i class="count hidden" id="saved-count"></i>
-    </button>
-    <button id="btn-games" class="icon-btn" title="Range &amp; games: the driving range and mini games on this course">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" class="fill"/></svg><span>Games</span>
-    </button>
-    <button id="btn-league" class="icon-btn" title="Leagues: players, a course a week, standings">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4.5h8v5a4 4 0 0 1-8 0z"/><path d="M8 6.5H4.5a3 3 0 0 0 3.6 3.4M16 6.5h3.5a3 3 0 0 1-3.6 3.4"/><path d="M12 13.5V17M8.5 19.5h7M10 17h4"/></svg><span>League</span>
-    </button>
     <button id="btn-menu" class="icon-btn" aria-haspopup="menu" aria-expanded="false" title="Menu">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>Menu</span>
     </button>
@@ -73,19 +67,31 @@
 <div id="menu-scrim" class="scrim" aria-hidden="true"></div>
 <aside id="main-menu" class="drawer" role="dialog" aria-labelledby="menu-title" aria-hidden="true">
   <header class="drawer-head">
-    <div><span class="lbl">MENU</span><h3 id="menu-title">Settings</h3></div>
+    <div><span class="lbl">MENU</span><h3 id="menu-title">Play &amp; settings</h3></div>
     <button id="menu-close" class="panel-x" aria-label="Close">×</button>
   </header>
   <div class="drawer-body">
-    <section class="drawer-sec" aria-label="Course">
-      <span class="lbl">COURSE</span>
-      <button id="btn-course" class="menu-item">
+    <!-- everything you can open, as big tiles: the top bar keeps only flyover, scorecard and this menu -->
+    <section class="drawer-sec hub-tiles" aria-label="Open">
+      <button id="btn-course" class="hub-tile" title="Change course">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10" r="2.3"/></svg>
-        <span>Change course</span>
+        <span>Courses</span>
       </button>
-      <button id="btn-conditions-menu" class="menu-item">
+      <button id="btn-conditions-menu" class="hub-tile" title="Course conditions (W)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/></svg>
-        <span>Course conditions</span><kbd>W</kbd>
+        <span>Conditions</span>
+      </button>
+      <button id="btn-games" class="hub-tile" title="Range &amp; games: the driving range and mini games on this course">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" class="fill"/></svg><span>Range &amp; games</span>
+      </button>
+      <button id="btn-league" class="hub-tile" title="Leagues: players, a course a week, standings (L)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4.5h8v5a4 4 0 0 1-8 0z"/><path d="M8 6.5H4.5a3 3 0 0 0 3.6 3.4M16 6.5h3.5a3 3 0 0 1-3.6 3.4"/><path d="M12 13.5V17M8.5 19.5h7M10 17h4"/></svg><span>Leagues</span>
+      </button>
+      <button id="btn-saved" class="hub-tile" title="Your saved shots">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.8l2.5 5.1 5.6.8-4 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-4 5.6-.8z"/></svg><span>Saved shots</span><i class="count hidden" id="saved-count"></i>
+      </button>
+      <button id="btn-score-tile" class="hub-tile" title="Scorecard">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M9.5 4.5v15"/></svg><span>Scorecard</span>
       </button>
     </section>
     <section class="drawer-sec" aria-label="Play">
