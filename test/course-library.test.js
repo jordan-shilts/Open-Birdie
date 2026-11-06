@@ -65,6 +65,25 @@ test('downloaded courses: their numbers and layout, the one playing first, then 
   } finally { cleanup(dir); }
 });
 
+test('a course downloaded ahead of time and not played yet has no played time, and follows the played ones', () => {
+  const dir = dataDir({
+    'osm-way-1.json': course({ name: 'Alpha Links', osmType: 'way', osmId: 1 }),
+    'osm-way-2.json': course({ name: 'Beta Park', osmType: 'way', osmId: 2 }),
+    'osm-way-3.json': course({ name: 'Gamma Heath', osmType: 'way', osmId: 3 }),
+  });
+  try {
+    const lib = createCourseLibrary({ cacheDir: path.join(dir, 'courses'), log: quiet });
+    const r = lib.list({
+      entries: {
+        'osm-way-1': { lastUsed: 900, played: false },   // downloaded just now
+        'osm-way-2': { lastUsed: 100, played: true },
+        'osm-way-3': { lastUsed: 200 },                  // an index entry from before the field
+      },
+    });
+    assert.deepEqual(r.courses.map((c) => [c.name, c.lastUsed]), [['Gamma Heath', 200], ['Beta Park', 100], ['Alpha Links', null]]);
+  } finally { cleanup(dir); }
+});
+
 test('featured courses that are not downloaded are offered by their OSM id; a downloaded one is not repeated', () => {
   const pars = PEBBLE.holes.map((h) => h.par);
   const blue = PEBBLE.holes.map((h) => h.yards.Blue);

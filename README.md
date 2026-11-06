@@ -321,6 +321,39 @@ until 30 days have passed. The allowances that matter: Blob storage 1 GB (Hazelt
 (the desktop polls a running build every 10 s), and 5 Sandbox CPU-hours with sessions of up to
 45 minutes (Hazeltine took 6 minutes).
 
+### Building courses on this computer
+
+`npm run download:courses` is the course download engine: it brings in courses we don't have,
+built the way the featured courses were. It runs the cloud's own build
+([`cloud/builder.js`](cloud/builder.js)) on this computer, so each course gets the OSM holes and
+surfaces, the 1 m lidar terrain and NDVI classmap, OSM buildings and nearby water, every real tree,
+the 0.3 m tiled aerial, and 1 m HD terrain on every hole (the reviewed manifests, every other US hole
+auto-pinned) with no time limit: a cloud sandbox stops starting HD holes after 20 minutes. It needs
+the development dependencies (`npm ci`: `sharp`, `geotiff` and the HD tools' `proj4` and `ajv`), and
+stops if one is missing rather than build a lesser course.
+
+```bash
+npm run download:courses -- "Medinah Country Club" relation/9892305   # by name (searched on OSM) or OSM id
+npm run download:courses -- --file my-courses.txt   # one name or id per line, # for comments
+npm run download:courses -- --featured              # the course picker's featured courses
+npm run download:courses -- --featured --status     # what each has here; nothing is built
+```
+
+Each course lands in the data dir, where the course picker lists it, and its package goes to
+`data/course-store/` (`--store DIR` puts it elsewhere). The package's manifest records what the
+build got, so a second run skips a complete course, finishes one that is not (a layer or an HD
+hole that failed for a passing reason), and puts back, offline, a course the app's cache deleted.
+A course whose lidar terrain did not come (the loader then keeps the smoothed ~10 m terrain) is
+thrown away and built again, and a course that failed for a passing reason is tried again after
+the others, 1 and then 2 minutes later. `--force` builds from scratch. Courses build one at a time;
+an HD hole takes 3 to 5 minutes, so a course with 18 takes about an hour.
+
+The store is a cloud store: `BIRDIE_CLOUD_STORE_DIR=data/course-store node cloud/server.js` serves
+its courses to another computer whose app has `BIRDIE_CLOUD_URL` pointing here. A full course is
+far over the app's default cache cap's share (`BIRDIE_CACHE_MAX_MB`, 1024): the run warns when the
+courses here come to more than the cap, and on the computer that plays them `BIRDIE_CACHE_MAX_MB=0`
+keeps them all.
+
 ## Dev tools
 
 ```
@@ -330,8 +363,9 @@ node tools/test-shot.js --speed 150 --vla 13 --spin 2700 --axis -4
 node tools/test-load.js "Course name"   # test course download/parse
 ```
 
-The app adds buildings, trees and the aerial photo to every course by itself (see Courses).
-These tools run the same code by hand — e.g. to refresh a course after OpenStreetMap edits, or
+The app adds buildings, trees and the aerial photo to every course by itself (see Courses), and
+`npm run download:courses` builds a course with all of it at once (see above). These tools run the
+same code by hand, one layer at a time — e.g. to refresh a course after OpenStreetMap edits, or
 to get the max-quality tiled aerial (needs `sharp`). Run them in this order; each only adds
 scenery and leaves the HD fingerprint alone, except refresh-elevation:
 

@@ -17,6 +17,7 @@
     "build:hd-hole": "node tools/hd-course/cli.mjs build",
     "auto-pin:hd-hole": "node tools/hd-course/auto-pin.mjs",
     "cloud:build-courses": "node tools/cloud-build-courses.mjs",
+    "download:courses": "node tools/download-courses.mjs",
     "build:course-reference": "node tools/build-course-reference.mjs",
     "validate:hd-bundle": "node tools/validate-hd-bundle.js",
     "smoke:hd-providers": "node tools/smoke-hd-providers.mjs",
