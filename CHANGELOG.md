@@ -5,6 +5,18 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **A course download engine** — `npm run download:courses` brings in courses we don't have, built the way the
+  featured courses were (`tools/download-courses.mjs`). It runs the cloud's own build (`cloud/builder.js`) on
+  this computer: OSM holes and surfaces, the 1 m lidar terrain and NDVI classmap, OSM buildings and nearby
+  water, every real tree, the 0.3 m tiled aerial, and 1 m HD terrain on every hole, with no time limit on the HD
+  holes (a cloud sandbox stops starting them after 20 minutes). Courses are named, listed in a file, or
+  `--featured` for the picker's featured ones. Each lands in the data dir, where the picker lists it, and its
+  package in a directory store (`data/course-store/`), whose manifest records what the build got: a second run
+  skips a complete course, finishes an incomplete one, and puts back offline one the app's cache deleted; the
+  cloud service can serve the store to another computer. A base whose lidar did not come is thrown away and
+  built again; a course that failed for a passing reason is tried again after the others (1, then 2 minutes
+  later); `--status` reports what each course has. It stops if `sharp`, `geotiff` or the HD tools are missing,
+  rather than build a lesser course, and warns when the courses come to more than the app's cache cap.
 - **Club delivery beside the last shot** — a small card (`public/club-panel.js`): a sketch of the club from above
   (path and face, drawn three times their angle), club path, face angle and face to path, and the strike (smash
   factor against the club's best: centered / slightly off / off-center, and the impact point on the face when the
@@ -253,6 +265,10 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **A course built or copied into the data dir no longer says it was played** — the cache index records whether a
+  course has been played here (`played`); a course the app finds on disk without having loaded it (built by
+  the download engine, copied in) counts as not played, and the picker shows a played time only for played
+  courses. Index entries from before the field count as played.
 - **Fairways mapped as multipolygons were played as rough** — the course loader asked OpenStreetMap for tags only,
   which leaves out a relation's members, so every surface mapped as a multipolygon was dropped: all 18 of Augusta
   National's fairways (it loaded 4 of 34 fairway areas) and many at Kiawah, Torrey Pines and TPC Scottsdale. The
