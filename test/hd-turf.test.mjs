@@ -21,7 +21,7 @@ test('legacy turf material (options object): same uniforms, no macro', () => {
   for (const u of ['uDetail', 'uMask', 'uBunker', 'uSand', 'uExt', 'uStripeM', 'uCourseDry', 'uMaskRaw', 'uPalGreenA']) assert.ok(s.uniforms[u], `missing ${u}`);
   assert.equal(s.uniforms.uCourseDry.value, 0, 'courseDry defaults to 0 (lush)');
   assert.ok(!s.uniforms.uMacro, 'no macro uniform without macro');
-  assert.equal(mat.customProgramCacheKey(), 'turf-grain-v43');
+  assert.equal(mat.customProgramCacheKey(), 'turf-grain-v44');
   // P2a-T3: an OSM-vicinity signal (dilated raw mask) is computed for classmap reconciliation.
   assert.match(s.fragmentShader, /float osmNear = max\(/);
   // P2a: crisp edges composited from the RAW mask via fwidth AA. Green (.g) gets a full
@@ -65,7 +65,7 @@ test('macro turf material: adds aerial tint uniforms + a distinct program', () =
   assert.equal(s.uniforms.uMacroLow.value, macro.low);
   assert.equal(s.uniforms.uMacroAvg.value, macro.avg);
   assert.equal(s.uniforms.uMacroPhotoFar.value, 0.65);
-  assert.equal(mat.customProgramCacheKey(), 'turf-grain-v43-macro');
+  assert.equal(mat.customProgramCacheKey(), 'turf-grain-v44-macro');
   // P2a-T4: the classmap is thresholded (after a load-time blur) so only confident coverage
   // survives — kills the per-pixel dot-screen stipple.
   assert.match(s.fragmentShader, /cls\.r = smoothstep\(0\.45, 0\.75, cls\.r\)/);
@@ -140,7 +140,7 @@ test('raw RGB surface mask is wired in production and disposed exactly once', ()
 test('Low turf: fewer noise octaves behind TURF_HQ, its own program, and the greens-only roll skipped elsewhere', () => {
   const hi = makeTurfMaterial({ baseMap: tex(), mownMask: tex(), bunkerMask: tex(), bounds, anisotropy: 4 });
   const lo = makeTurfMaterial({ baseMap: tex(), mownMask: tex(), bunkerMask: tex(), bounds, anisotropy: 4, hq: false });
-  assert.equal(lo.customProgramCacheKey(), 'turf-grain-v43-lq');
+  assert.equal(lo.customProgramCacheKey(), 'turf-grain-v44-lq');
   const sh = fakeShader(), sl = fakeShader();
   hi.onBeforeCompile(sh); lo.onBeforeCompile(sl);
   assert.match(sh.fragmentShader, /#define TURF_HQ/);

@@ -9,6 +9,13 @@
 // crown (so it lights as one soft volume — the classic fix for "cardboard" foliage)
 // and darken toward its core.
 //
+// Broadleaf crowns and pines are built of CLUMPS (round leaf masses / needle tufts,
+// tree-gen.js) on cards that turn to face the camera in the vertex shader, rolled per
+// clump, with a normal that bulges out from the clump's middle — so a crown reads as a
+// solid, lumpy, softly lit mass from any side, the way game trees (SpeedTree's leaf
+// clusters) do. In the shadow pass the same cards turn to face the sun, so the shadow
+// a crown casts is as full as the crown looks. Spruce and fir keep fixed sprig cards.
+//
 // The far levels of detail are the SAME model with fewer, larger cards and only the
 // main limbs, so a tree keeps its silhouette — gaps, lobes, sky between limbs — all
 // the way to the horizon instead of turning into a solid blob (the "lollipop").
@@ -25,6 +32,7 @@ import { RENDER_CONFIG } from './config.js';
 import { realTreeSize } from './tree-placement.js';
 import { generateTree, thinCards } from './tree-gen.js';
 import { leafAtlas, birchBark, ATLAS_TILE_UV } from './leaf-atlas.js';
+import { treeFade, FADE_NEAR_M, FADE_SHOWN, FADE_AT } from './tree-fade.js';
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -34,6 +42,7 @@ function rng(seed) {
 // ---------------------------------------------------------------- models
 const VARIANTS = 3;                 // [0], [1] open-grown, [2] grown in closed woods
 const LOD_CARD_EVERY = [1, 4, 24];  // keep 1 in N leaf cards per level of detail (far: crossed triples)
+const LOD_CLUMP_EVERY = [1, 3, 10]; // the same for clump crowns (a clump faces the camera: no crossing)
 const LOD_MIN_R = [0.02, 0.07, 0.16]; // thinnest bark tube drawn (m, at a 16 m tree)
 const LOD_SIDES = [6, 4, 3];
 
@@ -42,7 +51,7 @@ const LOOK = {
   oak: { leaf: '#5d7f33', bark: 'oak', barkTint: '#a09484' },
   maple: { leaf: '#557d35', bark: 'oak', barkTint: '#948a80' },
   birch: { leaf: '#7f9e45', bark: 'birch', barkTint: '#ffffff' },
-  pine: { leaf: '#5f7d48', bark: 'pine', barkTint: '#b49078' },
+  pine: { leaf: '#5f7d48', bark: 'pine', barkTint: '#d0aa8c' },   // reddish-brown plated bark, not black
   fir: { leaf: '#4f7151', bark: 'spruce', barkTint: '#8c7864' },
 };
 
@@ -113,24 +122,29 @@ function barkGeometry(m, lod) {
 // Leaf cards. Normals = out of the crown (broadleaves: from the crown's centre;
 // conifers: out from the trunk, tipped up), aAO = 0 deep in the crown -> 1 outside.
 function cardGeometry(m, cards) {
-  const pos = [], nor = [], uv = [], ao = [], idx = [];
+  const pos = [], nor = [], uv = [], ao = [], corner = [], idx = [];
   const [cx, cy, cz] = m.center, [rx, ry] = m.radii;
   const lean = m.lean || [0, 0, 0];
   let v = 0;
   for (const c of cards) {
     const [u0, v0] = ATLAS_TILE_UV[c.tile];
+    // a clump: all four corners sit at its centre; aCorner (its half-size, rolled)
+    // spreads them on screen in the vertex shader
+    const h = c.bill ? Math.hypot(c.right[0], c.right[1], c.right[2]) : 0;
+    const cr = Math.cos(c.roll || 0), sr = Math.sin(c.roll || 0);
     for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-      const Q = [c.p[0] + c.right[0] * sx + c.up[0] * sy, c.p[1] + c.right[1] * sx + c.up[1] * sy, c.p[2] + c.right[2] * sx + c.up[2] * sy];
+      const Q = c.bill ? c.p : [c.p[0] + c.right[0] * sx + c.up[0] * sy, c.p[1] + c.right[1] * sx + c.up[1] * sy, c.p[2] + c.right[2] * sx + c.up[2] * sy];
       pos.push(...Q);
+      corner.push((sx * cr - sy * sr) * h, (sx * sr + sy * cr) * h);
       let N;
       if (m.normals === 'crown') {
         const d = nrm([(Q[0] - cx) / rx, (Q[1] - cy) / ry, (Q[2] - cz) / rx]);
         N = nrm([d[0] * 0.85, d[1] * 0.85 + 0.3, d[2] * 0.85]);
       } else {
         const f = (Q[1] / m.H) ** 2;
-        const h = [Q[0] - lean[0] * f, 0, Q[2] - lean[2] * f];
-        const hl = Math.hypot(h[0], h[2]);
-        N = hl > 1e-3 ? nrm([h[0] / hl * 0.75, 0.5, h[2] / hl * 0.75]) : [0, 1, 0];
+        const hh = [Q[0] - lean[0] * f, 0, Q[2] - lean[2] * f];
+        const hl = Math.hypot(hh[0], hh[2]);
+        N = hl > 1e-3 ? nrm([hh[0] / hl * 0.75, 0.5, hh[2] / hl * 0.75]) : [0, 1, 0];
       }
       nor.push(...N);
       uv.push(u0 + (sx * 0.5 + 0.5) * 0.5, v0 + (sy * 0.5 + 0.5) * 0.5);
@@ -144,7 +158,10 @@ function cardGeometry(m, cards) {
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setAttribute('aAO', new THREE.Float32BufferAttribute(ao, 1));
+  g.setAttribute('aCorner', new THREE.Float32BufferAttribute(corner, 2));
   g.setIndex(idx);
+  // the corners spread up to a clump's half-size past the stored positions
+  g.computeBoundingSphere();
   return g;
 }
 
@@ -165,39 +182,38 @@ const WIND_VERT = /* glsl */`
     #endif
   }`;
 
-// A tree in front of the camera is drawn see-through: dithered to FADE_SHOWN of its
-// pixels (no sorting; it still casts its shadow and still stops a ball). In front means
-// ahead of the camera across the middle of the view, within uFadeNear metres (a cone a
-// crown wide that widens with distance: the ball and the shot are in the middle of the
-// frame), or within uFadeHug metres of the camera anywhere it looks. Per tree, from the
-// instance's foot in view space, so a tree fades whole.
-const FADE_NEAR_M = 45;
-const FADE_HUG_M = 9;
-const FADE_SHOWN = 0.12;
-const FADE_VERT = /* glsl */`
-  {
-    float treeH = length(instanceMatrix[1].xyz) * uTreeH;
-    // the tree's foot (its instance origin) in view space: camera at 0, looking down -z
-    vec3 fv = (modelViewMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz;
-    float depth = -fv.z;
-    float halfW = 0.3 * treeH + 1.0 + 0.06 * max(depth, 0.0);
-    float cone = (1.0 - smoothstep(halfW, halfW + 3.0, abs(fv.x)))
-               * (1.0 - smoothstep(uFadeNear * 0.75, uFadeNear, depth)) * step(-1.0, depth);
-    float hug = (1.0 - smoothstep(uFadeHug * 0.7, uFadeHug, length(fv.xz))) * step(-halfW, depth);
-    vFade = uFadeOn * max(cone, hug);
-  }`;
-const FADE_FRAG = /* glsl */`
-  if (vFade > 0.0) {
-    vec2 q = mod(floor(gl_FragCoord.xy), 4.0);
-    const float B[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
-    if ((B[int(q.x) + int(q.y) * 4] + 0.5) / 16.0 < vFade * (1.0 - ${FADE_SHOWN.toFixed(2)})) discard;
-  }`;
+// Clump cards (aCorner != 0) turn to face the camera: the corner offset is added in
+// view space, scaled by the instance's width and height. The world position used for
+// shadow look-ups follows the turned corner (view -> world: the transpose of the view
+// rotation), so shadows still fall across a clump, not on its centre alone.
+export const BILLBOARD_PROJECT = /* glsl */`
+  vec4 mvPosition = vec4( transformed, 1.0 );
+  #ifdef USE_INSTANCING
+    mvPosition = instanceMatrix * mvPosition;
+  #endif
+  mvPosition = modelViewMatrix * mvPosition;
+  #ifdef USE_INSTANCING
+    mvPosition.xy += aCorner * vec2(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz));
+  #else
+    mvPosition.xy += aCorner;
+  #endif
+  gl_Position = projectionMatrix * mvPosition;`;
+export const BILLBOARD_WORLDPOS = /* glsl */`
+  #include <worldpos_vertex>
+  #if defined( USE_ENVMAP ) || defined( DISTANCE ) || defined ( USE_SHADOWMAP ) || defined ( USE_TRANSMISSION ) || NUM_SPOT_LIGHT_COORDS > 0
+    if (dot(aCorner, aCorner) > 0.0) worldPosition = vec4((mvPosition.xyz - viewMatrix[3].xyz) * mat3(viewMatrix), 1.0);
+  #endif`;
+// a clump's normal bulges out from its middle (a soft ball, lit on its sun side)
+export const BILLBOARD_NORMAL = /* glsl */`
+  #include <defaultnormal_vertex>
+  if (dot(aCorner, aCorner) > 0.0) transformedNormal = normalize(normalize(transformedNormal) + vec3(normalize(aCorner) * 0.6, 0.0));`;
 
-function addTreeShader(mat, shared, { flutter = false, foliage = false, key }) {
+// A tree in front of the shot is drawn see-through (tree-fade.js picks which): its
+// instance goes to a fourth bucket drawn with alpha-blended copies of the materials at
+// FADE_SHOWN opacity — a smooth ghost. Depth writes stay on, so only the nearest leaf
+// of the ghost shows in each pixel, not a stack of them. It still casts its shadow.
+function addTreeShader(mat, shared, { flutter = false, foliage = false, ghost = false, key }) {
   mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uFadeNear = shared.uFadeNear;
-    shader.uniforms.uFadeHug = shared.uFadeHug;
-    shader.uniforms.uFadeOn = shared.uFadeOn;
     shader.uniforms.uTime = shared.uTime;
     shader.uniforms.uWindAmp = shared.uWindAmp;
     shader.uniforms.uTreeH = shared.uTreeH;
@@ -206,13 +222,18 @@ function addTreeShader(mat, shared, { flutter = false, foliage = false, key }) {
       .replace('#include <common>', `#include <common>
         ${flutter ? '#define TREE_FLUTTER' : ''}
         uniform float uTime; uniform float uWindAmp; uniform float uTreeH;
-        uniform float uFadeNear; uniform float uFadeHug; uniform float uFadeOn;
         attribute float aAO;
-        varying float vAO; varying float vTreeT; varying float vFade;`)
+        ${foliage ? 'attribute vec2 aCorner;' : ''}
+        varying float vAO; varying float vTreeT;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vAO = aAO; vTreeT = clamp(position.y / uTreeH, 0.0, 1.0);
-        ${WIND_VERT}
-        ${FADE_VERT}`);
+        ${WIND_VERT}`);
+    if (foliage) {
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <defaultnormal_vertex>', BILLBOARD_NORMAL)
+        .replace('#include <project_vertex>', BILLBOARD_PROJECT)
+        .replace('#include <worldpos_vertex>', BILLBOARD_WORLDPOS);
+    }
     if (foliage) {
       shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
         // leaf cards carry crown-volume normals (out of the crown): a back-facing card
@@ -222,24 +243,26 @@ function addTreeShader(mat, shared, { flutter = false, foliage = false, key }) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         uniform vec3 uSunView;
-        varying float vAO; varying float vTreeT; varying float vFade;`)
-      .replace('#include <clipping_planes_fragment>', `${FADE_FRAG}
-        #include <clipping_planes_fragment>`)
+        varying float vAO; varying float vTreeT;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         {
           ${foliage ? `
           // crown volume: dark, cool interior / underside -> bright, warm sunlit top
           float occ = mix(0.38, 1.0, vAO) * mix(0.74, 1.06, vTreeT);
           diffuseColor.rgb *= occ * mix(vec3(0.86, 0.95, 0.92), vec3(1.05, 1.03, 0.92), vTreeT);` : `
-          // bark under the crown sits in the canopy's shade
-          diffuseColor.rgb *= mix(0.62, 1.0, vAO);`}
+          // bark under the crown sits in the canopy's shade (not so deep it reads black)
+          diffuseColor.rgb *= mix(0.74, 1.0, vAO);`}
         }`)
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
         ${foliage ? `
         // foliage is a matte scatterer: the GGX Fresnel sheen at grazing angles lit
         // whole leaf cards sky-grey (the 'glass shard' look) — keep only a trace
         reflectedLight.indirectSpecular *= 0.12;
-        reflectedLight.directSpecular *= 0.3;` : ''}`)
+        reflectedLight.directSpecular *= 0.3;
+        // sun against shade: less sky fill, a little more sun, so a crown's lit lobes stand
+        // out from its shaded ones the way they do in a photo (it read as one flat green)
+        reflectedLight.indirectDiffuse *= 0.78;
+        reflectedLight.directDiffuse *= 1.12;` : ''}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         ${foliage ? `
         {
@@ -249,7 +272,7 @@ function addTreeShader(mat, shared, { flutter = false, foliage = false, key }) {
           totalEmissiveRadiance += diffuseColor.rgb * back * 0.55 * vAO;
         }` : ''}`);
   };
-  mat.customProgramCacheKey = () => `tree3d-v3-fade-${key}`;
+  mat.customProgramCacheKey = () => `tree3d-v4-clump-${ghost ? 'ghost-' : ''}${key}`;
 }
 
 // depth material for shadows with the same wind (and alpha for leaf cards)
@@ -267,8 +290,14 @@ function makeDepthMat(shared, { alpha = false, atlas = null, flutter = false, ke
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vec3 objectNormal = vec3(normal);
         ${WIND_VERT}`);
+    // leaf clumps turn to face the light here, so a crown's shadow is as full as it looks
+    if (alpha) {
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute vec2 aCorner;')
+        .replace('#include <project_vertex>', BILLBOARD_PROJECT);
+    }
   };
-  m.customProgramCacheKey = () => `tree3d-v2-depth-${key}`;
+  m.customProgramCacheKey = () => `tree3d-v3-depth-${key}`;
   return m;
 }
 
@@ -309,12 +338,9 @@ export class TreeField {
       uWindAmp: { value: 0.012 + (RENDER_CONFIG.windStrength ?? 0.5) * 0.03 },
       uTreeH: { value: 14 },
       uSunView: { value: new THREE.Vector3(0, 1, 0) },
-      // see-through trees (FADE_VERT): ahead of the camera across the middle of the view
-      // within uFadeNear m, and any tree within uFadeHug m of it; uFadeOn 0 turns it off
-      uFadeNear: { value: FADE_NEAR_M },
-      uFadeHug: { value: FADE_HUG_M },
-      uFadeOn: { value: 1 },
     };
+    // see-through trees in front of the shot (tree-fade.js); false draws every tree solid
+    this.fadeOn = true;
     this._sunDir = sunDir || new THREE.Vector3(0.4, 0.8, 0.3).normalize();
     this.variants = [];
     this._disposables = [];
@@ -354,7 +380,16 @@ export class TreeField {
       addTreeShader(barkMat, sharedSp, { key: `${species}-bark` });
       const depthCards = makeDepthMat(sharedSp, { alpha: true, atlas, flutter: true, key: `${species}-cards` });
       const depthBark = makeDepthMat(sharedSp, { key: `${species}-bark` });
-      this._disposables.push(cardMat, barkMat, depthCards, depthBark);
+      // the see-through copies: alpha-blended at FADE_SHOWN (the leaf cut-off scaled to
+      // match, since three tests alpha after the opacity multiply)
+      const ghostCard = new THREE.MeshStandardMaterial({
+        color: tint, map: atlas.map, alphaMap: atlas.alphaMap, alphaTest: 0.5 * FADE_SHOWN, side: THREE.DoubleSide,
+        roughness: 0.8, metalness: 0, envMapIntensity: 0.6, transparent: true, opacity: FADE_SHOWN,
+      });
+      addTreeShader(ghostCard, sharedSp, { flutter: true, foliage: true, ghost: true, key: `${species}-cards` });
+      const ghostBark = new THREE.MeshStandardMaterial({ color: new THREE.Color(look.barkTint), map: barkTex(look.bark), roughness: 0.95, metalness: 0, transparent: true, opacity: FADE_SHOWN });
+      addTreeShader(ghostBark, sharedSp, { ghost: true, key: `${species}-bark` });
+      this._disposables.push(cardMat, barkMat, depthCards, depthBark, ghostCard, ghostBark);
 
       // which model each tree gets: woods-grown when crowded, else one of the open forms
       const perVariant = Array.from({ length: VARIANTS }, () => []);
@@ -380,8 +415,10 @@ export class TreeField {
         };
         const lods = [0, 1, 2].map((lod) => [
           mk(barkGeometry(m, lod), barkMat, depthBark, lod === 0),
-          mk(cardGeometry(m, thinCards(m.cards, LOD_CARD_EVERY[lod], 7 + v, { cross: lod === 2 })), cardMat, depthCards, lod === 0),
+          mk(cardGeometry(m, thinCards(m.cards, (m.cards[0]?.bill ? LOD_CLUMP_EVERY : LOD_CARD_EVERY)[lod], 7 + v, { cross: lod === 2 })), cardMat, depthCards, lod === 0),
         ]);
+        // [3]: see-through trees in front of the shot — the near model, blended
+        lods.push([mk(lods[0][0].geometry, ghostBark, depthBark, true), mk(lods[0][1].geometry, ghostCard, depthCards, true)]);
         // one shared instance buffer per LOD (uploaded once for all its parts); bark
         // keeps a neutral colour buffer (instance colour multiplies)
         const buffers = lods.map((parts) => {
@@ -421,7 +458,7 @@ export class TreeField {
           centers[i * 4] = p.x; centers[i * 4 + 1] = p.y + m.H * 0.5 * ht; centers[i * 4 + 2] = p.z;
           centers[i * 4 + 3] = Math.max(m.H * 0.6 * ht, m.crownR * w) + 2;
         }
-        this.variants.push({ name: species, v, n, mats, cols, centers, buffers });
+        this.variants.push({ name: species, v, n, H: m.H, mats, cols, centers, buffers });
       });
     }
     this._frustum = new THREE.Frustum();
@@ -455,10 +492,12 @@ export class TreeField {
     const planes = this._frustum.planes;
     const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
     const nearM = this.nearM, midM = this.midM;
-    let nN = 0, nM = 0, nF = 0;
+    const vm = camera.matrixWorldInverse.elements;
+    const fadeOn = this.fadeOn;
+    let nN = 0, nM = 0, nF = 0, nG = 0;
     for (const sp of this.variants) {
-      const { n, mats, cols, centers, buffers } = sp;
-      const out = [0, 0, 0];
+      const { n, mats, cols, centers, buffers, H } = sp;
+      const out = [0, 0, 0, 0];
       const mA = buffers.map((b) => b.mat4.array), cA = buffers.map((b) => b.col.array);
       for (let i = 0; i < n; i++) {
         const x = centers[i * 4], y = centers[i * 4 + 1], z = centers[i * 4 + 2], R = centers[i * 4 + 3];
@@ -473,7 +512,15 @@ export class TreeField {
           }
           if (!vis) continue;
         }
-        const lod = d < nearM ? 0 : d < midM ? 1 : 2;
+        let lod = d < nearM ? 0 : d < midM ? 1 : 2;
+        if (lod === 0 && fadeOn && d < FADE_NEAR_M + 30) {
+          // the tree's foot in view space, and its height from the instance's y scale
+          const o = i * 16, fx = mats[o + 12], fy = mats[o + 13], fz = mats[o + 14];
+          const vx = vm[0] * fx + vm[4] * fy + vm[8] * fz + vm[12];
+          const vz = vm[2] * fx + vm[6] * fy + vm[10] * fz + vm[14];
+          const treeH = Math.hypot(mats[o + 4], mats[o + 5], mats[o + 6]) * H;
+          if (treeFade(vx, vz, treeH) > FADE_AT) lod = 3;
+        }
         const j = out[lod]++;
         mA[lod].set(mats.subarray(i * 16, i * 16 + 16), j * 16);
         cA[lod].set(cols.subarray(i * 3, i * 3 + 3), j * 3);
@@ -486,9 +533,9 @@ export class TreeField {
           b.col.clearUpdateRanges(); b.col.addUpdateRange(0, out[lod] * 3); b.col.needsUpdate = true;
         }
       });
-      nN += out[0]; nM += out[1]; nF += out[2];
+      nN += out[0]; nM += out[1]; nF += out[2]; nG += out[3];
     }
-    this.stats = { near: nN, mid: nM, far: nF };
+    this.stats = { near: nN, mid: nM, far: nF, seeThrough: nG };
     return true;
   }
 

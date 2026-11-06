@@ -9,12 +9,21 @@
 // architecture instead: a leader with whorls of drooping branches (spruce/fir), or
 // a tall bare bole under a few layered limbs that end in needle tufts (pine).
 //
+// Broadleaf crowns and pine needles are CLUMPS: round leaf masses / needle tufts on
+// cards that turn to face the camera (trees.js), a few hundred per crown, set where
+// the twigs end and mostly in the crown's outer shell. Game trees (SpeedTree's leaf
+// clusters) build canopy this way: a crown reads as one solid, lumpy mass with leafy
+// edges and sky only between its lobes, from any side, where single twig cards left
+// it sparse and full of spokes. Spruce and fir keep their sprigs along the branches.
+//
 // A model is built at its species' reference height H (metres) and scaled per
 // instance to the measured tree (tree-placement.js realTreeSize). Output:
 //   { species, H, crownR, crownBase, normals: 'crown' | 'axis', center, radii,
-//     branches: [{ a, b, ra, rb }], cards: [{ p, right, up, ao, tile }] }
+//     branches: [{ a, b, ra, rb }], cards: [{ p, right, up, ao, tile, bill?, roll? }] }
 // Points are [x, y, z] with y up and the trunk base at the origin; a card's right
-// and up are half-extent vectors (its texture's "up" runs along `up`).
+// and up are half-extent vectors (its texture's "up" runs along `up`). A `bill` card
+// is a clump: p is its centre, right/up its half-extents as drawn facing the camera,
+// roll its turn on screen.
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -38,13 +47,15 @@ const UP = [0, 1, 0];
 
 // Reference shapes. base = crown base / H for an open-grown tree; forestBase for one
 // grown in closed woods (shaded-out lower limbs). width = crown radius / H. leaves =
-// leaf-card budget of the full model; card = card size (m) at H; tile = leaf-atlas
-// tile (leaf-atlas.js). Heights follow mature Upper-Midwest parkland trees.
+// card budget of the full model (clumps for broadleaves and pine); card = card size
+// (m) at H; tile = leaf-atlas tile (leaf-atlas.js). Broadleaf heights follow mature
+// Upper-Midwest parkland trees; the pine is a southern yellow pine (loblolly /
+// longleaf): a tall clean bole under a lumpy crown of needle tufts.
 export const TREE_SPECIES = Object.freeze({
-  oak: Object.freeze({ kind: 'broad', H: 16, base: 0.22, forestBase: 0.45, width: 0.44, forestWidth: 0.3, ovoid: 0.16, lump: 0.32, up: 0.04, sag: 0.3, leaves: 660, card: 1.75, tile: 0, trunkR: 0.027, lean: 0.45 }),
-  maple: Object.freeze({ kind: 'broad', H: 17, base: 0.18, forestBase: 0.42, width: 0.34, forestWidth: 0.25, ovoid: -0.06, lump: 0.22, up: 0.16, sag: 0.12, leaves: 680, card: 1.7, tile: 0, trunkR: 0.023, lean: 0.3 }),
-  birch: Object.freeze({ kind: 'broad', H: 15, base: 0.32, forestBase: 0.5, width: 0.21, forestWidth: 0.17, ovoid: -0.12, lump: 0.28, up: 0.2, sag: 0.22, leaves: 540, card: 1.4, tile: 1, trunkR: 0.014, lean: 0.7, stems: 3 }),
-  pine: Object.freeze({ kind: 'pine', H: 20, base: 0.5, forestBase: 0.62, width: 0.26, forestWidth: 0.19, leaves: 300, card: 1.7, tile: 3, trunkR: 0.021, lean: 0.55 }),
+  oak: Object.freeze({ kind: 'broad', H: 16, base: 0.22, forestBase: 0.45, width: 0.44, forestWidth: 0.3, ovoid: 0.16, lump: 0.32, up: 0.04, sag: 0.3, leaves: 420, card: 2.3, tile: 0, trunkR: 0.027, lean: 0.45 }),
+  maple: Object.freeze({ kind: 'broad', H: 17, base: 0.18, forestBase: 0.42, width: 0.34, forestWidth: 0.25, ovoid: -0.06, lump: 0.22, up: 0.16, sag: 0.12, leaves: 400, card: 2.15, tile: 1, trunkR: 0.023, lean: 0.3 }),
+  birch: Object.freeze({ kind: 'broad', H: 15, base: 0.32, forestBase: 0.5, width: 0.21, forestWidth: 0.17, ovoid: -0.12, lump: 0.28, up: 0.2, sag: 0.22, leaves: 300, card: 1.75, tile: 1, trunkR: 0.014, lean: 0.7, stems: 3 }),
+  pine: Object.freeze({ kind: 'pine', H: 22, base: 0.55, forestBase: 0.64, width: 0.24, forestWidth: 0.18, leaves: 170, card: 2.5, tile: 3, trunkR: 0.02, lean: 0.5 }),
   fir: Object.freeze({ kind: 'spruce', H: 17, base: 0.025, forestBase: 0.2, width: 0.2, forestWidth: 0.17, leaves: 560, card: 1.25, tile: 2, trunkR: 0.02, lean: 0.15 }),
 });
 export const TREE_SPECIES_NAMES = Object.freeze(Object.keys(TREE_SPECIES));
@@ -61,6 +72,13 @@ function card(p, facing, roll, size, ao, tile) {
     up: mul(add(mul(t1, -s), mul(t2, c)), h),
     ao, tile,
   };
+}
+
+// A clump: a round leaf mass or needle tuft `size` m across, centred at p, that
+// trees.js turns to face the camera (rolled `roll` radians on screen).
+function clumpCard(p, size, roll, ao, tile) {
+  const h = size / 2;
+  return { p, right: [h, 0, 0], up: [0, h, 0], roll, ao, tile, bill: true };
 }
 
 // A card whose texture "up" runs along dir (a sprig growing out of a branch), its
@@ -234,17 +252,19 @@ function broadleaf(sp, r, forest) {
   const cards = [];
   const pick = cand.slice();
   for (let i = pick.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [pick[i], pick[j]] = [pick[j], pick[i]]; }
-  for (let i = 0; i < target; i++) {
+  // clumps where the twigs end, mostly in the crown's outer shell: one deep inside the
+  // mass is hidden by the ones around it, so most of those are skipped
+  for (let i = 0, tries = 0; cards.length < target && tries < target * 6; i++, tries++) {
     const base = pick[i % pick.length];
-    const spread = i < pick.length ? 0.35 : 0.85;
+    const spread = i < pick.length ? 0.45 : 0.9;
     const p = add(base, mul([r() - 0.5, r() - 0.5, r() - 0.5], 2 * spread * sc));
     const q = local(p);
     const d = len(q) || 1e-6;
-    const out = norm([p[0], (p[1] - cy) * 0.7, p[2]]);
-    const facing = add(out, add(mul([r() - 0.5, r() - 0.5, r() - 0.5], 2.2), [0, 0.3, 0]));
-    const size = sp.card * sc * (0.72 + 0.56 * r());
-    const ao = Math.min(1, Math.max(0.15, d / shell(mul(q, 1 / d))));
-    cards.push(card(p, facing, r() * Math.PI * 2, size, ao, sp.tile));
+    const rel = d / shell(mul(q, 1 / d));   // 0 at the crown's core, 1 on its surface
+    if (rel < 0.55 && r() < 0.7) continue;
+    const size = sp.card * sc * (0.75 + 0.5 * r()) * (0.8 + 0.25 * Math.min(1, rel));
+    // a little light variation clump to clump, so the crown isn't one even tone
+    cards.push(clumpCard(p, size, r() * Math.PI * 2, Math.min(1, Math.max(0.15, rel)) * (0.8 + 0.2 * r()), sp.tile));
   }
   return finish({ H, crownBase: yb, normals: 'crown', center: C, radii: [rx, ry], branches: chainSegments(nodes), cards });
 }
@@ -297,58 +317,61 @@ function spruce(sp, r, forest) {
 }
 
 function pine(sp, r, forest) {
-  const H = sp.H, sc = H / 20;
-  const yb = H * (forest ? sp.forestBase : sp.base) * (0.9 + 0.2 * r());
+  const H = sp.H, sc = H / 22;
+  const yb = H * (forest ? sp.forestBase : sp.base) * (0.92 + 0.16 * r());
   const R = H * (forest ? sp.forestWidth : sp.width) * (0.85 + 0.3 * r());
   const leanDir = r() * Math.PI * 2;
   const lean = [Math.cos(leanDir) * sp.lean, 0, Math.sin(leanDir) * sp.lean];
   const axis = (y) => add([0, y, 0], mul(lean, (y / H) ** 1.5));
   const rT = sp.trunkR * H;
-  const trunkR = (y) => rT * (1 - 0.78 * y / H);
+  const trunkR = (y) => rT * (1 - 0.8 * y / H);
   const branches = [];
   const cards = [];
-  for (let y = 0; y < H - 0.6 * sc; y += 2 * sc) {
-    const y2 = Math.min(H - 0.6 * sc, y + 2 * sc);
+  const top = H - 1.2 * sc;
+  for (let y = 0; y < top; y += 2 * sc) {
+    const y2 = Math.min(top, y + 2 * sc);
     branches.push({ a: axis(y), b: axis(y2), ra: trunkR(y), rb: trunkR(y2) });
   }
-  const tuft = (at, dir, n, scale) => {
-    for (let k = 0; k < n; k++) {
-      const spread = norm(add(dir, add(mul([r() - 0.5, r() - 0.5, r() - 0.5], 1.6), [0, 0.45, 0])));
-      cards.push(sprigCard(at, spread, r() * Math.PI, sp.card * sc * scale * (0.8 + 0.4 * r()), 0.75 + 0.25 * r(), sp.tile));
-    }
-  };
+  const ry = (H - yb) / 2, cy = yb + ry;
+  const tuft = (at, scale, ao) => cards.push(clumpCard(add(at, mul([r() - 0.5, r() - 0.5, r() - 0.5], 0.5 * sc)),
+    sp.card * sc * scale * (0.8 + 0.4 * r()), r() * Math.PI * 2, Math.min(1, ao), sp.tile));
+  const hd = (p) => Math.min(1, Math.hypot(p[0], p[2]) / R);
+  // whorls of upswept limbs that level off, each carrying needle tufts at its tip and
+  // along its outer half; a rounded, slightly flat-topped crown widest a third of the
+  // way up, with sky between the limbs
   let w = 0;
-  for (let y = yb; y < H - 0.7 * sc; y += 0.95 * sc * (0.75 + 0.5 * r()), w++) {
+  for (let y = yb; y < H - 1.3 * sc; y += 0.6 * sc * (0.75 + 0.5 * r()), w++) {
     const t = (y - yb) / (H - yb);
+    const prof = Math.sin(Math.PI * Math.min(1, 0.22 + t * 0.85)) ** 0.6;
     const n = 3 + Math.floor(r() * 3);
     const az0 = w * 2.39996 + r();
     for (let k = 0; k < n; k++) {
-      if (r() < 0.2) continue;
-      const a = az0 + (k / n) * Math.PI * 2 + (r() - 0.5) * 0.7;
-      const L = R * (0.45 + 0.55 * Math.sin(Math.PI * Math.min(1, t * 1.05 + 0.12))) * (0.65 + 0.7 * r());
-      const dir = norm([Math.cos(a), 0.08 + 0.45 * t * r(), Math.sin(a)]);
+      if (r() < 0.18) continue;
+      const a = az0 + (k / n) * Math.PI * 2 + (r() - 0.5) * 0.8;
+      const L = R * (0.3 + 0.8 * prof) * (0.7 + 0.5 * r());
+      const dir = norm([Math.cos(a), 0.45 - 0.25 * t + 0.25 * r(), Math.sin(a)]);
       const start = axis(y);
-      const tip = add(start, mul(norm(add(dir, [0, 0.12, 0])), L));
-      const rb0 = 0.02 * sc + 0.05 * sc * (L / R);
-      branches.push({ a: start, b: tip, ra: rb0, rb: 0.012 * sc });
-      tuft(tip, dir, 4 + Math.floor(r() * 3), 1);
-      if (r() < 0.65 && L > 1.2 * sc) {
-        const at = lerp3(start, tip, 0.6 + 0.15 * r());
-        const fork = norm(add(dir, [Math.cos(a + 1.57) * (r() - 0.5) * 1.6, 0.2, Math.sin(a + 1.57) * (r() - 0.5) * 1.6]));
-        const ftip = add(at, mul(fork, L * 0.45));
-        branches.push({ a: at, b: ftip, ra: rb0 * 0.6, rb: 0.01 * sc });
-        tuft(ftip, fork, 3 + Math.floor(r() * 3), 0.85);
+      const mid = add(start, mul(dir, L * 0.55));
+      const tipDir = norm(add(dir, [0, -0.15 + 0.3 * r(), 0]));
+      const tip = add(mid, mul(tipDir, L * 0.45));
+      const rb0 = 0.025 * sc + 0.06 * sc * (L / R);
+      branches.push({ a: start, b: mid, ra: rb0, rb: rb0 * 0.6 }, { a: mid, b: tip, ra: rb0 * 0.6, rb: 0.012 * sc });
+      tuft(tip, 1, 0.75 + 0.25 * r());
+      tuft(lerp3(mid, tip, 0.45), 0.9, 0.5 + 0.4 * hd(mid));
+      if (L > 1.5 * sc) tuft(lerp3(start, mid, 0.7), 0.8, 0.4 + 0.4 * hd(mid));
+      if (r() < 0.6) {
+        const fork = norm(add(tipDir, [Math.cos(a + 1.57) * (r() - 0.5) * 1.8, 0.2, Math.sin(a + 1.57) * (r() - 0.5) * 1.8]));
+        const ftip = add(mid, mul(fork, L * 0.5));
+        branches.push({ a: mid, b: ftip, ra: rb0 * 0.5, rb: 0.01 * sc });
+        tuft(ftip, 0.9, 0.7 + 0.3 * r());
       }
     }
   }
-  tuft(axis(H - 0.8 * sc), UP, 5, 0.9);
-  // a stand-in for the needle mass hiding the inner limbs: inner tufts point
-  // outward but sit darker
-  for (const c of cards) {
-    const hd = Math.hypot(c.p[0], c.p[2]) / R;
-    c.ao = Math.min(c.ao, 0.35 + 0.65 * Math.min(1, hd));
+  // the top: a few tufts round the leader
+  for (let k = 0; k < 4; k++) {
+    tuft(add(axis(H - 1.2 * sc), [Math.cos(k * 1.6) * 0.6 * sc, (r() - 0.3) * 0.8 * sc, Math.sin(k * 1.6) * 0.6 * sc]), 0.85, 0.95);
   }
-  return finish({ H, crownBase: yb, normals: 'axis', center: [0, (yb + H) / 2, 0], radii: [R, (H - yb) / 2], branches, cards, lean });
+  return finish({ H, crownBase: yb, normals: 'crown', center: [0, cy, 0], radii: [R, ry], branches, cards, lean });
 }
 
 function finish(m) {
@@ -381,7 +404,8 @@ export function thinCards(cards, every, seed = 1, { cross: crossed = false } = {
   const out = [];
   for (const i of order.slice(0, keep)) {
     const c = cards[i];
-    if (!crossed) { out.push({ ...c, right: mul(c.right, g), up: mul(c.up, g) }); continue; }
+    // a clump faces the camera already: it only grows
+    if (!crossed || c.bill) { out.push({ ...c, right: mul(c.right, g), up: mul(c.up, g) }); continue; }
     const h = Math.hypot(...c.right) * g;
     const roll = r() * Math.PI * 2;
     for (const facing of [[Math.cos(roll), 0, Math.sin(roll)], [-Math.sin(roll), 0, Math.cos(roll)], [0, 1, 0]]) {

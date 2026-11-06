@@ -1,7 +1,7 @@
 // Woods fill + species stands (public/render/tree-placement.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fillWoods, placeCourseTrees, speciesAt, pointInPoly, distToPolyEdge, SPECIES, speciesForCrown, realTreeSize } from '../public/render/tree-placement.js';
+import { fillWoods, placeCourseTrees, speciesAt, pointInPoly, distToPolyEdge, SPECIES, speciesForCrown, realTreeSize, canopyHeight } from '../public/render/tree-placement.js';
 
 const square = (x0, y0, s) => [[x0, y0], [x0 + s, y0], [x0 + s, y0 + s], [x0, y0 + s]];
 
@@ -71,10 +71,30 @@ test('real canopy trees replace the woods guesswork and keep their measured size
   for (const [x, y, h, r] of canopy) {
     const p = spots.find((s) => s.x === x && s.y === y);
     assert.ok(p, `${x},${y} placed`);
-    assert.equal(p.h, h);
+    assert.equal(p.h, canopyHeight(h));   // stretched: the canopy map runs low on tall trees
     assert.equal(p.r, r);
     assert.ok(SPECIES.includes(p.species));
   }
+});
+
+test('the canopy height stretch leaves short trees alone and lifts tall ones', () => {
+  assert.equal(canopyHeight(5), 5);
+  assert.equal(canopyHeight(8), 8);
+  assert.ok(Math.abs(canopyHeight(20) - 24.2) < 1e-9);
+  for (let h = 1; h < 40; h += 0.7) assert.ok(canopyHeight(h + 0.7) > canopyHeight(h));
+});
+
+test('a course with its own flora only grows its own species', () => {
+  const augusta = [0.24, 0.68, 0, 0, 0.08];
+  const seen = new Set();
+  for (let x = 0; x < 3000; x += 23) for (let y = 0; y < 3000; y += 29) {
+    seen.add(speciesAt(x, y, 0, 0, augusta));
+    seen.add(speciesForCrown(x, y, 10 + (x % 25), 1 + (y % 9), 0, augusta));
+  }
+  assert.deepEqual([...seen].sort(), ['maple', 'oak', 'pine']);
+  let pine = 0, n = 0;
+  for (let x = 0; x < 3000; x += 23) for (let y = 0; y < 3000; y += 29) { n++; if (speciesAt(x, y, 0, 0, augusta) === 'pine') pine++; }
+  assert.ok(pine / n > 0.5, `pines ${(pine / n).toFixed(2)}`);
 });
 
 test('an OSM tree on top of a real tree is dropped; a separate one is kept', () => {

@@ -54,3 +54,31 @@ test('a course mapped as two areas side by side has both, the bigger first', () 
   assert.deepEqual(outerRings({ type: 'way', geometry: west }), [west]);
   assert.deepEqual(outerRings({ type: 'node' }), []);
 });
+
+// ---- surfaces mapped as multipolygon relations (lib/course.js parseOsm) ----
+const { parseOsm } = require('../lib/course');
+
+const hole = { type: 'way', tags: { golf: 'hole', ref: '1', par: '4' }, geometry: [P(33.5, -82.02), P(33.502, -82.02)] };
+const greenWay = { type: 'way', tags: { golf: 'green' }, geometry: [P(33.5019, -82.0201), P(33.5019, -82.0199), P(33.5021, -82.0199), P(33.5019, -82.0201)] };
+
+test('a fairway mapped as a multipolygon relation is a fairway surface, its pieces joined', () => {
+  const fairway = { type: 'relation', tags: { golf: 'fairway', type: 'multipolygon' }, members: [
+    { type: 'way', role: 'outer', geometry: [P(33.5005, -82.0203), P(33.5005, -82.0197), P(33.5015, -82.0197)] },
+    { type: 'way', role: 'outer', geometry: [P(33.5005, -82.0203), P(33.5015, -82.0203), P(33.5015, -82.0197)] },
+    { type: 'way', role: 'inner', geometry: [P(33.501, -82.0201), P(33.501, -82.0200), P(33.5011, -82.0200), P(33.501, -82.0201)] },
+  ] };
+  const c = parseOsm({ elements: [hole, greenWay, fairway] }, 'Test', null);
+  const fw = c.surfaces.filter((x) => x.kind === 'fairway');
+  assert.equal(fw.length, 1, 'one fairway from the two outer pieces (the inner ring is not a fairway)');
+  assert.equal(fw[0].poly.length, 5);
+  assert.deepEqual(fw[0].poly[0], fw[0].poly[4], 'closed');
+});
+
+test('relation members do not move the projection origin: a course without them is unchanged', () => {
+  const fairway = { type: 'relation', tags: { golf: 'fairway' }, members: [
+    { type: 'way', role: 'outer', geometry: [P(34, -81), P(34, -80.9), P(34.1, -80.9), P(34, -81)] },
+  ] };
+  const bare = parseOsm({ elements: [hole, greenWay] }, 'Test', null);
+  const withRel = parseOsm({ elements: [hole, greenWay, fairway] }, 'Test', null);
+  assert.deepEqual(withRel.surfaces.find((x) => x.kind === 'green').poly, bare.surfaces.find((x) => x.kind === 'green').poly);
+});

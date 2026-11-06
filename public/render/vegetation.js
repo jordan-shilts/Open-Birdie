@@ -5,6 +5,7 @@
 // so they sit in the same light as everything else.
 import * as THREE from 'three';
 import { RENDER_CONFIG } from './config.js';
+import { BILLBOARD_PROJECT, BILLBOARD_NORMAL, BILLBOARD_WORLDPOS } from './trees.js';
 
 export function deterministicRandom(seed) {
   let a = seed >>> 0;
@@ -41,25 +42,32 @@ export function vegetationTextureCommands(kind) {
     return commands;
   }
   if (kind === 'flower') {
-    const rnd = deterministicRandom(0xf10a);
-    const s = 128;
+    // an azalea clump: a dense, irregular mass of small dark leaves, then blossoms
+    // (white: the bush's colour tints them) crowded over its upper two thirds
+    const rnd = deterministicRandom(0xf10b);
+    const s = 256;
     const commands = [];
-    for (let i = 0; i < 46; i++) {
-      const ang = rnd() * Math.PI * 2, rad = Math.pow(rnd(), 0.5) * s * 0.42;
+    const lobes = [{ x: 0, y: 0.04, r: 0.24 }];
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2 + rnd() * 0.8, d = 0.1 + rnd() * 0.1;
+      lobes.push({ x: Math.cos(a) * d, y: Math.sin(a) * d * 0.8 + 0.04, r: 0.1 + rnd() * 0.09 });
+    }
+    const inside = (u, v) => lobes.some((l) => (u - l.x) ** 2 + (v - l.y) ** 2 < l.r * l.r);
+    for (let i = 0, tries = 0; i < 420 && tries < 20000; tries++) {
+      const u = (rnd() - 0.5) * 0.86, v = (rnd() - 0.5) * 0.86;
+      if (!inside(u, v)) continue;
+      i++;
+      const depth = rnd(), rim = Math.min(1, Math.hypot(u, v) / 0.36);
       commands.push({
-        kind: 'blossom',
-        cx: s / 2 + Math.cos(ang) * rad,
-        cy: s * 0.55 + Math.sin(ang) * rad * 0.8,
-        radius: 4 + rnd() * 7,
+        kind: 'leaf', cx: s / 2 + u * s, cy: s / 2 + v * s, rx: 5 + rnd() * 4, ry: 2.2 + rnd() * 1.6,
+        rot: rnd() * Math.PI, hue: 98 + rnd() * 18, sat: 30 + rnd() * 14, light: 11 + 15 * Math.max(depth, rim * 0.8),
       });
     }
-    for (let i = 0; i < 10; i++) {
-      commands.push({
-        kind: 'leaf-gap',
-        cx: rnd() * s,
-        cy: s * 0.5 + rnd() * s * 0.45,
-        radius: 3 + rnd() * 5,
-      });
+    for (let i = 0, tries = 0; i < 80 && tries < 20000; tries++) {
+      const u = (rnd() - 0.5) * 0.8, v = (rnd() - 0.62) * 0.8;   // canvas y down: the upper part
+      if (!inside(u, v)) continue;
+      i++;
+      commands.push({ kind: 'blossom', cx: s / 2 + u * s, cy: s / 2 + v * s, radius: 6 + rnd() * 4, rot: rnd() * Math.PI, shade: 0.82 + rnd() * 0.18 });
     }
     return commands;
   }
@@ -131,24 +139,28 @@ export function buildPineStraw(treeSpots, hAt, V) {
 
 // --- azalea-style flowering bushes ----------------------------------------
 
-// A bushy blob of white blossoms (tinted per-instance to the azalea color) with
-// a few dark leaf gaps, on a transparent ground. Alpha-tested, so no sorting.
+// An azalea clump (camera-facing in buildFlowers): small dark leaves in an irregular
+// mass with five-petalled blossoms crowded over its top, white so the bush's colour
+// tints them (the shader's bloom mask), on a transparent ground. Alpha-tested.
 function flowerTextureCanvas() {
-  const s = 128, cv = document.createElement('canvas');
+  const s = 256, cv = document.createElement('canvas');
   cv.width = cv.height = s;
   const ctx = cv.getContext('2d');
   ctx.clearRect(0, 0, s, s);
-  for (const command of vegetationTextureCommands('flower')) {
-    if (command.kind === 'blossom') {
-      const g = ctx.createRadialGradient(command.cx, command.cy, 0, command.cx, command.cy, command.radius);
-      g.addColorStop(0.0, 'rgba(255,255,255,1)');
-      g.addColorStop(0.6, 'rgba(255,250,252,0.95)');
-      g.addColorStop(1.0, 'rgba(255,240,245,0)');
-      ctx.fillStyle = g;
+  for (const c of vegetationTextureCommands('flower')) {
+    if (c.kind === 'leaf') {
+      ctx.fillStyle = `hsl(${c.hue.toFixed(1)},${c.sat.toFixed(1)}%,${c.light.toFixed(1)}%)`;
+      ctx.beginPath(); ctx.ellipse(c.cx, c.cy, c.rx, c.ry, c.rot, 0, Math.PI * 2); ctx.fill();
     } else {
-      ctx.fillStyle = 'rgba(40,70,38,0.55)';
+      const v = Math.round(255 * c.shade);
+      for (let k = 0; k < 5; k++) {
+        const a = c.rot + (k / 5) * Math.PI * 2, pr = c.radius * 0.42;
+        ctx.fillStyle = `rgb(${v},${v},${v})`;
+        ctx.beginPath(); ctx.arc(c.cx + Math.cos(a) * pr, c.cy + Math.sin(a) * pr, c.radius * 0.5, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = `rgb(${Math.round(v * 0.72)},${Math.round(v * 0.7)},${Math.round(v * 0.7)})`;
+      ctx.beginPath(); ctx.arc(c.cx, c.cy, c.radius * 0.22, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.beginPath(); ctx.arc(command.cx, command.cy, command.radius, 0, Math.PI * 2); ctx.fill();
   }
   return cv;
 }
@@ -182,54 +194,85 @@ export async function vegetationTexturePixelChecksums() {
   };
 }
 
-// Two crossed vertical quads -> a billboard that reads as a bush from any angle.
+// A bush: nine clumps that turn to face the camera (trees.js BILLBOARD_*), heaped in
+// a low dome ~1.4 m across, each with a normal out of the dome so it lights as one
+// soft mass (the crossed flat cards it replaces read as paper cut-outs).
 function bushGeometry() {
-  const w = 0.75, h = 1.15;
-  const quads = [
-    [[-w, 0, 0], [w, 0, 0], [w, h, 0], [-w, h, 0]],
-    [[0, 0, -w], [0, 0, w], [0, h, w], [0, h, -w]],
-  ];
-  const pos = [], uv = [], idx = [];
+  const rnd = deterministicRandom(0xb05);
+  // a heaped dome, its lowest clumps sitting on the ground
+  const clumps = [[0, 0.62, 0, 0.95], [0, 0.4, 0, 1.0]];
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2 + rnd() * 0.6, d = 0.3 + rnd() * 0.2;
+    clumps.push([Math.cos(a) * d, 0.3 + rnd() * 0.15, Math.sin(a) * d, 0.72 + rnd() * 0.2]);
+  }
+  const pos = [], nor = [], uv = [], corner = [], idx = [];
   let v = 0;
-  for (const q of quads) {
-    for (const p of q) pos.push(p[0], p[1], p[2]);
-    uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+  for (const [x, y, z, size] of clumps) {
+    const n = [x, y + 0.5, z], l = Math.hypot(...n);
+    const roll = rnd() * Math.PI * 2, cr = Math.cos(roll), sr = Math.sin(roll), h = size / 2;
+    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      pos.push(x, y, z);
+      nor.push(n[0] / l, n[1] / l, n[2] / l);
+      uv.push(sx * 0.5 + 0.5, sy * 0.5 + 0.5);
+      corner.push((sx * cr - sy * sr) * h, (sx * sr + sy * cr) * h);
+    }
     idx.push(v, v + 1, v + 2, v, v + 2, v + 3); v += 4;
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('aCorner', new THREE.Float32BufferAttribute(corner, 2));
   g.setIndex(idx);
-  g.computeVertexNormals();
   return g;
 }
 
 // Augusta-ish azalea palette: vivid hot-pink/magenta/red dominate so the beds
-// read as colour at distance (pale blossoms just pick up the bluish aerial fog);
-// one near-white kept for variety.
-// Softened from the first pass (0xe24b8a, ...), whose solid tinted cards read as blobs.
-const AZALEA = [0xd06a95, 0xb4517f, 0xc65a6c, 0xd982a8, 0xe29ab9, 0xeee0e6];
+// read as colour at distance (pale blossoms just pick up the bluish aerial fog).
+// No white: on the leafy clump bushes a white bed read as cotton wool.
+const AZALEA = [0xc8467e, 0xa83a6e, 0xc04a5c, 0xd06a95, 0xb4517f, 0xd982a8];
 
 // spots: [{x,y,s}], hAt, V. One instanced mesh of crossed-quad bushes, each
 // tinted to a random azalea color. Returns { meshes }.
 export function buildFlowers(spots, hAt, V) {
   if (!spots.length) return { meshes: [] };
   const mat = new THREE.MeshStandardMaterial({
-    map: flowerTexture(), alphaTest: 0.4, side: THREE.DoubleSide,
-    roughness: 0.9, metalness: 0,
+    map: flowerTexture(), alphaTest: 0.5, side: THREE.DoubleSide,
+    roughness: 0.9, metalness: 0, envMapIntensity: 0.6,
   });
-  // the bush's colour tints its blossoms (white in the texture) and leaves its leaves green
   mat.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec2 aCorner;')
+      .replace('#include <defaultnormal_vertex>', BILLBOARD_NORMAL)
+      .replace('#include <project_vertex>', `${BILLBOARD_PROJECT}
+        {
+          // nothing in front of the shot: a bush ahead of the camera across the middle
+          // of the view (within 35 m), or right beside it, is not drawn
+          vec3 fv = (modelViewMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz;
+          float depth = -fv.z;
+          bool ahead = abs(fv.x) < 2.5 + 0.08 * max(depth, 0.0) && depth > -1.0 && depth < 35.0;
+          if (ahead || length(fv.xz) < 6.0) gl_Position = vec4(0.0, 0.0, -2.0, 1.0);
+        }`)
+      .replace('#include <worldpos_vertex>', BILLBOARD_WORLDPOS);
+    // the bush's colour tints its blossoms (white in the texture) and leaves its leaves green
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <color_fragment>', `
       #if defined( USE_COLOR ) || defined( USE_COLOR_ALPHA )
-        float bloom = smoothstep(0.45, 0.8, min(diffuseColor.r, min(diffuseColor.g, diffuseColor.b)));
+        // by brightness, not whiteness: at a distance the blossoms' mips blend with the dark
+        // leaves into a mid tone that a whiteness mask missed, and far beds went grey
+        float bloom = smoothstep(0.18, 0.5, dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)));
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vColor.rgb, bloom);
-      #endif`);
+      #endif`)
+      // a clump's normal comes from the dome, not the card: a back-facing card must not
+      // flip it inward
+      .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+        normal = normalize(vNormal); nonPerturbedNormal = normal;`);
   };
-  mat.customProgramCacheKey = () => 'azalea-v2';
+  mat.customProgramCacheKey = () => 'azalea-v4-clumps';
   const mesh = new THREE.InstancedMesh(bushGeometry(), mat, spots.length);
+  mesh.frustumCulled = false;   // instances spread over the course; the bound is one bush
   mesh.castShadow = false;
-  mesh.receiveShadow = false;
+  mesh.receiveShadow = true;
   mesh.userData.isFlowers = true; // probe/debug hook
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3(), col = new THREE.Color();
   const rnd = deterministicRandom(91);
