@@ -1319,40 +1319,33 @@ kbd { font-size: 11.5px; }
   .cm-grid { grid-template-columns: 1fr; }
 }
 
-/* club delivery (club-panel.js): beside the last shot, the TrackMan club screens */
+/* club delivery (club-panel.js): a small card beside the last shot */
 #clubpanel {
-  position: fixed; left: 290px; top: 160px; width: 336px; padding: 12px 12px 10px;
+  position: fixed; left: 290px; top: 160px; width: 262px; padding: 10px 12px 9px;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow);
 }
 body.stage-open #clubpanel { opacity: 0; pointer-events: none; }
-.cp-head { display: flex; align-items: center; gap: 8px; margin: 0 2px 4px; }
+.cp-head { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; }
 .cp-head .sp-club { margin-left: auto; }
-.cp-chip { font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: var(--dim); }
+.cp-chip { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 7px; background: rgba(255, 255, 255, 0.08); color: var(--dim); }
 .cp-chip.good { background: rgba(69, 212, 131, 0.16); color: var(--good); }
 .cp-chip.bad { background: rgba(255, 122, 82, 0.16); color: var(--bad); }
-.cp-svg { display: block; width: 100%; height: auto; }
-.cp-svg .cp-target { stroke: rgba(255, 255, 255, 0.28); stroke-width: 1.5; stroke-dasharray: 4 5; }
-.cp-svg .cp-ground { stroke: rgba(255, 255, 255, 0.3); stroke-width: 1.5; }
-.cp-svg .cp-start { stroke: rgba(255, 255, 255, 0.75); stroke-width: 2; stroke-dasharray: 2 5; }
-.cp-svg .cp-path { stroke: #4aa8ff; stroke-width: 4; fill: none; }
-.cp-svg .cp-face { stroke: #ff5a4a; stroke-width: 5; }
-.cp-svg .cp-aim { stroke: #ff5a4a; stroke-width: 2.5; opacity: 0.85; }
-.cp-svg .cp-sector { fill: rgba(255, 255, 255, 0.12); stroke: none; }
-.cp-svg .cp-ball { fill: #f3f3f0; stroke: rgba(0, 0, 0, 0.35); stroke-width: 1; }
-.cp-svg .cp-note { fill: var(--faint); stroke: none; font-family: var(--num); font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
-.cp-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 2px 0 8px; }
-.cp-tiles.two { grid-template-columns: 1fr 1fr; margin: 0; flex: 1; }
-.cp-tile { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px 5px; min-width: 0; }
-.cp-tile .lbl { font-size: 9.5px; letter-spacing: 0.1em; }
-.cp-tile b { display: block; font-size: 22px; line-height: 1.1; }
-.cp-tile b small { font-size: 12px; color: var(--dim); margin-left: 1px; }
-.cp-tile b.cp-none { color: var(--faint); }
-.cp-tile em { display: block; font-style: normal; font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cp-tile.est b { color: #d9dcd4; }
-.cp-tile.est em { color: var(--faint); }
-.cp-strike { display: flex; align-items: center; gap: 8px; }
-.cp-impact { width: 108px; flex: none; }
-.cp-impact .cp-faceplate { fill: rgba(255, 255, 255, 0.08); stroke: rgba(255, 255, 255, 0.45); stroke-width: 2; }
-.cp-impact .cp-sweet { stroke: rgba(255, 255, 255, 0.18); stroke-width: 1; stroke-dasharray: 3 4; }
-.cp-impact .cp-dot { fill: var(--accent); stroke: var(--accent-ink); stroke-width: 1.5; }
+.cp-body { display: flex; align-items: center; gap: 8px; }
+.cp-sketch { width: 56px; height: 64px; flex: none; }
+.cp-sketch .cp-target { stroke: rgba(255, 255, 255, 0.28); stroke-width: 1.2; stroke-dasharray: 3 4; }
+.cp-sketch .cp-path { stroke: #4aa8ff; stroke-width: 3; fill: none; stroke-linecap: round; }
+.cp-sketch .cp-face { stroke: #ff5a4a; stroke-width: 3.5; stroke-linecap: round; }
+.cp-sketch .cp-ball { fill: #f3f3f0; stroke: none; }
+.cp-rows { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.cp-row { display: grid; grid-template-columns: 50px auto 1fr auto; align-items: baseline; gap: 6px; }
+.cp-row .lbl { font-size: 9.5px; letter-spacing: 0.1em; }
+.cp-row b { font-size: 17px; line-height: 1.15; }
+.cp-row em { font-style: normal; font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-row.est b { color: #d9dcd4; }
+.cp-row.est em { color: var(--faint); }
+.cp-face-icon { width: 34px; height: 21px; align-self: center; }
+.cp-face-icon .cp-faceplate { fill: rgba(255, 255, 255, 0.08); stroke: rgba(255, 255, 255, 0.45); stroke-width: 1.5; }
+.cp-face-icon .cp-dot { fill: var(--accent); }
+.cp-more { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--dim); }
+.cp-more b { font-size: 13px; color: var(--text); }
 @media (max-width: 1100px) { #clubpanel { display: none; } }

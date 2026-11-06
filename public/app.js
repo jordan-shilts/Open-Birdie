@@ -132,7 +132,7 @@ function showClubCard(shot) {
   const el = $('clubpanel');
   const d = clubCardOn && shot && !$('shotpanel').classList.contains('hidden') && !$('shotpanel').classList.contains('no-room') ? shot.clubData : null;
   const label = $('sp-club').textContent;
-  renderClubPanel(el, d || null, { clubName: label, wood: /driver|wood|^dr$|^\dw$/i.test(label) });
+  renderClubPanel(el, d || null, { clubName: label });
   el.style.top = $('shotpanel').style.top;
 }
 
