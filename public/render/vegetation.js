@@ -63,11 +63,13 @@ export function vegetationTextureCommands(kind) {
         rot: rnd() * Math.PI, hue: 98 + rnd() * 18, sat: 30 + rnd() * 14, light: 11 + 15 * Math.max(depth, rim * 0.8),
       });
     }
-    for (let i = 0, tries = 0; i < 80 && tries < 20000; tries++) {
-      const u = (rnd() - 0.5) * 0.8, v = (rnd() - 0.62) * 0.8;   // canvas y down: the upper part
+    // in bloom the blossoms overlap into a near-solid mass over the top (spaced dots read
+    // as polka dots), with leaves showing only toward the bottom and the edges
+    for (let i = 0, tries = 0; i < 170 && tries < 20000; tries++) {
+      const u = (rnd() - 0.5) * 0.8, v = (rnd() - 0.6) * 0.78;   // canvas y down: the upper part
       if (!inside(u, v)) continue;
       i++;
-      commands.push({ kind: 'blossom', cx: s / 2 + u * s, cy: s / 2 + v * s, radius: 6 + rnd() * 4, rot: rnd() * Math.PI, shade: 0.82 + rnd() * 0.18 });
+      commands.push({ kind: 'blossom', cx: s / 2 + u * s, cy: s / 2 + v * s, radius: 9 + rnd() * 6, rot: rnd() * Math.PI, shade: 0.72 + rnd() * 0.28 });
     }
     return commands;
   }
@@ -83,8 +85,10 @@ function strawTextureCanvas() {
   const ctx = cv.getContext('2d');
   ctx.clearRect(0, 0, s, s);
   const base = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  base.addColorStop(0.0, 'rgba(124,78,40,0.74)');
-  base.addColorStop(0.6, 'rgba(110,66,34,0.52)');
+  // a light litter tint under the crown, not an opaque disc (it read as a mulch ring on
+  // open grass, round and tan, from the tee)
+  base.addColorStop(0.0, 'rgba(124,78,40,0.42)');
+  base.addColorStop(0.55, 'rgba(110,66,34,0.26)');
   base.addColorStop(1.0, 'rgba(110,66,34,0.0)');
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, s, s);
@@ -282,7 +286,7 @@ export function buildFlowers(spots, hAt, V) {
     q.setFromAxisAngle(up, rnd() * Math.PI * 2);
     const sz = 0.75 + rnd() * 0.5;
     sc.set(sz * (sp.s || 1), sz * (0.85 + rnd() * 0.4) * (sp.s || 1), sz * (sp.s || 1));
-    m4.compose(V(sp.x, sp.y, h), q, sc);
+    m4.compose(V(sp.x, sp.y, h - 0.12), q, sc);   // set into the ground a little: a bush has no visible foot
     mesh.setMatrixAt(i, m4);
     col.setHex(AZALEA[(rnd() * AZALEA.length) | 0]);
     mesh.setColorAt(i, col);

@@ -51,7 +51,9 @@ const LOOK = {
   oak: { leaf: '#5d7f33', bark: 'oak', barkTint: '#a09484' },
   maple: { leaf: '#557d35', bark: 'oak', barkTint: '#948a80' },
   birch: { leaf: '#7f9e45', bark: 'birch', barkTint: '#ffffff' },
-  pine: { leaf: '#5f7d48', bark: 'pine', barkTint: '#d0aa8c' },   // reddish-brown plated bark, not black
+  // the pine bark photo is dark (mean 63/255): a linear gain past white brings it to a
+  // reddish-brown plate bark (~10% reflectance) instead of charcoal on a shaded trunk
+  pine: { leaf: '#5f7d48', bark: 'pine', barkTint: [2.3, 1.7, 1.3] },
   fir: { leaf: '#4f7151', bark: 'spruce', barkTint: '#8c7864' },
 };
 
@@ -262,7 +264,15 @@ function addTreeShader(mat, shared, { flutter = false, foliage = false, ghost = 
         // sun against shade: less sky fill, a little more sun, so a crown's lit lobes stand
         // out from its shaded ones the way they do in a photo (it read as one flat green)
         reflectedLight.indirectDiffuse *= 0.78;
-        reflectedLight.directDiffuse *= 1.12;` : ''}`)
+        reflectedLight.directDiffuse *= 1.12;` : `
+        {
+          // ground bounce: the sky photo's lower half is dark, so a trunk's shaded side (the
+          // camera looking toward the sun) got no light off the sunlit grass at its foot
+          // and went pure black; real trunks are lit from below by it
+          vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+          float down = clamp(0.5 - 0.5 * dot(normal, upV), 0.0, 1.0);
+          reflectedLight.indirectDiffuse += BRDF_Lambert(diffuseColor.rgb) * vec3(0.55, 0.62, 0.4) * (0.35 + 0.65 * down);
+        }`}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         ${foliage ? `
         {
@@ -272,7 +282,7 @@ function addTreeShader(mat, shared, { flutter = false, foliage = false, ghost = 
           totalEmissiveRadiance += diffuseColor.rgb * back * 0.55 * vAO;
         }` : ''}`);
   };
-  mat.customProgramCacheKey = () => `tree3d-v4-clump-${ghost ? 'ghost-' : ''}${key}`;
+  mat.customProgramCacheKey = () => `tree3d-v5-clump-${ghost ? 'ghost-' : ''}${key}`;
 }
 
 // depth material for shadows with the same wind (and alpha for leaf cards)
@@ -376,7 +386,10 @@ export class TreeField {
         roughness: 0.8, metalness: 0, envMapIntensity: 0.6,
       });
       addTreeShader(cardMat, sharedSp, { flutter: true, foliage: true, key: `${species}-cards` });
-      const barkMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(look.barkTint), map: barkTex(look.bark), roughness: 0.95, metalness: 0 });
+      // bark takes a little more of the sky's fill than the default, so a trunk's shaded
+      // side (looking toward the sun) keeps its texture
+      const barkCol = Array.isArray(look.barkTint) ? new THREE.Color().setRGB(...look.barkTint) : new THREE.Color(look.barkTint);
+      const barkMat = new THREE.MeshStandardMaterial({ color: barkCol, map: barkTex(look.bark), roughness: 0.95, metalness: 0, envMapIntensity: 1.6 });
       addTreeShader(barkMat, sharedSp, { key: `${species}-bark` });
       const depthCards = makeDepthMat(sharedSp, { alpha: true, atlas, flutter: true, key: `${species}-cards` });
       const depthBark = makeDepthMat(sharedSp, { key: `${species}-bark` });
@@ -387,7 +400,7 @@ export class TreeField {
         roughness: 0.8, metalness: 0, envMapIntensity: 0.6, transparent: true, opacity: FADE_SHOWN,
       });
       addTreeShader(ghostCard, sharedSp, { flutter: true, foliage: true, ghost: true, key: `${species}-cards` });
-      const ghostBark = new THREE.MeshStandardMaterial({ color: new THREE.Color(look.barkTint), map: barkTex(look.bark), roughness: 0.95, metalness: 0, transparent: true, opacity: FADE_SHOWN });
+      const ghostBark = new THREE.MeshStandardMaterial({ color: barkCol, map: barkTex(look.bark), roughness: 0.95, metalness: 0, envMapIntensity: 1.6, transparent: true, opacity: FADE_SHOWN });
       addTreeShader(ghostBark, sharedSp, { ghost: true, key: `${species}-bark` });
       this._disposables.push(cardMat, barkMat, depthCards, depthBark, ghostCard, ghostBark);
 

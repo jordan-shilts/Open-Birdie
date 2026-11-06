@@ -253,7 +253,7 @@ test('two independent visible vegetation texture builds have identical command c
   assert.deepEqual(first, second);
   assert.deepEqual(first, {
     straw: 'b5fccb97231dbc62f09ce837f3fa854446751489641d825a8e60e7a243f7d96c',
-    flower: '85e7e05a80e95e588adc0a98086ae96b24e27bf5b3fa5891a1ce0c7c6dad77d3', // azalea clumps (2026-11-05)
+    flower: 'dea29fd7b6183a9fb0697de80c5eea719e27a16f09b28dae454794648f8cbfd9', // azalea clumps (2026-11-05)
   });
 });
 
