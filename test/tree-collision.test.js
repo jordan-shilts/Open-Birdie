@@ -13,7 +13,7 @@ const { simulateShot } = require('../lib/physics');
 const { makeTerrain } = require('../lib/elevation');
 const { Game } = require('../lib/game');
 const {
-  buildTreeObstacles, speciesAt, speciesForCrown, COURSE_DRY, TREE_MODELS,
+  buildTreeObstacles, speciesAt, speciesForCrown, COURSE_DRY, COURSE_FLORA, canopyHeight, TREE_MODELS,
 } = require('../lib/tree-obstacles');
 
 const fairway = () => 'fairway';
@@ -41,7 +41,8 @@ test('no trees, no index; OSM points on a canopy tree or on mown ground are drop
     surfaces: [fairwayPoly],
   }));
   assert.deepEqual([...idx.x].map((x, i) => [x, idx.y[i]]), [[50, 50], [90, 90]]);
-  assert.ok(Math.abs(idx.trunkR[0] - (0.12 + 0.01 * 12)) < 1e-12, 'trunk radius 0.12 + 0.01 h');
+  // measured 12 m: drawn (and hit) at the stretched height (tree-placement.js canopyHeight)
+  assert.ok(Math.abs(idx.trunkR[0] - (0.12 + 0.01 * canopyHeight(12))) < 1e-12, 'trunk radius 0.12 + 0.01 h');
   assert.ok(idx.crownR[0] >= 4, 'at least the measured crown');
 });
 
@@ -55,10 +56,11 @@ test('a tree in a crowd or away from play gets the woods-grown model, as drawn',
   // more than 60 m from every hole line
   assert.equal(index([spot], away).model[0], 2);
   // the woods form carries its crown higher
-  const sp = TREE_MODELS[speciesForCrown(...spot)];
+  const sp = TREE_MODELS[speciesForCrown(spot[0], spot[1], canopyHeight(spot[2]), spot[3])];
   const open = index([spot], near), woods = index([spot], away);
-  assert.ok(Math.abs(open.base[0] - sp.models[open.model[0]][0] * 14) < 1e-9);
-  assert.ok(Math.abs(woods.base[0] - sp.models[2][0] * 14) < 1e-9 && woods.base[0] > open.base[0]);
+  const h = canopyHeight(14);
+  assert.ok(Math.abs(open.base[0] - sp.models[open.model[0]][0] * h) < 1e-9);
+  assert.ok(Math.abs(woods.base[0] - sp.models[2][0] * h) < 1e-9 && woods.base[0] > open.base[0]);
 });
 
 test('trees, species, models and sizes match what the renderer draws', async () => {
@@ -67,6 +69,8 @@ test('trees, species, models and sizes match what the renderer draws', async () 
   const character = await import(url('public/render/course-character.js'));
   const gen = await import(url('public/render/tree-gen.js'));
   assert.deepEqual({ ...COURSE_DRY }, character.COURSE_DRY);
+  assert.deepEqual(JSON.parse(JSON.stringify(COURSE_FLORA)), character.COURSE_FLORA);
+  for (const h of [3, 8, 12.5, 20, 31]) assert.equal(canopyHeight(h), placement.canopyHeight(h));
   assert.deepEqual(Object.keys(TREE_MODELS).sort(), [...placement.SPECIES].sort());
   // trees.js rules lib/tree-obstacles.js mirrors (its models, which one a tree gets, OSM size)
   const treesSrc = fs.readFileSync(path.join(__dirname, '..', 'public/render/trees.js'), 'utf8');
@@ -99,6 +103,10 @@ test('trees, species, models and sizes match what the renderer draws', async () 
       const x = k * 37.3 - 2000, y = k * 53.9 - 3000, h = 4 + (k % 30), r = 1 + (k % 9);
       assert.equal(speciesAt(x, y, dry, 0), placement.speciesAt(x, y, dry, 0));
       assert.equal(speciesForCrown(x, y, h, r, dry), placement.speciesForCrown(x, y, h, r, dry));
+      for (const flora of Object.values(COURSE_FLORA)) {
+        assert.equal(speciesAt(x, y, dry, 0, flora), placement.speciesAt(x, y, dry, 0, flora));
+        assert.equal(speciesForCrown(x, y, h, r, dry, flora), placement.speciesForCrown(x, y, h, r, dry, flora));
+      }
     }
   }
   // scene.js _treeSpots over the same course, uncapped
@@ -113,10 +121,10 @@ test('trees, species, models and sizes match what the renderer draws', async () 
   }
   const blocking = ['fairway', 'green', 'tee', 'bunker', 'water'];
   const blocked = (x, y) => surfaces.some((s) => blocking.includes(s.kind) && placement.pointInPoly(x, y, s.poly));
-  for (const name of ['Test Course', 'Chambers Bay']) {
+  for (const name of ['Test Course', 'Chambers Bay', 'Augusta National Golf Club, Augusta, Georgia']) {
     const course = courseWith({ name, canopy, trees, surfaces });
     const spots = placement.placeCourseTrees({
-      trees, canopy, holeLines: [], cap: Infinity, courseDry: character.courseDryFor(name), blocked,
+      trees, canopy, holeLines: [], cap: Infinity, courseDry: character.courseDryFor(name), blocked, flora: character.floraFor(name),
     });
     const idx = buildTreeObstacles(course);
     assert.equal(idx.count, spots.length);

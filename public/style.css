@@ -1198,3 +1198,154 @@ body.flying #bottombar .aim-ctl, body.flying #cond-widget { opacity: 0.35; point
 #perf-out .perf-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 #perf-out .perf-row b { font-variant-numeric: tabular-nums; }
 #perf-out .perf-note { margin-top: 12px; font-size: 12px; color: var(--muted); }
+
+/* ============================================================================
+   2026-11 UI pass: built for the sim screen — read from the hitting mat, a few
+   metres back, on a projector or a TV.
+   - one panel at a time on a dimmed stage; the play HUD steps aside behind it
+   - everything you can open sits in the menu as big tiles; the top bar keeps
+     flyover, scorecard and the menu
+   - larger type and targets in the menu, panels, scorecard and course picker
+   - no number twice on the play screen
+   ============================================================================ */
+
+/* the stage: a dimmed course behind an open panel */
+#stage-scrim {
+  position: fixed; inset: 0; z-index: 15; background: rgba(5, 7, 9, 0.5);
+  opacity: 0; visibility: hidden; transition: opacity .18s, visibility .18s;
+}
+body.stage-open #stage-scrim { opacity: 1; visibility: visible; }
+#topbar { z-index: 16; }
+#planner, #shot-card, #bottombar, #cond-widget, #shotpanel, #lm-status { transition: opacity .18s; }
+body.stage-open #planner, body.stage-open #shot-card, body.stage-open #bottombar,
+body.stage-open #cond-widget, body.stage-open #shotpanel, body.stage-open .dist-markers {
+  opacity: 0; pointer-events: none;
+}
+
+/* the menu: a hub of tiles over the settings */
+.drawer { width: 470px; }
+.drawer-head h3 { font-size: 24px; }
+.hub-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 16px 10px 18px; }
+.hub-tile {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;
+  min-height: 96px; padding: 14px 8px 12px; border-radius: 14px; cursor: pointer; text-align: center;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); color: var(--text);
+  transition: border-color .12s, background .12s, color .12s;
+}
+.hub-tile svg { width: 28px; height: 28px; color: var(--accent); }
+.hub-tile span { font-size: 14px; font-weight: 700; line-height: 1.2; }
+.hub-tile:hover, .hub-tile.active { border-color: var(--accent); background: var(--accent-soft); }
+.hub-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hub-tile .count {
+  position: absolute; top: 8px; right: 8px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
+  background: var(--accent); color: var(--accent-ink); font-family: var(--num); font-style: normal;
+  font-size: 12.5px; font-weight: 800; line-height: 22px; text-align: center;
+}
+.lbl { font-size: 11px; }
+.drawer-sec > .lbl { padding: 0 12px 8px; }
+.menu-item { padding: 13px 14px; font-size: 15px; gap: 14px; }
+.menu-item svg { width: 22px; height: 22px; }
+.set-row { padding: 10px 12px 12px; }
+.set-text b { font-size: 16px; }
+.set-text span { font-size: 13px; }
+.seg button { font-size: 12px; padding: 7px 10px; }
+.seg.wide button { padding: 11px 4px; }
+kbd { font-size: 11.5px; }
+
+/* panels: bigger type, bigger close targets */
+.panel h3 { font-size: 19px; }
+.panel-x { width: 40px; height: 40px; border-radius: 10px; font-size: 22px; }
+.cs { grid-template-columns: 112px 1fr 84px; margin-bottom: 12px; }
+.cs .lbl { font-size: 11.5px; }
+.cs b { font-size: 16px; }
+.chip { font-size: 13.5px; padding: 8px 15px; border-radius: 18px; }
+#conditions { width: 640px; }
+.wind-read b { font-size: 26px; }
+.effects .tile b { font-size: 21px; }
+#practice { width: 420px; }
+
+/* scorecard: a card you can read from the mat */
+#scorecard, #scorecard.with-tees { width: min(900px, calc(100vw - 48px)); padding: 20px 24px 22px; }
+#score-table td, #score-table th { font-size: 17px; padding: 9px 2px; }
+#score-table th { font-size: 13px; }
+#score-table tr.tee td, #score-table tr.hcp td, #score-table tr.tee th, #score-table tr.hcp th { font-size: 12.5px; }
+#score-table tr.mull td { font-size: 14px; }
+.score-actions .btn, .pb-actions .btn { height: 46px; font-size: 13px; }
+
+/* saved shots */
+#saved-panel { width: min(640px, calc(100vw - 48px)); }
+.saved-add { height: 48px; font-size: 13px; }
+.saved-row { padding: 12px 14px; font-size: 14.5px; }
+.saved-empty { font-size: 14.5px; }
+
+/* range & games, leagues: wider, larger cards */
+#games-menu { width: min(1080px, calc(100vw - 48px)); }
+.game-card { padding: 16px 16px 14px; }
+
+/* games: titles and rules you can read from the mat */
+.game-card b { font-size: 17px; }
+.game-card > b + span, .gc-text > span { font-size: 13.5px; }
+.game-card.hero b { font-size: 21px; }
+.gc-icon svg { width: 28px; height: 28px; }
+/* leagues: one notch up throughout (its own sizes are relative to the panel) */
+#league-panel { font-size: 15px; }
+.lgx-hero h2 { font-size: 32px; }
+
+/* the course picker: four columns, bigger cards (zoomed with the HUD, app.js fitHud) */
+.course-box { width: 1320px; padding: 26px 30px 22px; }
+.cm-find input { height: 56px; font-size: 17px; }
+.cm-grid { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.cm-card { padding: 12px; gap: 14px; }
+.cm-map { width: 96px; height: 96px; }
+.cm-map svg { width: 86px; height: 86px; }
+.cm-name { font-size: 16.5px; }
+.cm-place, .cm-stats { font-size: 13.5px; }
+.cm-tags .tag { font-size: 10.5px; padding: 3px 8px; }
+.cm-sub { font-size: 13.5px; }
+
+/* no number twice on the play screen: the shot card owns the yardage to the pin (and
+   its front / back) and the club picker owns the club. Phones hide the shot card and
+   keep the planner's to-pin. */
+@media (min-width: 701px) {
+  .pl-head .pl-topin { display: none; }
+  #shot-card div:has(> #lie-club) { display: none; }
+}
+@media (max-width: 1100px) {
+  .cm-grid { grid-template-columns: repeat(3, 1fr); }
+  .hub-tiles { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 700px) {
+  .drawer { width: 100%; }
+  .cm-grid { grid-template-columns: 1fr; }
+}
+
+/* club delivery (club-panel.js): a small card beside the last shot */
+#clubpanel {
+  position: fixed; left: 290px; top: 160px; width: 262px; padding: 10px 12px 9px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow);
+}
+body.stage-open #clubpanel { opacity: 0; pointer-events: none; }
+.cp-head { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; }
+.cp-head .sp-club { margin-left: auto; }
+.cp-chip { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 7px; background: rgba(255, 255, 255, 0.08); color: var(--dim); }
+.cp-chip.good { background: rgba(69, 212, 131, 0.16); color: var(--good); }
+.cp-chip.bad { background: rgba(255, 122, 82, 0.16); color: var(--bad); }
+.cp-body { display: flex; align-items: center; gap: 8px; }
+.cp-sketch { width: 56px; height: 64px; flex: none; }
+.cp-sketch .cp-target { stroke: rgba(255, 255, 255, 0.28); stroke-width: 1.2; stroke-dasharray: 3 4; }
+.cp-sketch .cp-path { stroke: #4aa8ff; stroke-width: 3; fill: none; stroke-linecap: round; }
+.cp-sketch .cp-face { stroke: #ff5a4a; stroke-width: 3.5; stroke-linecap: round; }
+.cp-sketch .cp-ball { fill: #f3f3f0; stroke: none; }
+.cp-rows { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.cp-row { display: grid; grid-template-columns: 50px auto 1fr auto; align-items: baseline; gap: 6px; }
+.cp-row .lbl { font-size: 9.5px; letter-spacing: 0.1em; }
+.cp-row b { font-size: 17px; line-height: 1.15; }
+.cp-row em { font-style: normal; font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-row.est b { color: #d9dcd4; }
+.cp-row.est em { color: var(--faint); }
+.cp-face-icon { width: 34px; height: 21px; align-self: center; }
+.cp-face-icon .cp-faceplate { fill: rgba(255, 255, 255, 0.08); stroke: rgba(255, 255, 255, 0.45); stroke-width: 1.5; }
+.cp-face-icon .cp-dot { fill: var(--accent); }
+.cp-more { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--dim); }
+.cp-more b { font-size: 13px; color: var(--text); }
+@media (max-width: 1100px) { #clubpanel { display: none; } }

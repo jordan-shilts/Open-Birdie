@@ -1,14 +1,19 @@
 // Photographic leaf atlas for the 3D trees, composed at load from CC0 Poly Haven
-// scans (ASSETS.md): single scanned leaves arranged into clusters along twigs, a
-// spruce sprig and a pine needle spray. 1024^2, 2x2 tiles (tree-gen.js `tile`):
-//   [0] broadleaf cluster (oak, maple)   [1] small-leaf cluster (birch)
+// scans (ASSETS.md) and drawn needles. 1024^2, 2x2 tiles (tree-gen.js `tile`):
+//   [0] broadleaf clump (oak, maple)      [1] small-leaf clump (birch, maple)
 //   [2] spruce / fir sprig                [3] pine needle tuft
-// Sprigs grow "up" the tile from its bottom centre, so a card's up vector can run
-// along its branch. Colour is opaque (each tile's background is its mean foliage
-// colour so mips don't fringe dark); coverage is a separate alpha map with a
-// coverage-preserving mip chain (alpha-mips.js). The textures exist at once and
-// fill in when the source photos arrive (tracked by THREE.DefaultLoadingManager, so
-// visual capture waits for them).
+// The broadleaf and pine tiles are dense, roughly round foliage MASSES drawn for
+// camera-facing clump cards (trees.js): a crown is a few hundred of them, the way game
+// trees (SpeedTree's leaf clusters) read as solid canopy with leafy edges from any
+// side. The old tiles were single twigs on a long bare stem, which left crowns sparse
+// and full of spokes. Scanned leaves radiate from hidden twigs inside a lobed blob,
+// the back layers darker; pine tufts are fascicles of long needles bursting from a
+// twig tip (loblolly / longleaf). The spruce tile is a sprig that grows "up" the tile
+// from its bottom centre, so a card's up vector can run along its branch. Colour is
+// opaque (each tile's background is its mean foliage colour so mips don't fringe
+// dark); coverage is a separate alpha map with a coverage-preserving mip chain
+// (alpha-mips.js). The textures exist at once and fill in when the source photos
+// arrive (tracked by THREE.DefaultLoadingManager, so visual capture waits for them).
 import * as THREE from 'three';
 import { ASSETS } from './assets.js';
 import { coverageMipChain } from './alpha-mips.js';
@@ -20,7 +25,6 @@ export const ATLAS_TILE_UV = Object.freeze([[0, 0.5], [0.5, 0.5], [0, 0], [0.5, 
 const LEAF_BOXES = [[169, 21, 345, 401], [222, 591, 363, 1024], [18, 645, 186, 1024], [17, 21, 148, 523],
   [711, 21, 835, 423], [530, 51, 664, 371], [433, 618, 575, 1024], [370, 33, 494, 370]];
 const FIR_BOXES = [[313, 410, 660, 794], [650, 463, 975, 850], [669, 53, 960, 378], [194, 48, 426, 319]];
-const PINE_BOX = [8, 8, 197, 415];
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -100,6 +104,91 @@ function leafCluster(cc, ac, ox, oy, leaves, r, { n, size, hue, sat, light, tone
   }
 }
 
+// Keep a tile's strokes inside it (a leaf poking past the edge would bleed into the
+// neighbouring tile), with a 3 px margin for the mip chain.
+function clipTile(gs, ox, oy, fn) {
+  for (const g of gs) { g.save(); g.beginPath(); g.rect(ox + 3, oy + 3, T - 6, T - 6); g.clip(); }
+  try { fn(); } finally { for (const g of gs) g.restore(); }
+}
+
+// A dense, rounded leaf mass: scanned leaves radiating from hidden twigs inside a blob
+// of a few overlapping lobes, drawn back to front with the back (and inner) leaves
+// darker, so the clump has depth and a leafy, broken outline. Round on purpose: the
+// card turns to face the camera at a random roll (trees.js).
+function leafClump(cc, ac, ox, oy, leaves, r, { n, size, hue, sat, light, toneHue }) {
+  cc.fillStyle = `hsl(${hue},${sat}%,${light}%)`; cc.fillRect(ox, oy, T, T);
+  const cx = ox + T / 2, cy = oy + T / 2;
+  // an irregular outline: a smaller core and lobes pushed further out, so no two
+  // clumps in a crown share the same round silhouette (a crown of discs read as cotton)
+  const lobes = [{ x: 0, y: 0, rad: 0.2 }];
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2 + r() * 0.7, d = 0.12 + r() * 0.12;
+    lobes.push({ x: Math.cos(a) * d, y: Math.sin(a) * d, rad: 0.08 + r() * 0.1 });
+  }
+  const inside = (u, v) => lobes.some((l) => (u - l.x) ** 2 + (v - l.y) ** 2 < l.rad * l.rad);
+  clipTile([cc, ac], ox, oy, () => {
+    for (let k = 0; k < 9; k++) {
+      const a = r() * Math.PI * 2, L = T * (0.18 + r() * 0.14);
+      stroke(cc, ac, [[cx + (r() - 0.5) * T * 0.06, cy + (r() - 0.5) * T * 0.06], [cx + Math.cos(a) * L, cy + Math.sin(a) * L]], 2.5, '#3f3125');
+    }
+    const spots = [];
+    for (let tries = 0; spots.length < n && tries < n * 40; tries++) {
+      const u = (r() - 0.5) * 0.8, v = (r() - 0.5) * 0.8;
+      if (!inside(u, v)) continue;
+      const out = Math.atan2(v, u), rr = Math.hypot(u, v);
+      spots.push({ at: [cx + u * T, cy + v * T], dir: out + (r() - 0.5) * 2.2, len: T * size * (0.7 + r() * 0.55), depth: r(), rr });
+    }
+    spots.sort((p, q) => p.depth - q.depth);
+    for (const sp of spots) {
+      const s = leaves[Math.floor(r() * leaves.length)];
+      // back leaves dark (inside the clump's own shade) — but only toward the middle: the
+      // rim stays lit, or every clump wore a dark halo where its back leaves stick out
+      const rim = Math.min(1, sp.rr / 0.34);
+      const b = 0.5 + 0.48 * Math.max(sp.depth, rim * rim * 0.85) + (r() - 0.5) * 0.1;
+      const tone = `brightness(${b.toFixed(3)}) saturate(${(0.7 + r() * 0.28).toFixed(3)}) hue-rotate(${(toneHue + (r() - 0.5) * 14).toFixed(1)}deg)`;
+      stamp(cc, ac, s, sp.at[0], sp.at[1], sp.dir, sp.len, tone);
+    }
+  });
+}
+
+// A pine needle tuft: fascicles of long needles bursting from a twig tip in every
+// direction — a crown of these, with sky between them, is how a loblolly or longleaf
+// pine reads from the fairway. Back needles dark, front ones lit, a few sun-bleached.
+function pineTuft(cc, ac, ox, oy, r, { bg, n }) {
+  cc.fillStyle = bg; cc.fillRect(ox, oy, T, T);
+  const cx = ox + T / 2, cy = oy + T / 2;
+  const dark = [27, 38, 22], lit = [84, 102, 54], straw = [126, 118, 70];
+  const fas = [];
+  for (let i = 0; i < n; i++) {
+    const oa = r() * Math.PI * 2, o = Math.sqrt(r()) * 0.08 * T;
+    fas.push({ x: cx + Math.cos(oa) * o, y: cy + Math.sin(oa) * o, a: r() * Math.PI * 2, L: T * (0.17 + r() * 0.24), depth: r(), bend: (r() - 0.5) * 0.45 });
+  }
+  fas.sort((p, q) => p.depth - q.depth);
+  clipTile([cc, ac], ox, oy, () => {
+    for (let k = 0; k < 6; k++) {
+      const a = r() * Math.PI * 2;
+      stroke(cc, ac, [[cx, cy], [cx + Math.cos(a) * T * 0.07, cy + Math.sin(a) * T * 0.07]], 4, '#4a3524');
+    }
+    for (const f of fas) {
+      const t = Math.min(1, f.depth * 1.1 + (r() - 0.5) * 0.15);
+      let col = dark.map((d, k) => d + (lit[k] - d) * t);
+      if (r() < 0.03) col = straw;
+      const css = `rgb(${col.map((v) => Math.round(v * (0.9 + r() * 0.2))).join(',')})`;
+      for (let k = -1; k <= 1; k++) {
+        const a = f.a + k * 0.05;
+        const ex = f.x + Math.cos(a) * f.L, ey = f.y + Math.sin(a) * f.L;
+        const mx = f.x + Math.cos(a) * f.L * 0.5 - Math.sin(a) * f.L * f.bend * 0.3;
+        const my = f.y + Math.sin(a) * f.L * 0.5 + Math.cos(a) * f.L * f.bend * 0.3;
+        const w = 1.3 + r() * 0.9;
+        for (const [g, c, wd] of [[cc, css, w], [ac, '#fff', w + 0.6]]) {
+          g.strokeStyle = c; g.lineWidth = wd; g.lineCap = 'round';
+          g.beginPath(); g.moveTo(f.x, f.y); g.quadraticCurveTo(mx, my, ex, ey); g.stroke();
+        }
+      }
+    }
+  });
+}
+
 // Sprigs fanned from the bottom centre of a tile (conifers).
 function sprigFan(cc, ac, ox, oy, sprigs, r, { bg, fans, tone }) {
   cc.fillStyle = bg; cc.fillRect(ox, oy, T, T);
@@ -139,7 +228,6 @@ export function leafAtlas() {
   const want = {
     leafDiff: ASSETS.trees.leafDiff, leafAlpha: ASSETS.trees.leafAlpha,
     firDiff: ASSETS.trees.foliageDiff, firAlpha: ASSETS.trees.foliageAlpha,
-    pineDiff: ASSETS.trees.pineTwigDiff, pineAlpha: ASSETS.trees.pineTwigAlpha,
   };
   const img = {};
   let left = Object.keys(want).length;
@@ -147,15 +235,14 @@ export function leafAtlas() {
     const r = rng(424242);
     const leaves = LEAF_BOXES.map((b) => sprite(img.leafDiff, img.leafAlpha, b));
     const firs = FIR_BOXES.map((b) => sprite(img.firDiff, img.firAlpha, b));
-    const pine = sprite(img.pineDiff, img.pineAlpha, PINE_BOX);
-    // [0] oak / maple: dense, deep-green leaves (~15 cm on a 1.5 m card)
-    leafCluster(cc, ac, 0, 0, leaves, r, { n: 210, size: 0.105, hue: 100, sat: 30, light: 19, toneHue: 10 });
-    // [1] birch: many small, lighter leaves
-    leafCluster(cc, ac, T, 0, leaves, r, { n: 300, size: 0.075, hue: 88, sat: 36, light: 26, toneHue: 16 });
+    // [0] oak / maple: a dense clump of deep-green leaves (~10 cm on a 2.7 m card)
+    leafClump(cc, ac, 0, 0, leaves, r, { n: 560, size: 0.072, hue: 96, sat: 28, light: 20, toneHue: 8 });
+    // [1] birch / maple: smaller, lighter leaves
+    leafClump(cc, ac, T, 0, leaves, r, { n: 700, size: 0.058, hue: 88, sat: 34, light: 25, toneHue: 14 });
     // [2] spruce: a full sprig with two behind it, blue-green
     sprigFan(cc, ac, 0, T, firs, r, { bg: 'hsl(128,22%,20%)', fans: [[-0.42, 0.72], [0.4, 0.74], [0, 1]], tone: 'saturate(0.8) hue-rotate(14deg)' });
-    // [3] pine: a fan of long needle sprays (a tuft)
-    sprigFan(cc, ac, T, T, [pine], r, { bg: 'hsl(88,20%,24%)', fans: [[-0.5, 0.8], [0.5, 0.8], [-0.2, 0.95], [0.22, 0.95], [0, 1]], tone: 'saturate(1.05)' });
+    // [3] pine: a needle tuft
+    pineTuft(cc, ac, T, T, r, { bg: 'hsl(86,24%,20%)', n: 360 });
     map.needsUpdate = true;
     // coverage-preserving alpha mips, rows flipped bottom-up to match the
     // CanvasTexture (flipY) UV convention of the colour map

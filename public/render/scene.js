@@ -21,7 +21,7 @@ import { SKY_PRESETS, parseSkySetting } from './sky-presets.js';
 import { coursePonds, carveBeds } from './water-shore.js';
 import { findSea, carveSea, seaAt, playPoints, shoreGround, penaltyArea } from './sea.js';
 import { makeWaterDepth } from './water-depth.js';
-import { makeTurfMaterial, makeSandMaterial } from './turf.js';
+import { makeTurfMaterial, makeSandMaterial, turfMowDir } from './turf.js';
 import { srgbToLinear, averageLinearColor } from './macro-tint.js';
 import { densifyRing, drapeRing } from './drape.js';
 import { buildHdTerrainLod, buildCoarseTerrainLod, updateTerrainLod } from './hd-terrain.js';
@@ -37,7 +37,7 @@ import { flightMarkers, smoothPointAt } from './flight-profile.js';
 import { ballTurn, makeBallTexture } from './ball.js';
 import { flightCameraPlan, flightCameraAt } from './flight-camera.js';
 import { resolveQuality, autoDownshiftVerdict, renderPixelRatio, DYNAMIC_RES, dynamicResolutionStep } from './quality.js';
-import { COLORS, DRY_PALETTE, courseDryFor, blendPalette } from './course-character.js';
+import { COLORS, DRY_PALETTE, courseDryFor, blendPalette, floraFor } from './course-character.js';
 import { fillShapesBlurred, paintSurfaceMask, RAW_SURFACE_COLORS } from './surface-mask.js';
 import { smoothClassmapTexture } from './classmap-smoothing.js';
 import { installLoadingTracker } from './capture-readiness.js';
@@ -1199,12 +1199,13 @@ export class GolfScene {
       for (const b of block) if (x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY && pointInPoly(x, y, b.poly)) return true;
       return onPar3Line(x, y, r);
     };
+    this._treeBlocked = blocked;   // azalea beds keep off the same ground (_flowerSpots)
     this._placedTrees = placeCourseTrees({
       trees: geo.trees || [], woods: geo.woods || [],
       holeLines: (geo.holes || []).map((h) => h.line).filter(Boolean),
       cap: RENDER_CONFIG.treeCap, density: RENDER_CONFIG.treeDensity ?? 1,
       courseDry: this._courseDry || 0, blocked,
-      canopy: geo.canopy || null,
+      canopy: geo.canopy || null, flora: floraFor(geo.name),
     });
     return this._placedTrees;
   }
@@ -1243,7 +1244,7 @@ export class GolfScene {
     // the invented horizon band only stands in for real surroundings; canopy data
     // already places the real trees around the course
     if (RENDER_CONFIG.horizonTrees && !(geo.canopy && geo.canopy.length)) {
-      for (const h of this._horizonSpots(geo, this.bounds)) spots.push({ ...h, species: speciesAt(h.x, h.y, this._courseDry || 0, 7) });
+      for (const h of this._horizonSpots(geo, this.bounds)) spots.push({ ...h, species: speciesAt(h.x, h.y, this._courseDry || 0, 7, floraFor(geo.name)) });
     }
     if (!spots.length) return;
     this._allTreeSpots = spots;   // every drawn tree (incl. the horizon band) — camera avoidance
@@ -1487,7 +1488,10 @@ export class GolfScene {
       const K = 3 + ((rnd() * 4) | 0);      // 3-6 bushes per chosen tree
       for (let k = 0; k < K && spots.length < CAP; k++) {
         const ang = rnd() * Math.PI * 2, rad = 2.5 + rnd() * 4.5; // 2.5-7m ring off the trunk
-        spots.push({ x: t.x + Math.cos(ang) * rad, y: t.y + Math.sin(ang) * rad, s: 0.8 + rnd() * 0.6 });
+        const x = t.x + Math.cos(ang) * rad, y = t.y + Math.sin(ang) * rad;
+        // not on a fairway, green, tee, bunker or water, nor in a par 3's shot
+        if (this._treeBlocked?.(x, y, 1)) continue;
+        spots.push({ x, y, s: 0.8 + rnd() * 0.6 });
       }
     }
     return spots;
@@ -1631,6 +1635,11 @@ export class GolfScene {
     this.camMode = 'idle';
     this._snapIdleCam();
     this._activeHole = hole;
+    // the fairway stripes run down this hole (turf.js turfMowDir)
+    if (hole.tee && hole.pin) {
+      const dx = hole.pin[0] - hole.tee[0], dy = hole.pin[1] - hole.tee[1], L = Math.hypot(dx, dy);
+      if (L > 1) turfMowDir.value.set(dx / L, dy / L);
+    }
     this._fitShadows(hole);
     this._aimLineUpdate();
     this._clearTrail();
@@ -1710,7 +1719,7 @@ export class GolfScene {
     // round the green the overlay goes bare and the cup is marked (none in flight)
     const pinM = Math.hypot(this.pinSim.x - this.ballSim.x, this.pinSim.y - this.ballSim.y);
     const near = !!this._lineupPred && isNearGreen(pinM / 0.9144, this._lineupPred.isPutt);
-    this.lineupFx?.setPrediction(this._lineupPred, { near, pin: this.pinSim });
+    this.lineupFx?.setPrediction(this._lineupPred, { near, pin: this.pinSim, zone: !!this._yardageDetails });
     this.lineupFx?.setCup(near ? { x: this.pinSim.x, y: this.pinSim.y, ft: pinM / 0.3048 } : null);
     this._lineupArcs();
   }
@@ -1723,7 +1732,8 @@ export class GolfScene {
   // Yardage details (the menu's option): the 3D distance rings ahead of the ball.
   setYardageDetails(on) {
     this._yardageDetails = !!on;
-    this._lineupArcs();
+    if (this._lineupPred) this.setLineup(this._lineupPred);   // the landing zone follows it
+    else this._lineupArcs();
   }
 
   // Yardage arcs out past the pin or the club's total, whichever is farther (no arcs

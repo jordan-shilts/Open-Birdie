@@ -29,7 +29,7 @@ export const SKY_PRESETS = Object.freeze({
     sunAltitudeDeg: 24,
     sunColor: '#ffe9cc',
     sunIntensity: 5.2,
-    environmentIntensity: 0.32,  // less sky fill: shade sides of mounds and swales read
+    environmentIntensity: 0.4,   // sky fill: shade sides of mounds and swales read (0.32 crushed tree shade to near-black)
     exposure: 0.8,
     fogDensity: 0.00042,
   }),

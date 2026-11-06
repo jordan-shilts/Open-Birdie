@@ -8,6 +8,7 @@ import { AimMap } from './aim-map.js';
 import { ConditionsUI } from './conditions-ui.js';
 import { Lineup, CLUBS, clubByLabel, writeAutoClub } from './lineup.js';
 import { LeaguesUI } from './leagues-ui.js';
+import { renderClubPanel } from './club-panel.js';
 import { parseQualitySetting, qualityLabel } from './render/quality.js';
 import { parseSkySetting, SKY_ORDER, SKY_PRESETS } from './render/sky-presets.js';
 
@@ -116,6 +117,24 @@ segmented($('seg-details'), [['off', 'Off'], ['on', 'On']], lineup.details ? 'on
   lineup.setDetails(v === 'on');
   markSeg($('seg-details'), v);
 });
+// the club delivery card beside the last shot (club-panel.js): on unless turned off
+const CLUBCARD_KEY = 'open-birdie.clubcard';
+let clubCardOn = (() => { try { return localStorage.getItem(CLUBCARD_KEY) !== 'off'; } catch { return true; } })();
+let clubCardShot = null;   // the shot whose club data the card shows
+segmented($('seg-clubcard'), [['on', 'On'], ['off', 'Off']], clubCardOn ? 'on' : 'off', (v) => {
+  clubCardOn = v === 'on';
+  try { localStorage.setItem(CLUBCARD_KEY, v); } catch { /* private window */ }
+  markSeg($('seg-clubcard'), v);
+  showClubCard(clubCardShot);
+});
+function showClubCard(shot) {
+  clubCardShot = shot;
+  const el = $('clubpanel');
+  const d = clubCardOn && shot && !$('shotpanel').classList.contains('hidden') && !$('shotpanel').classList.contains('no-room') ? shot.clubData : null;
+  const label = $('sp-club').textContent;
+  renderClubPanel(el, d || null, { clubName: label });
+  el.style.top = $('shotpanel').style.top;
+}
 
 let state = null;
 let pendingState = null;
@@ -483,6 +502,7 @@ function showShotData(shot, plan = null, view = 'live') {
       + (Math.abs(off) >= 1 ? `, <b>${Math.abs(off)} yd ${off > 0 ? 'right' : 'left'}</b> of the line` : ', on line');
   } else vs.innerHTML = '';
   stackShotPanel();
+  showClubCard(shot);
 }
 
 // While a game is on, the last shot's numbers stack under its board in the left column,
@@ -809,6 +829,7 @@ function toggleScorecard() {
   if (state) buildScorecard(state);
 }
 $('btn-score').onclick = toggleScorecard;
+$('btn-score-tile').onclick = toggleScorecard;
 $('btn-league').onclick = () => leaguesUI.toggle();
 $('stat-hole').onclick = toggleScorecard;   // the HOLE badge opens the scorecard (phone hole-nav)
 $('stat-hole').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleScorecard(); } };
@@ -830,6 +851,48 @@ $('btn-menu').onclick = (e) => {
   setMenu(!$('main-menu').classList.contains('open'));
 };
 $('menu-close').onclick = closeMenu;
+// a tile in the menu opens its screen in place of the menu
+document.querySelectorAll('#main-menu .hub-tile').forEach((t) => t.addEventListener('click', closeMenu));
+
+// ---------- one panel at a time ----------
+// The mid-screen panels and the buttons that open them. An observer watches the panels'
+// class lists, so however one opens (its button, a menu tile, a key, the league flow)
+// the one opened last stays and the others close, every button shows what is open, and
+// body.stage-open puts the dimmed backdrop behind it and steps the play HUD aside
+// (style.css). A click on the backdrop closes it.
+// [panel, its buttons, dims the stage]: the practice-shot panel stays open while its
+// shots fly, so it keeps the course and the HUD in view
+const STAGE = [
+  ['scorecard', ['btn-score', 'btn-score-tile'], true],
+  ['saved-panel', ['btn-saved'], true],
+  ['games-menu', ['btn-games'], true],
+  ['league-panel', ['btn-league'], true],
+  ['conditions', ['cond-widget'], true],
+  ['practice', ['btn-practice'], false],
+];
+const stageOpen = (id) => !$(id).classList.contains('hidden');
+function syncStage() {
+  let dim = false;
+  for (const [id, btns, dims] of STAGE) {
+    const open = stageOpen(id);
+    dim = dim || (open && dims);
+    for (const b of btns) $(b)?.classList.toggle('active', open);
+  }
+  document.body.classList.toggle('stage-open', dim);
+}
+function closeStage() {
+  for (const [id] of STAGE) $(id).classList.add('hidden');
+  reviewHole = null;
+}
+const stageObserver = new MutationObserver((records) => {
+  const opened = records.filter((r) => /\bhidden\b/.test(r.oldValue || '') && stageOpen(r.target.id)).map((r) => r.target.id);
+  const keep = opened[opened.length - 1];
+  if (keep) for (const [id] of STAGE) if (id !== keep && stageOpen(id)) $(id).classList.add('hidden');
+  syncStage();
+});
+for (const [id] of STAGE) stageObserver.observe($(id), { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+$('stage-scrim').onclick = closeStage;
+syncStage();
 document.addEventListener('pointerdown', (e) => {
   if (!$('main-menu').contains(e.target) && !$('btn-menu').contains(e.target)) closeMenu();
 });
@@ -1004,7 +1067,7 @@ async function replaySaved(id) {
   const pts = rec.points.map(([t, x, y, z]) => ({ t, x, y, z }));
   const r = rec.result;
   const shot = {
-    launch: rec.launch, club: rec.club, strokes: null, note: r.note, lie: r.lie,
+    launch: rec.launch, club: rec.club, clubData: rec.clubData ?? null, strokes: null, note: r.note, lie: r.lie,
     sim: { points: pts, carryYd: r.carryYd, totalYd: r.totalYd, offlineYd: r.offlineYd, apexFt: r.apexFt, flightTime: r.flightTime, isPutt: r.isPutt, events: [] },
   };
   const token = { id, doneTimer: null };
@@ -1055,7 +1118,7 @@ function endReplay() {
   pendingState = null;
   if (s) applyState(s);
   if (lastShot) showShotData(lastShot.shot, lastShot.plan, 'restore');
-  else $('shotpanel').classList.add('hidden');
+  else { $('shotpanel').classList.add('hidden'); showClubCard(null); }
   setSaveButton();
   updateMulligan();
 }
@@ -1134,7 +1197,7 @@ window.addEventListener('keydown', (e) => {
   if (k === 'Escape') {
     closeMenu();
     lineup.openDock(false);
-    for (const id of ['conditions', 'practice', 'games-menu', 'scorecard', 'league-panel', 'player-menu']) $(id).classList.add('hidden');
+    for (const id of ['conditions', 'practice', 'games-menu', 'scorecard', 'league-panel', 'saved-panel', 'player-menu']) $(id).classList.add('hidden');
     if (!perfRunning) $('perf-modal').classList.add('hidden');
     leaguesUI.closeResult();
     $('btn-score').classList.remove('active');

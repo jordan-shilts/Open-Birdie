@@ -30,7 +30,7 @@ export const QUALITY_PRESETS = Object.freeze({
     treeDensity: 1.0,       // woods fill spacing multiplier (1 = dense)
     treeCap: 9000,          // instanced trees across the course
     treeNearM: 200,         // trees nearer than this draw the full leaf-card LOD
-    treeMidM: 1100,         // ... and nearer than this the mid LOD (1 card in 4); the far LOD beyond
+    treeMidM: 1100,         // ... and nearer than this the mid LOD (1 clump in 3, 1 sprig in 4); the far LOD beyond
     terrainLodScale: 1,     // the distances at which the ground steps down to coarser cells (hd-terrain.js)
     grassScale: 0.5,        // fescue / foreground-grass instance budgets (55k tufts was ~4.5 ms at 1080p)
     grassDrawM: 400,        // the rough's fescue tufts are drawn this far out (scene.js _addGrass)

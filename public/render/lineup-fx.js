@@ -220,7 +220,7 @@ export class LineupFx {
   // The predicted shot (lib/predict.js) or null. near: a chip or pitch round the green,
   // drawn bare (the line, where it lands, the roll) so the cup stays clear. pin: {x, y}
   // (sim m), for the pin marker's distance.
-  setPrediction(p, { near = false, pin = null } = {}) {
+  setPrediction(p, { near = false, pin = null, zone = false } = {}) {
     this._clear(this.pred, 'pred');
     this._dropLabels('pin');
     if (!p || p.isPutt || !p.path || p.path.length < 2) return;
@@ -252,8 +252,10 @@ export class LineupFx {
     }
     if (roll.length > 1) this.pred.add(lineMesh(this._drape(roll, 0.18), { color: 0xffd21f, alpha: near ? 0.8 : 0.95, px: near ? 2.4 : 3.2, dash: [0.5, 1.4], order: 12 }));
     // landing zone: a soft gold patch inside the dispersion outline, draped on the ground
-    // (not round the green, where it would sit on the cup)
-    const outline = !near && p.dispersion && p.dispersion.land;
+    // (not round the green, where it would sit on the cup). Only with yardage details on:
+    // a wide one (a long club, a generous band) lay across ponds and banks as an orange
+    // slab in front of the shot, and the target's crosshair already marks the landing.
+    const outline = zone && !near && p.dispersion && p.dispersion.land;
     // (no outline round it: the target's crosshair is the mark there)
     if (p.land && outline && outline.length >= 6) this.pred.add(this._patch(p.land, outline));
     if (near && p.land) {

@@ -69,9 +69,34 @@ export const COURSE_DRY = {
   'Spyglass Hill Golf Course': 0.25,
 };
 
+// Course flora: the tree species that stand on a course, as weights over
+// tree-placement.js SPECIES [oak, pine, fir, birch, maple]. Courses not listed use the
+// default mix (Upper-Midwest parkland blended toward links pines by dryness). Listed
+// courses are the ones whose trees are part of the place: Augusta's tall loblolly
+// pines (no birch or spruce in Georgia), Lowcountry live oaks and pines, Monterey
+// pines and coast live oaks, Torrey pines. Mirrored in lib/tree-obstacles.js (tested).
+export const COURSE_FLORA = {
+  'Augusta National Golf Club': [0.24, 0.68, 0, 0, 0.08],
+  'Augusta National Par 3 Course': [0.24, 0.68, 0, 0, 0.08],
+  'Harbour Town Golf Links': [0.62, 0.38, 0, 0, 0],
+  'Kiawah Island Golf Resort (Ocean Course)': [0.55, 0.45, 0, 0, 0],
+  'Spyglass Hill Golf Course': [0.2, 0.8, 0, 0, 0],
+  'Torrey Pines Golf Course (South)': [0.3, 0.7, 0, 0, 0],
+  'TPC Scottsdale (Stadium Course)': [0.8, 0.2, 0, 0, 0],
+  'TPC Sawgrass': [0.45, 0.55, 0, 0, 0],
+  'Oakmont Country Club': [0.5, 0.15, 0.05, 0, 0.3],
+  'Shinnecock Hills Golf Club': [0.55, 0.4, 0, 0, 0.05],
+};
+
 const clamp01 = (v) => (Number.isFinite(v) ? Math.min(Math.max(v, 0), 1) : 0);
 const courseKey = (name) => String(name ?? '').split(',')[0].trim().toLowerCase();
 const DRY_BY_KEY = new Map(Object.entries(COURSE_DRY).map(([k, v]) => [courseKey(k), v]));
+
+const FLORA_BY_KEY = new Map(Object.entries(COURSE_FLORA).map(([k, v]) => [String(k).split(',')[0].trim().toLowerCase(), v]));
+// A course's flora weights, or null for the default mix.
+export function floraFor(name) {
+  return FLORA_BY_KEY.get(String(name ?? '').split(',')[0].trim().toLowerCase()) || null;
+}
 
 // Dryness for a course name — clamped to [0,1], 0 (lush) for unknown/missing.
 export function courseDryFor(name) {
