@@ -63,3 +63,23 @@ export function horizonLinearFromEquirect(data, width, height) {
   return n ? { r: r / n, g: g / n, b: b / n } : { r: 0.6, g: 0.7, b: 0.8 };
 }
 
+
+// The largest value a half-float holds is 65504. The renderer prefilters the sky into
+// half-float targets (PMREM) and draws it into a half-float frame, and a clear-sky photo's
+// sun disc runs past that (the bundled sky peaks near 75,000 in 17 texels). Where the GPU
+// stores such a value as +Infinity instead of saturating it, the prefilter's blur turns it
+// into NaN, and every sky-lit surface (then, through bloom, the whole frame) goes black.
+// Clamp the photo in place before it reaches the GPU; a non-finite texel becomes the cap.
+// Returns how many channel values were changed.
+export const HALF_FLOAT_SAFE_MAX = 64000;
+export function clampEquirectRadiance(data, max = HALF_FLOAT_SAFE_MAX) {
+  let changed = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const v = data[i + c];
+      if (v > max || v !== v) { data[i + c] = max; changed++; }
+      else if (v < 0) { data[i + c] = 0; changed++; }
+    }
+  }
+  return changed;
+}

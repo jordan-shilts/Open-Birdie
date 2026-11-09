@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sunSphericalFromEquirect, sunDirectionVec, horizonColorFromEquirect } from '../public/render/hdri-analyze.js';
+import { sunSphericalFromEquirect, sunDirectionVec, horizonColorFromEquirect, clampEquirectRadiance, HALF_FLOAT_SAFE_MAX } from '../public/render/hdri-analyze.js';
 
 // Build a tiny equirect: dark everywhere, one very bright texel.
 function makeEquirect(w, h, brightX, brightY, rgb = [50, 50, 50]) {
@@ -40,4 +40,36 @@ test('sunDirectionVec maps spherical to THREE axes with correct handedness', () 
   assert.ok(Math.abs(east.x - 1) < 1e-9 && Math.abs(east.z) < 1e-9, 'east -> +X');
   const north = sunDirectionVec(0, 0);
   assert.ok(Math.abs(north.z + 1) < 1e-9 && Math.abs(north.x) < 1e-9, 'north -> -Z');
+});
+
+test('a sun disc past half-float range is clamped; the rest of the sky is untouched', () => {
+  const { data } = makeEquirect(16, 8, 4, 2, [75559, 70000, 3]);
+  const before = Float32Array.from(data);
+  const changed = clampEquirectRadiance(data);
+  assert.equal(changed, 2, 'only the two channels over the cap change');
+  const idx = (2 * 16 + 4) * 4;
+  assert.equal(data[idx], HALF_FLOAT_SAFE_MAX);
+  assert.equal(data[idx + 1], HALF_FLOAT_SAFE_MAX);
+  assert.equal(data[idx + 2], 3);
+  for (let i = 0; i < data.length; i++) if (i !== idx && i !== idx + 1) assert.equal(data[i], before[i]);
+  assert.ok(HALF_FLOAT_SAFE_MAX < 65504, 'the cap fits a half-float');
+});
+
+test('non-finite and negative radiance cannot reach the GPU', () => {
+  const data = new Float32Array([NaN, Infinity, -1, 1, 0.5, 2, 3, 1]);
+  assert.equal(clampEquirectRadiance(data), 3);
+  assert.deepEqual([...data], [HALF_FLOAT_SAFE_MAX, HALF_FLOAT_SAFE_MAX, 0, 1, 0.5, 2, 3, 1]);
+});
+
+test('a sky already in range is left alone (no re-upload)', () => {
+  const data = new Float32Array(16 * 8 * 4).fill(0.5);
+  assert.equal(clampEquirectRadiance(data), 0);
+});
+
+test('the sun is still found after the clamp flattens its disc', () => {
+  const { data, width, height } = makeEquirect(16, 8, 4, 2, [75559, 75559, 75559]);
+  const raw = sunSphericalFromEquirect(data, width, height);
+  clampEquirectRadiance(data);
+  const clamped = sunSphericalFromEquirect(data, width, height);
+  assert.deepEqual(clamped, raw);
 });
