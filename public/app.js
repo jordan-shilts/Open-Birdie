@@ -439,6 +439,7 @@ es.addEventListener('shot', (e) => {
     },
     isPutt: !!shot.sim.isPutt,
     spinRpm: shot.launch?.totalSpin, spinAxisDeg: shot.launch?.spinAxis,
+    events: shot.sim.events,   // bounces, water, trees: what the landing throws up (render/impact-fx.js)
   });
 });
 
@@ -1068,7 +1069,7 @@ async function replaySaved(id) {
   const r = rec.result;
   const shot = {
     launch: rec.launch, club: rec.club, clubData: rec.clubData ?? null, strokes: null, note: r.note, lie: r.lie,
-    sim: { points: pts, carryYd: r.carryYd, totalYd: r.totalYd, offlineYd: r.offlineYd, apexFt: r.apexFt, flightTime: r.flightTime, isPutt: r.isPutt, events: [] },
+    sim: { points: pts, carryYd: r.carryYd, totalYd: r.totalYd, offlineYd: r.offlineYd, apexFt: r.apexFt, flightTime: r.flightTime, isPutt: r.isPutt, events: Array.isArray(rec.events) ? rec.events : [] },
   };
   const token = { id, doneTimer: null };
   replay = token;
@@ -1100,7 +1101,7 @@ async function replaySaved(id) {
     if (replay !== token) return;
     flightView.finish();
     token.doneTimer = setTimeout(() => { if (replay === token) endReplay(); }, 1600);
-  }, { onProgress: (t) => flightView.setTime(t), isPutt: !!r.isPutt, spinRpm: rec.launch?.totalSpin, spinAxisDeg: rec.launch?.spinAxis });
+  }, { onProgress: (t) => flightView.setTime(t), isPutt: !!r.isPutt, spinRpm: rec.launch?.totalSpin, spinAxisDeg: rec.launch?.spinAxis, events: rec.events });
 }
 function endReplay() {
   const r = replay;

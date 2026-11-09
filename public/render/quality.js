@@ -32,6 +32,7 @@ export const QUALITY_PRESETS = Object.freeze({
     treeNearM: 200,         // trees nearer than this draw the full leaf-card LOD
     treeMidM: 1100,         // ... and nearer than this the mid LOD (1 clump in 3, 1 sprig in 4); the far LOD beyond
     terrainLodScale: 1,     // the distances at which the ground steps down to coarser cells (hd-terrain.js)
+    patchDetailM: 1.5,      // bunker meshes follow the ground down to edges this short (scene.js _addSurfacePatches)
     grassScale: 0.5,        // fescue / foreground-grass instance budgets (55k tufts was ~4.5 ms at 1080p)
     grassDrawM: 400,        // the rough's fescue tufts are drawn this far out (scene.js _addGrass)
     foregroundGrass: false, // blade patches read as fuzz at the play cameras (config.js grassField)
@@ -62,6 +63,7 @@ export const QUALITY_PRESETS = Object.freeze({
     // under 40 px tall at Low's ~1520x855, where the far LOD (crossed cards) reads the same.
     treeMidM: 450,
     terrainLodScale: 0.6,
+    patchDetailM: 2.5,      // coarser bunker meshes: about a third of High's triangles
     grassScale: 0.25,
     grassDrawM: 220,
     foregroundGrass: false,

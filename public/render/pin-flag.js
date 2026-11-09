@@ -9,6 +9,13 @@ import * as THREE from 'three';
 
 const FLAG_W = 0.72, FLAG_H = 0.46;
 
+// Wind speed (mph) -> how hard it blows on the cloth, 0..1. A light flag hangs under
+// about 2 mph, is half out by 5-6, streams by 10 and is pulled taut past 25.
+export function flagWind01(mph) {
+  const v = Number.isFinite(mph) ? Math.max(0, mph) : 0;
+  return Math.min(1, v / 25);
+}
+
 const RED_FLAG = Object.freeze({ cloth: '#d6322f', hem: '#b8282a', ink: '#ffffff' });
 
 function flagTexture(label, colors = RED_FLAG) {
@@ -57,35 +64,56 @@ export function makePin(colors = RED_FLAG) {
   );
   ferrule.position.y = 0.02;
   const uTime = { value: 0 };
+  // how hard the wind blows on the cloth, 0 (calm) .. 1 (a gale): flagWind01 below
+  const uWind = { value: flagWind01(8) };
   const flagGeo = new THREE.PlaneGeometry(FLAG_W, FLAG_H, 18, 6);
   flagGeo.translate(FLAG_W / 2, 0, 0); // left edge on the pole
   const flagMat = new THREE.MeshStandardMaterial({ map: flagTexture('', colors), roughness: 0.78, side: THREE.DoubleSide });
   flagMat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = uTime;
+    sh.uniforms.uWind = uWind;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
         uniform float uTime;
-        // travelling wave + gust; returns displacement (z, y) and dz/dx, dz/dy
-        vec4 flagWave(vec2 p) {
+        uniform float uWind;
+        // The cloth in the wind it is in. Calm: it hangs down the pole in soft folds and
+        // barely stirs. A breeze lifts it out and it ripples; a strong wind holds it out
+        // straight and it snaps fast. Returns the vertex's offset (x, y, z) and the
+        // surface slope (dz/dx in .w; dz/dy is small and folded into the normal below).
+        vec4 flagCloth(vec2 p, out float dzdy) {
           float fx = clamp(p.x / ${FLAG_W.toFixed(2)}, 0.0, 1.0);
+          float out_ = smoothstep(0.04, 0.42, uWind);            // 0 hanging .. 1 streaming
+          float hang = 1.0 - out_;
+          float speed = mix(0.35, 1.55, uWind);                  // a gale snaps, a breeze rolls
+          float t = uTime * speed;
           float gust = 0.75 + 0.25 * sin(uTime * 0.7) + 0.12 * sin(uTime * 1.9);
-          float a1 = 0.065 * gust, a2 = 0.035 * gust, a3 = 0.016;
-          float ph1 = fx * 6.2 - uTime * 7.0, ph2 = fx * 3.1 - uTime * 4.3;
-          float ph3 = fx * 4.0 + p.y * 9.0 - uTime * 5.5;
+          float amp = mix(0.35, 1.25, uWind) * out_;             // ripple height
+          float a1 = 0.065 * gust * amp, a2 = 0.035 * gust * amp, a3 = 0.016 * amp;
+          float ph1 = fx * 6.2 - t * 7.0, ph2 = fx * 3.1 - t * 4.3;
+          float ph3 = fx * 4.0 + p.y * 9.0 - t * 5.5;
           float z = (sin(ph1) * a1 + sin(ph2) * a2 + sin(ph3) * a3) * fx;
           float dzdfx = (cos(ph1) * 6.2 * a1 + cos(ph2) * 3.1 * a2 + cos(ph3) * 4.0 * a3) * fx
                       + (sin(ph1) * a1 + sin(ph2) * a2 + sin(ph3) * a3);
-          float dzdx = dzdfx / ${FLAG_W.toFixed(2)};
-          float dzdy = cos(ph3) * 9.0 * a3 * fx;
-          float y = sin(fx * 5.0 - uTime * 6.0) * 0.02 * fx - fx * fx * 0.035 * (1.2 - gust); // droops in lulls
-          return vec4(z, y, dzdx, dzdy);
+          dzdy = cos(ph3) * 9.0 * a3 * fx;
+          float y = sin(fx * 5.0 - t * 6.0) * 0.02 * fx * out_ - fx * fx * 0.035 * (1.2 - gust) * out_; // droops in lulls
+          // hanging: the fly end drops and the cloth gathers toward the pole in folds
+          // that sway slowly, a little more at the free corner
+          float sway = sin(uTime * 0.9 + fx * 2.0) * 0.5 + sin(uTime * 0.37) * 0.5;
+          float foldPh = fx * 15.0 + sway * 0.6;
+          float foldA = 0.045 * hang;
+          z += sin(foldPh) * foldA * fx + sway * 0.03 * hang * fx * fx;
+          dzdfx += (cos(foldPh) * 15.0 * foldA * fx + sin(foldPh) * foldA) + sway * 0.06 * hang * fx;
+          float gather = 1.0 - 0.7 * hang;                       // how far out the cloth still reaches
+          float x = p.x * (gather - 1.0);
+          y -= hang * (fx * fx * 0.5 + fx * 0.22) * ${FLAG_W.toFixed(2)};
+          return vec4(x, y, z, dzdfx / (${FLAG_W.toFixed(2)} * gather));
         }`)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
-        { vec4 fw = flagWave(position.xy); objectNormal = normalize(vec3(-fw.z, -fw.w, 1.0)); }`)
+        { float dzdy; vec4 fc = flagCloth(position.xy, dzdy); objectNormal = normalize(vec3(-fc.w, -dzdy, 1.0)); }`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-        { vec4 fw = flagWave(position.xy); transformed.z += fw.x; transformed.y += fw.y; }`);
+        { float dzdy; vec4 fc = flagCloth(position.xy, dzdy); transformed.xyz += fc.xyz; }`);
   };
-  flagMat.customProgramCacheKey = () => 'pin-flag-v2';
+  flagMat.customProgramCacheKey = () => 'pin-flag-v3';
   const flag = new THREE.Mesh(flagGeo, flagMat);
   flag.position.set(0.012, 2.06, 0);
   flag.castShadow = true;
@@ -119,6 +147,8 @@ export function makePin(colors = RED_FLAG) {
     },
     // flag streams downwind: rotate the whole pin about its pole
     setWindHeading(rad) { g.rotation.y = rad; },
+    // ... and flies as the wind blows: limp in a calm, streaming in a breeze, snapping in a gale
+    setWindSpeed(mph) { uWind.value = flagWind01(mph); },
     dispose() {
       g.traverse((o) => {
         if (!o.isMesh) return;

@@ -23,7 +23,7 @@ import { findSea, carveSea, seaAt, playPoints, shoreGround, penaltyArea } from '
 import { makeWaterDepth } from './water-depth.js';
 import { makeTurfMaterial, makeSandMaterial, turfMowDir } from './turf.js';
 import { srgbToLinear, averageLinearColor } from './macro-tint.js';
-import { densifyRing, drapeRing } from './drape.js';
+import { densifyRing, drapeRing, conformTriangles, groundNormal } from './drape.js';
 import { buildHdTerrainLod, buildCoarseTerrainLod, updateTerrainLod } from './hd-terrain.js';
 import { makeTerrainSampler, smoothGridNormals } from './terrain-grid.js';
 import { repairGridEdges } from './grid-repair.js';
@@ -31,6 +31,7 @@ import { RENDER_CONFIG } from './config.js';
 import { isPlayFraming, ballReadScale, pinReadScale } from './framing.js';
 import { ShotTracer, makeGlow, makeLandingRing, makeBallShadow, makeDropLine } from './shot-fx.js';
 import { LineupFx } from './lineup-fx.js';
+import { ImpactFx, impactSchedule } from './impact-fx.js';
 import { isNearGreen } from '../map-frame.mjs';
 import { makePin, makeTeeMarkers } from './pin-flag.js';
 import { flightMarkers, smoothPointAt } from './flight-profile.js';
@@ -179,6 +180,10 @@ export class GolfScene {
     this.landRing = makeLandingRing();
     this.headGlow.visible = this.apexGlow.visible = this.dropLine.visible = this.landRing.visible = false;
     this.scene.add(this.ballShadow, this.headGlow, this.apexGlow, this.dropLine, this.landRing);
+    // what the ball throws up where it lands (impact-fx.js): splash, sand, turf, leaves
+    this.impactFx = RENDER_CONFIG.impactFx === false ? null : new ImpactFx();
+    if (this.impactFx) this.scene.add(this.impactFx.group);
+    this._fxLight = new THREE.Color(1, 1, 1);
     this.tracer = null;      // ShotTracer of the current / lingering shot
     this._fx = null;         // { apex3, land3, lingerStart } — marker + fade bookkeeping
 
@@ -465,6 +470,31 @@ export class GolfScene {
       if (x >= p.minX && x <= maxX && y >= p.minY && y <= maxY) return this._sampleGrid(p, x, y);
     }
     return this._sampleGrid(g, x, y);
+  }
+
+  // The ground as it is DRAWN at (x, y). hAt is the smooth (bilinear) surface the ball
+  // plays on; the mesh is two flat triangles per grid cell (cut from the cell's east
+  // corner to its north corner: hd-terrain.js), which stand a few centimetres above or
+  // below it wherever the ground twists. Something laid on the ground (a bunker's sand)
+  // must clear both, so this is the higher of the two. The cell is the finest grid's at
+  // the point (the HD patch over it, else the course grid), its corners read through hAt.
+  drawnGroundAt(x, y) {
+    const smooth = this.hAt(x, y);
+    let g = this.elev;
+    for (const p of this._hdPatches || []) {
+      if (x >= p.minX && y >= p.minY && x <= p.minX + (p.nx - 1) * p.cellM && y <= p.minY + (p.ny - 1) * p.cellM) { g = p; break; }
+    }
+    if (!g || !(g.cellM > 0)) return smooth;
+    const c = g.cellM;
+    const fx = (x - g.minX) / c, fy = (y - g.minY) / c;
+    const i = Math.floor(fx), j = Math.floor(fy);
+    const dx = fx - i, dy = fy - j;
+    const x0 = g.minX + i * c, y0 = g.minY + j * c;
+    const h10 = this.hAt(x0 + c, y0), h01 = this.hAt(x0, y0 + c);
+    const tri = dx + dy <= 1
+      ? (() => { const h00 = this.hAt(x0, y0); return h00 + (h10 - h00) * dx + (h01 - h00) * dy; })()
+      : (() => { const h11 = this.hAt(x0 + c, y0 + c); return h11 + (h01 - h11) * (1 - dx) + (h10 - h11) * (1 - dy); })();
+    return Math.max(smooth, tri);
   }
 
   // ---------- course construction ----------
@@ -1581,16 +1611,25 @@ export class GolfScene {
     if (!surfs.length) return;
     const b = this.bounds;
     const mat = makeMat(b, this.renderer.capabilities.getMaxAnisotropy());
-    const sampler = (x, y) => this.hAt(x, y);
+    const sampler = (x, y) => this.drawnGroundAt(x, y);   // clear of the mesh as well as the smooth surface
+    const smooth = (x, y) => this.hAt(x, y);
+    // how closely a patch follows the ground (quality.js patchDetailM): no edge longer
+    // than 4x it, and edges down to it wherever the ground bends under them
+    const dM = this.quality?.preset?.patchDetailM ?? 1.5;
+    const detail = { maxEdge: dM * 4, minEdge: dM, tol: dM * 0.02 };
     const CELL_M = 250;
     const cells = new Map();
     for (const s of surfs) {
       const ring = densifyRing(s.poly, 3);
       if (ring.length < 3) continue;
-      const tris = THREE.ShapeUtils.triangulateShape(
+      const ringTris = THREE.ShapeUtils.triangulateShape(
         ring.map((p) => new THREE.Vector2(p[0], p[1])), []);
-      if (!tris.length) continue;
-      const { pos, uv } = drapeRing(ring, sampler, b, 0.04); // small lift + polygonOffset
+      if (!ringTris.length) continue;
+      // The patch follows the ground all the way across, not only along its edge
+      // (drape.js conformTriangles): a bunker's real bowl shows as a bowl, and no rise
+      // inside it pokes through as a patch of the ground's own sand.
+      const { points, tris } = conformTriangles(ring, ringTris, sampler, detail);
+      const { pos, uv } = drapeRing(points, sampler, b, 0.04); // small lift + polygonOffset
       const idx = [];
       for (const t of tris) idx.push(t[0], t[1], t[2]);
       const geom = new THREE.BufferGeometry();
@@ -1602,7 +1641,14 @@ export class GolfScene {
       // the sim->three y->-z flip, so normalize to point up.
       const nrm = geom.attributes.normal.array;
       let ny = 0; for (let i = 1; i < nrm.length; i += 3) ny += nrm[i];
-      if (ny < 0) { idx.reverse(); geom.setIndex(idx); geom.computeVertexNormals(); }
+      if (ny < 0) { idx.reverse(); geom.setIndex(idx); }
+      // shade from the ground's own smoothed slope (as the terrain does), so the bowl
+      // lights as one form instead of faceting on every lidar bump
+      for (let i = 0; i < points.length; i++) {
+        const n = groundNormal(smooth, points[i][0], points[i][1]);
+        nrm[i * 3] = n[0]; nrm[i * 3 + 1] = n[1]; nrm[i * 3 + 2] = n[2];
+      }
+      geom.attributes.normal.needsUpdate = true;
       const key = `${Math.floor(s.poly[0][0] / CELL_M)},${Math.floor(s.poly[0][1] / CELL_M)}`;
       (cells.get(key) || cells.set(key, []).get(key)).push(geom);
     }
@@ -1620,6 +1666,24 @@ export class GolfScene {
   // the water and the beach, rocks and cliffs down to it, as the server plays it.
   hasSea() { return !!this._seaPenalty; }
   isSea(x, y) { return !!this._seaPenalty && seaAt(this._seaPenalty, x, y); }
+
+  // The height of the water's surface as drawn at (x, y): the pond the point is in (its
+  // outline grown a little: they are traced by hand), else the nearest pond within a few
+  // metres, else the sea, else the ground. The ground under a pond is not its surface:
+  // away from hydro-flattened lidar it is whatever the elevation data holds there.
+  waterLevelAt(x, y) {
+    let near = null, nearD = 8;
+    for (const p of this._ponds || []) {
+      const dx = Math.max(p.minX - x, 0, x - p.maxX), dy = Math.max(p.minY - y, 0, y - p.maxY);
+      const d = Math.hypot(dx, dy);
+      if (d > nearD) continue;
+      if (pointInPoly(x, y, p.grown || p.poly)) return p.level + 0.03;
+      near = p; nearD = d;
+    }
+    if (near) return near.level + 0.03;
+    if (this._sea) return this._sea.level + 0.02;
+    return this.hAt(x, y);
+  }
 
   // ---------- gameplay state ----------
   setHole(hole, ballPos, aimDeg) {
@@ -1643,9 +1707,11 @@ export class GolfScene {
     this._fitShadows(hole);
     this._aimLineUpdate();
     this._clearTrail();
+    this.impactFx?.clear();
   }
 
   setBall(p) {
+    this.ball.visible = true;   // back from the water, if the last shot went in
     this.ballSim = { x: p.x, y: p.y };
     const z = this.hAt(p.x, p.y);
     this._ballBase = z;
@@ -1753,6 +1819,8 @@ export class GolfScene {
     const to = fromDeg + 180;
     // the flag cloth lies along +x; turning it by 90 deg - heading points it downwind
     this._pinFlag.setWindHeading((90 - to) * Math.PI / 180);
+    this._pinFlag.setWindSpeed(mph);
+    for (const f of this._practiceFlags || []) f.setWindSpeed?.(mph);
     const k = Math.min(1, mph / 25);
     if (this._treeField?.shared?.uWindAmp) this._treeField.shared.uWindAmp.value = 0.008 + k * 0.05;
     this._wind = { mph, toDeg: to };
@@ -1771,6 +1839,7 @@ export class GolfScene {
     }
     while (this._practiceFlags.length < flags.length) {
       const f = makePin({ cloth: '#f2c230', hem: '#d9a91c', ink: '#1d2a1f' });
+      f.setWindSpeed(this._wind?.mph ?? 0);
       this.scene.add(f.group);
       this._practiceFlags.push(f);
     }
@@ -1863,6 +1932,7 @@ export class GolfScene {
   // HUD side view in sync); opts.isPutt keeps the camera still for putts.
   playShot(points, flightTime, onDone, opts = {}) {
     if (!points || points.length < 2) { onDone?.(); return; }
+    this.ball.visible = true;
     this._clearTrail();
     if (this.aimLine) this.aimLine.visible = false;
     const dur = points[points.length - 1].t;
@@ -1881,6 +1951,9 @@ export class GolfScene {
       spinRps: Number.isFinite(opts.spinRpm) ? opts.spinRpm / 60 : isPutt ? 0 : 45,
       spinAxisDeg: Number.isFinite(opts.spinAxisDeg) ? opts.spinAxisDeg : 0,
       lastP: points[0],
+      // landing effects, timed off the server's own events (impact-fx.js)
+      impacts: this.impactFx ? impactSchedule(points, opts.events, ft, { isPutt }) : [],
+      impactI: 0,
     };
     // Camera: a smooth follow (flight-camera.js) that starts exactly at the address
     // camera and glides to a landing-area vantage during the descent.
@@ -1948,6 +2021,13 @@ export class GolfScene {
     a.t += dt * a.speed;
     const pts = a.points;
     while (a.i < pts.length - 1 && pts[a.i + 1].t <= a.t) a.i++;
+    // the ball has reached an impact: throw up what that ground throws
+    while (a.impactI < a.impacts.length && a.impacts[a.impactI].t <= a.t) {
+      const im = a.impacts[a.impactI++];
+      this.impactFx.spawn(im, this._frameNow ?? 0, im.kind === 'water' ? this.waterLevelAt(im.x, im.y) : this.hAt(im.x, im.y));
+      // a ball in the water is gone under it (it sat on the surface till the drop was taken)
+      if (im.kind === 'water') this.ball.visible = false;
+    }
     // a smooth curve through the samples in the air, straight lines over the bounces
     const p = a.i >= pts.length - 1 ? pts[pts.length - 1] : smoothPointAt(pts, a.t, a.flightTime);
     this.ballSim = { x: p.x, y: p.y };
@@ -1994,6 +2074,14 @@ export class GolfScene {
   // projected callouts, and the ball's contact shadow (always on).
   _updateShotFx(frameTime) {
     const a = this.anim;
+    if (this.impactFx?.active) {
+      // lit like the ground around them: the sun on a level surface plus the sky's fill
+      const sunK = this.sun.intensity * Math.max(0.15, this.sunDir.y) / Math.PI;
+      const sky = (this.scene.environmentIntensity ?? 0.4) * 0.9;
+      const c = this._fxLight.copy(this.sun.color).multiplyScalar(sunK);
+      c.r += sky * 0.85; c.g += sky * 0.95; c.b += sky * 1.1;
+      this.impactFx.update(frameTime, this.camera, this.renderer.domElement.height, c);
+    }
     const viewH = this.renderer.domElement.clientHeight || this.container.clientHeight || 720;
     const pxWorld = (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2)) / Math.max(1, viewH);
     const fx = this._fx;
@@ -2057,7 +2145,7 @@ export class GolfScene {
     this.ballShadow.position.copy(V(bx, by, gz + 0.025));
     this.ballShadow.scale.set(size, 1, size);
     this.ballShadow.material.opacity = THREE.MathUtils.clamp(1 - hgt / 25, 0, 1) * 0.85;
-    this.ballShadow.visible = this.ballShadow.material.opacity > 0.02;
+    this.ballShadow.visible = this.ball.visible && this.ballShadow.material.opacity > 0.02;
   }
 
   // ---------- cameras ----------
@@ -2152,6 +2240,7 @@ export class GolfScene {
     if (this._pendingRebuild && !this.anim) this._rebuildScenery();
     const frameTime = fixed ? (Number(capture.fixedTime) || 0) : this.clock.elapsedTime;
     this._captureFixedTime = fixed ? frameTime : null;
+    this._frameNow = frameTime;
 
     if (this.anim) this._animStep(dt);
 

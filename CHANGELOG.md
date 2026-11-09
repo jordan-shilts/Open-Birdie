@@ -5,6 +5,23 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **The ball throws something up where it lands** — a splash and spreading rings on water, a burst of sand from a
+  bunker, a few bits of turf and a breath of dust off a fairway or the rough, leaves from a tree crown; nothing on
+  a green (a ball leaves a pitch mark there, not debris) and nothing for a putt (`render/impact-fx.js`). Each is
+  timed off the server's own shot events (bounces with their surface, water, tree hits) and sized by how fast the
+  ball was coming down, so a full shot into the pond is a column of water and a ball that dribbles in is a plop;
+  only a real landing on grass (6 m/s or more downward) throws turf, not the hops and the roll after it. A ball
+  that goes into the water goes under: it used to sit on the surface until the drop was taken. One pool of point
+  sprites flown on the GPU and three ring quads, lit at the level of the ground round them at any time of day;
+  nothing is drawn, and nothing costs anything, between shots. Saved shots keep their events (`lib/saved-shots.js`),
+  so a replay throws up what the shot did; shots saved before this replay without it. `RENDER_CONFIG.impactFx`
+  turns it off. Seen in captures on the software renderer and fired end to end from `POST /api/test-shot`; not
+  yet looked at on the sim PC or the dev Mac.
+- **The flag flies as the wind blows** — it flapped the same in a calm as in a gale. It now hangs down the pole in
+  soft folds and barely stirs with no wind, lifts and ripples in a breeze (half out at Breezy's 8 mph), streams
+  by about 10 mph and is held out taut and snapping fast in a gale (`render/pin-flag.js` `flagWind01`,
+  `flagCloth`); it already turned to point downwind. The range's yardage flags do the same. With the conditions
+  on Calm, the default, the flag hangs: the hole number on it is hidden until there is wind to show it.
 - **A course download engine** — `npm run download:courses` brings in courses we don't have, built the way the
   featured courses were (`tools/download-courses.mjs`). It runs the cloud's own build (`cloud/builder.js`) on
   this computer: OSM holes and surfaces, the 1 m lidar terrain and NDVI classmap, OSM buildings and nearby
@@ -113,6 +130,18 @@ All notable changes to Open-Birdie are documented here.
   the map is as it was.
 
 ### Changed
+- **Bunkers are bowls** — a bunker's sand was a mesh hung from its outline: it touched the ground only along its
+  edge and spanned straight across inside, so the real hollow the lidar holds was lidded over (bunkers drew flat,
+  and the shader faked the dish with shading), and any rise inside the outline poked through the sand as a patch
+  of the ground's own, tanner sand. The mesh now follows the ground all the way across (`render/drape.js`
+  `conformTriangles`): its triangles are cut wherever the ground under them leaves the straight line by more
+  than a few centimetres, with no cracks between neighbours, so a bowl is a bowl, its near wall falls into
+  shadow and its far face catches the sun. It is laid on the ground as drawn (two flat triangles a grid cell,
+  `scene.js` `drawnGroundAt`), not only on the smooth surface the ball plays on, and shades from the ground's
+  smoothed slope like the turf round it. More triangles than before, where the ground bends: edges down to 1.5 m
+  at High and 2.5 m at Low (`quality.js` `patchDetailM`), none on flat sand. Seen before and after on a test
+  course with metre-deep bunkers on the software renderer; not yet measured on the sim PC or looked at on a real
+  course's lidar.
 - **Trees built like the pro sims' trees** — a crown is a few hundred dense leaf clumps (broadleaves) or needle
   tufts (pines) on cards that turn to face the camera, the way SpeedTree-style game trees build canopy, instead of
   single twig cards: crowns read as solid, lumpy masses with leafy edges and sky only between their lobes, where
@@ -265,6 +294,15 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **A black course on a GPU that does not saturate half-floats** — the bundled sky photo's sun disc is brighter
+  (up to 75,559 in 17 texels) than a half-float can hold (65,504), and the renderer prefilters the sky into
+  half-float targets. A GPU that stores such a value as infinity instead of clamping it turns the blurred sky
+  light into NaN: every sunlit surface drew black and, at High, bloom spread that over the whole frame. So it was
+  on the software renderer (Chromium's SwiftShader, which Auto starts at Low on, and which the capture tools
+  refuse for this reason among others); the dev Mac and the RTX 3060 clamp and never showed it, and the morning
+  and golden-hour skies, fetched from Poly Haven, go through the same path. The photo is now clamped to 64,000
+  before it reaches the GPU (`render/hdri-analyze.js` `clampEquirectRadiance`); the sun's direction is still read
+  from the photo as shot. On a GPU that already clamped, nothing changes but those 17 texels.
 - **A course built or copied into the data dir no longer says it was played** — the cache index records whether a
   course has been played here (`played`); a course the app finds on disk without having loaded it (built by
   the download engine, copied in) counts as not played, and the picker shows a played time only for played
