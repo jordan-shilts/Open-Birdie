@@ -1,20 +1,49 @@
-// Graphics quality: one user setting ('auto' | 'high' | 'low') resolved to a concrete
-// preset the renderer reads. Pure (no DOM / no three) so the resolver and the
+// Graphics quality: one user setting ('auto' | 'ultra' | 'high' | 'low') resolved to a
+// concrete preset the renderer reads. Pure (no DOM / no three) so the resolver and the
 // auto-downshift rule are unit-tested (test/quality.test.mjs).
 //
 //   setting  — what the user picked (persisted by the UI; 'auto' by default)
-//   level    — what is actually running ('high' | 'low')
+//   level    — what is actually running ('ultra' | 'high' | 'low')
 //
 // 'auto' starts from a GPU heuristic (software rasterizers, integrated/mobile parts
 // start Low) and then lets the live frame-time monitor drop High -> Low once if the
 // game can't hold a playable frame rate. It never flips back up on its own: a
 // downshift that then upshifts again would oscillate every few seconds.
+//
+// 'ultra' is for a desktop GPU with room to spare and is only ever picked by hand:
+// 'auto' tops out at High, and nothing steps Ultra down but dynamic resolution.
 
-export const QUALITY_SETTINGS = Object.freeze(['auto', 'high', 'low']);
+export const QUALITY_SETTINGS = Object.freeze(['auto', 'ultra', 'high', 'low']);
 
 // Everything the renderer varies by level. Course-content knobs (trees, grass)
 // need a course rebuild to apply; the rest apply live (see GolfScene.setQuality).
 export const QUALITY_PRESETS = Object.freeze({
+  // High with every distance pushed out and nothing halved: the same passes and the same
+  // look, held further from the camera. No new effect lives here, so there is nothing in
+  // it that High has not already shown; what it costs is unmeasured (docs/machines.md).
+  ultra: Object.freeze({
+    level: 'ultra',
+    pixelRatioCap: 2,
+    maxPixels: 8.4e6,       // native 4K, under dynamic resolution like High
+    aoScale: 1,             // ambient occlusion at full resolution
+    shadowMapSize: 4096,
+    shadowRadius: 3,
+    gtao: true,
+    bloom: true,
+    aa: 'smaa',
+    waterReflect: true,
+    waterFoam: true,
+    treeDensity: 1.0,       // the woods as dense as High's: the forest is the same forest
+    treeCap: 14000,         // ... but a big course keeps more of its trees
+    treeNearM: 320,         // full leaf detail out past a long iron
+    treeMidM: 1600,
+    terrainLodScale: 1.6,   // 1 m ground out to ~380 m on an HD hole (240 m at High)
+    patchDetailM: 1.0,      // bunker meshes to the lidar's own metre
+    grassScale: 1.0,        // every fescue tuft the course has
+    grassDrawM: 600,
+    foregroundGrass: false,
+    flowers: true,
+  }),
   high: Object.freeze({
     level: 'high',
     pixelRatioCap: 2,       // retina where available ...
@@ -94,7 +123,7 @@ export function initialAutoLevel({ gpuRenderer = '', mobile = false, deviceMemor
 // env: { gpuRenderer, mobile, deviceMemoryGb, downshifted }
 export function resolveQuality(setting, env = {}) {
   const s = parseQualitySetting(setting);
-  if (s === 'high' || s === 'low') {
+  if (s === 'ultra' || s === 'high' || s === 'low') {
     return { setting: s, level: s, reason: 'user setting', preset: QUALITY_PRESETS[s] };
   }
   // A live downshift (autoDownshiftVerdict) is sticky for the session.
@@ -123,7 +152,7 @@ export function autoDownshiftVerdict({ setting, level, intervalsMs, minSamples =
     : { downshift: false, fps, reason: 'holding frame rate' };
 }
 
-// Label for the HUD button: "Auto · High", "High", "Low".
+// Label for the HUD button: "Auto · High", "Ultra", "High", "Low".
 export function qualityLabel(setting, level) {
   const cap = (v) => v.charAt(0).toUpperCase() + v.slice(1);
   return parseQualitySetting(setting) === 'auto' ? `Auto · ${cap(level)}` : cap(level);

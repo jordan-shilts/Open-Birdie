@@ -263,7 +263,7 @@ export class GolfScene {
     };
   }
 
-  // Apply a graphics setting ('auto' | 'high' | 'low'). Live knobs (pixel ratio,
+  // Apply a graphics setting ('auto' | 'ultra' | 'high' | 'low'). Live knobs (pixel ratio,
   // shadow map, AO/bloom) change at once; course-content budgets (trees, grass,
   // flowers, reflections) rebuild the course scenery when the LEVEL changes.
   setQuality(setting, { rebuild = true } = {}) {

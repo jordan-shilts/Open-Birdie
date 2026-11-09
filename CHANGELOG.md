@@ -17,6 +17,15 @@ All notable changes to Open-Birdie are documented here.
   so a replay throws up what the shot did; shots saved before this replay without it. `RENDER_CONFIG.impactFx`
   turns it off. Seen in captures on the software renderer and fired end to end from `POST /api/test-shot`; not
   yet looked at on the sim PC or the dev Mac.
+- **Ultra graphics, for a GPU the sim PC does not have yet** — a fourth level in Menu → View → Graphics, above
+  High (`render/quality.js`). It adds no new effect: it is High with every distance pushed out and nothing
+  halved, so it looks like High and holds it further from the camera: full leaf detail on trees out to 320 m
+  (200), the mid tree detail to 1,600 m (1,100), 1 m ground out to about 380 m on an HD hole (240), every fescue
+  tuft the course has out to 600 m (half of them to 400), up to 14,000 trees (9,000), bunker meshes to the
+  lidar's own metre (1.5 m) and ambient occlusion at full resolution (half). Picked by hand only: Auto still tops
+  out at High, and only dynamic resolution steps Ultra down. Not measured on any GPU (it renders on the software
+  renderer, which says nothing about speed); on the sim PC's Intel UHD 630 it will be slower than High's 20 fps.
+  Run the Performance check on it when there is a desktop GPU to run it on.
 - **The flag flies as the wind blows** — it flapped the same in a calm as in a gale. It now hangs down the pole in
   soft folds and barely stirs with no wind, lifts and ripples in a breeze (half out at Breezy's 8 mph), streams
   by about 10 mph and is held out taut and snapping fast in a gale (`render/pin-flag.js` `flagWind01`,

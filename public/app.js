@@ -17,7 +17,7 @@ const $ = (id) => document.getElementById(id);
 const query = new URLSearchParams(location.search);
 const primaryNonce = query.get('primaryNonce') || '';
 const visualCaptureEnabled = query.get('visualCapture') === '1';
-// Graphics quality: ?gfx=auto|high|low overrides the saved choice (Auto by default).
+// Graphics quality: ?gfx=auto|ultra|high|low overrides the saved choice (Auto by default).
 // Visual-capture runs pin High and never auto-downshift, so frames stay comparable.
 const GFX_KEY = 'open-birdie.graphics';
 const readGfx = () => { try { return localStorage.getItem(GFX_KEY); } catch { return null; } };
@@ -69,7 +69,7 @@ function showGfx(q) {
   markSeg($('seg-gfx'), gfxSetting);
   $('seg-gfx').title = `Graphics: ${qualityLabel(q.setting, q.level)} (${q.reason})`;
 }
-segmented($('seg-gfx'), [['auto', 'Auto'], ['high', 'High'], ['low', 'Low']], gfxSetting, (v) => {
+segmented($('seg-gfx'), [['auto', 'Auto'], ['ultra', 'Ultra'], ['high', 'High'], ['low', 'Low']], gfxSetting, (v) => {
   gfxSetting = parseQualitySetting(v);
   try { localStorage.setItem(GFX_KEY, gfxSetting); } catch { /* private mode */ }
   scene.setQuality(gfxSetting);
@@ -1157,7 +1157,7 @@ async function perfCheck() {
     const fps = (ms) => (ms > 0 ? Math.round(1000 / ms) : 0);
     const full = report.frames[0]?.canvas;
     const row = (a, b) => `<div class="perf-row"><span>${esc(a)}</span><b>${esc(b)}</b></div>`;
-    msg.textContent = `${report.gpu || 'Unknown GPU'} · ${report.level === 'low' ? 'Low' : 'High'} graphics · ${String(report.course || '').split(',')[0]}${report.hole != null ? `, hole ${report.hole}` : ''}`;
+    msg.textContent = `${report.gpu || 'Unknown GPU'} · ${qualityLabel(report.level || 'high', report.level || 'high')} graphics · ${String(report.course || '').split(',')[0]}${report.hole != null ? `, hole ${report.hole}` : ''}`;
     out.innerHTML = '<div class="perf-sec">THE WHOLE FRAME</div>'
       + report.frames.map((f) => row(`${f.canvas}${f.scale < 1 ? ' (dynamic resolution\'s floor)' : ''}`, `${f.ms.toFixed(1)} ms · up to ${fps(f.ms)} fps`)).join('')
       + `<div class="perf-sec">WHAT EACH PART COSTS AT ${esc(full || '')}</div>`
