@@ -17,6 +17,8 @@ One skill for making a golf sim look as real as the games and simulators golfers
 | Texture loading, colour spaces, KTX2, tiling, memory | Section 5, then `references/threejs-textures.md` |
 | Tone mapping, grade, AO, bloom, anti-aliasing, overlays | Section 6, then `references/threejs-postprocessing.md` |
 | Frame rate, draw calls, instancing, GPU memory | Section 7, then `references/threejs-performance.md` |
+| Real footage and benchmark frames for each featured course | Section 9, then `references/visual-references.md` |
+| A photo-like target image of your own frame (paintover), with free tools only | Section 12 |
 
 Each reference ends with a Common Mistakes list of outdated three.js patterns; check it before writing code.
 
@@ -235,7 +237,7 @@ composer.addPass(new OutputPass()); // tone mapping and exposure from the active
 
 ## 9. Reference photo kit
 
-Collect a small, labelled set per course before tuning, and keep it beside the renders.
+Collect a small, labelled set per course before tuning, and keep it beside the renders. `references/visual-references.md` links free real footage and benchmark-game galleries for every course in `courses/featured.json`, says which games carry each course, and explains how to get frames in front of the agent.
 
 - **Per viewing band:** address view down the fairway, a mid-iron approach to the green, a low view across the green surface, a bunker from the lip, a tree line at 100 to 300 m, and an elevated or drone view of the hole.
 - **Per condition:** morning, midday and golden hour, plus overcast if you ship it. Match the course's season and grass type (links fescue, bentgrass, bermuda).
@@ -269,6 +271,23 @@ When working in the Open-Birdie repo (three.js r184, so a few r186 APIs in the r
 - Verify with the render loop in `docs/HANDOFF.md` section 6, capturing through the postfx composer.
 - Never change `courseFingerprint` inputs (`CACHE_VERSION`, projection origin) for visual work.
 - Keep `npm test` green on Node 22 or newer.
+- Per-hole yardages, elevation, OB and green data for the featured courses live in `docs/research/course-data/`.
+
+## 12. Paintover targets (free tools only)
+
+A paintover is your own frame restyled into a photo-like target with the same camera and composition, so the gap between render and photo is easy to see. Studio concept artists paint them by hand; a free image-edit model can make a rough one.
+
+- **Tool:** the Hugging Face connector (claude.ai → Settings → Connectors → Hugging Face), with a free Hugging Face account. Its image tools are Gradio Spaces on ZeroGPU: free accounts get about 5 minutes of shared GPU time a day and are never charged. Once connected at claude.ai, the connector also reaches Claude Code on the web.
+- **Setup:** at huggingface.co/settings/mcp, add an image-edit Space that shows **Running** and uses an Apache-2.0 model (the Qwen-Image-Edit family works; find Spaces at huggingface.co/spaces?filter=mcp-server). Optionally add `evalstate/flux1_schnell` (FLUX.1-schnell, Apache 2.0) for from-scratch mood images. Leave "Remove Embedded Images" off so results come back into the session.
+- **Workflow:**
+  1. Capture a fixed frame through the full post chain (section 3, step 5).
+  2. Edit it with an instruction that keeps the geometry: "Keep the exact camera, terrain, holes, trees and bunkers. Make it look like a real photograph of <course> at <time of day>: natural turf colour, real haze, soft shadows. Do not add, remove or move anything."
+  3. Compare render, paintover and a real photo of the course with the section 3 checks. Trust the paintover only on light, colour and atmosphere, never on layout; discard any result that invents or moves features.
+  4. Name the gap, fix it in the renderer, recapture.
+- **Free-only rules:**
+  - No paid plans, credit packs, PRO upgrades, Inference Endpoints or pay-as-you-go GPU time. When the daily quota runs out, wait for the reset.
+  - Higgsfield's MCP needs a paid subscription and charges credits per generation, so it is not used.
+  - Paintovers are references only: never textures, never shipped art, never committed to git.
 
 ## Credits
 
