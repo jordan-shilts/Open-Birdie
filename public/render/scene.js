@@ -17,11 +17,11 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GrassField } from './grass-field.js';
 import { buildWater } from './water.js';
 import { buildBuildings } from './buildings.js';
-import { SKY_PRESETS, parseSkySetting } from './sky-presets.js';
+import { SKY_PRESETS, parseSkySetting, lowSunLift } from './sky-presets.js';
 import { coursePonds, carveBeds } from './water-shore.js';
 import { findSea, carveSea, seaAt, playPoints, shoreGround, penaltyArea } from './sea.js';
 import { makeWaterDepth } from './water-depth.js';
-import { makeTurfMaterial, makeSandMaterial, turfMowDir } from './turf.js';
+import { makeTurfMaterial, makeSandMaterial, turfMowDir, turfSunLift } from './turf.js';
 import { srgbToLinear, averageLinearColor } from './macro-tint.js';
 import { densifyRing, drapeRing, conformTriangles, groundNormal } from './drape.js';
 import { buildHdTerrainLod, buildCoarseTerrainLod, updateTerrainLod } from './hd-terrain.js';
@@ -401,6 +401,8 @@ export class GolfScene {
       if (oldEnv && oldEnv !== envTexture) oldEnv.dispose();
       if (oldSky && oldSky !== equirect) oldSky.dispose();
       this.sunDir.copy(sunDir);
+      // a low sun lights the standing blades, not a level sheet; under cloud there is no sun to speak of
+      turfSunLift.value = preset.overcast ? 0 : lowSunLift(sunDir.y);
       this.sun.color.set(preset.sunColor);
       this.sun.intensity = preset.sunIntensity;
       this.renderer.toneMappingExposure = preset.exposure;

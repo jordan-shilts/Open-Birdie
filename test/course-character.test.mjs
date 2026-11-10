@@ -95,13 +95,13 @@ test('ids and other spellings point at courses that exist; the ball\'s trees agr
 });
 
 test('dormant fescue turns a links\'s mown ground to straw, and leaves everything else', () => {
-  assert.equal(dormantFor('Bandon Dunes'), 0.55);
+  assert.equal(dormantFor('Bandon Dunes'), 0.8);
   assert.equal(dormantFor('', 'osm:way:1019045811'), 0.3);
   assert.equal(dormantFor('Chambers Bay'), 0, 'Chambers keeps the olive measured from its own photos');
   assert.equal(dormantFor('TPC Sawgrass'), 0);
   const dry = blendPalette(COLORS, DRY_PALETTE, 0.8);
   assert.equal(blendDormant(dry, 0), dry, 'no dormancy: the very same palette');
-  const half = blendDormant(dry, 0.55), full = blendDormant(dry, 1);
+  const half = blendDormant(dry, 0.5), full = blendDormant(dry, 1);
   assert.equal(full.fairwayA, DORMANT_PALETTE.fairwayA);
   const red = (hex) => parseInt(hex.slice(1, 3), 16), green = (hex) => parseInt(hex.slice(3, 5), 16);
   // straw: red rises to meet green

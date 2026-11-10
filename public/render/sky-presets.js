@@ -58,7 +58,7 @@ export const SKY_PRESETS = Object.freeze({
     sunAltitudeDeg: 40,
     sunColor: '#f2f1ec',
     sunIntensity: 0.6,          // a hint of where the sun is: the softest of shadows
-    environmentIntensity: 0.5,  // the cloud deck is the light
+    environmentIntensity: 0.68, // the cloud deck is the light (0.5 left the turf a stop under a sunny day's)
     exposure: 0.8,
     fogDensity: 0.0009,         // damp air: the far tree line greys out
   }),
@@ -69,11 +69,30 @@ export const SKY_PRESETS = Object.freeze({
     sunAltitudeDeg: 40,
     sunColor: '#f4f3ef',
     sunIntensity: 0.25,
-    environmentIntensity: 0.5,
+    environmentIntensity: 0.7,
     exposure: 0.82,
     fogDensity: 0.0042,         // about a tenth gone at 50 m, a quarter at 100 m, nearly all by 300 m
   }),
 });
+
+// GRASS STANDS UP. The lighting model lights the ground as a level sheet, which a low sun
+// barely grazes: at 10 degrees a level surface gets a sixth of the sun, and a fairway at
+// golden hour drew near black once it stopped mirroring the sun (turf.js). A real one
+// glows, because the sun is not lighting a sheet but the sides of the blades standing on
+// it. Light half the turf as level ground and half as upright blades facing every way
+// (which catch (2/pi) cos(altitude) of the sun), and this is how much brighter than the
+// sheet that is: about 2.3x at 10 degrees. Faded out by 24 degrees, midday's sun, where
+// the sheet is already close and the look is tuned as it stands. sunY: the sun
+// direction's upward part (the sine of its altitude). Returns the extra, 0 = none.
+export function lowSunLift(sunY) {
+  if (!Number.isFinite(sunY)) return 0;
+  const y = Math.min(1, Math.max(0.05, sunY));
+  const blades = 0.5 * y + 0.5 * (2 / Math.PI) * Math.sqrt(1 - y * y);
+  const altDeg = Math.asin(y) * 180 / Math.PI;
+  const t = Math.min(1, Math.max(0, (altDeg - 12) / 12));
+  const fade = 1 - t * t * (3 - 2 * t);
+  return Math.max(0, blades / y - 1) * fade;
+}
 
 export const SKY_ORDER = Object.freeze(['morning', 'midday', 'golden', 'overcast', 'fog']);
 export const DEFAULT_SKY = 'midday';

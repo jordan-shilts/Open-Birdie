@@ -156,7 +156,12 @@ All notable changes to Open-Birdie are documented here.
   Real turf stays green there: blades shade each other and scatter light, they do not mirror it. The ground now
   keeps 18% of that reflection as sheen and greens 40% (`turf.js`, `config.js` `turfSpecular` /
   `greenSpecular`); the sun's diffuse light and the sky's fill are untouched, so views away from the sun are
-  unchanged. One multiply in the turf shader: no measurable cost on any GPU.
+  unchanged. With the mirror gone a low sun needed its real effect back: it barely grazes a level sheet (a
+  sixth of its light at 10 degrees), and a golden-hour fairway drew near black, where a real one glows because
+  the sun lights the sides of the standing blades. Half the turf is now lit as level ground and half as upright
+  blades (`sky-presets.js` `lowSunLift`): about 2.3x the sun's diffuse light at 10 degrees, fading to nothing by
+  midday's 24, so Midday is as it was tuned. Two multiplies in the turf shader and no texture read: no
+  measurable cost on any GPU.
 - **A course is itself whatever it was asked for by** — a course's turf and trees were keyed by its name, and
   the picker's names ("Old Course at St Andrews", "Bandon Dunes") are not the names the table was written with
   ("St Andrews Old Course", "Bandon Dunes Golf Resort"), so the two links picked from the featured list drew as
@@ -164,7 +169,7 @@ All notable changes to Open-Birdie are documented here.
   its other spellings (`course-character.js` `COURSE_IDS` / `COURSE_ALIASES`, mirrored for the ball's trees in
   `lib/tree-obstacles.js`); a test holds every featured course to the same answer by id and by picker name.
 - **Dormant fescue, and less of it at St Andrews** — a links's mown ground can be set toward straw
-  (`COURSE_DORMANT`: Bandon Dunes 0.55 after its winter reference photos, the Old Course 0.3 for its pale
+  (`COURSE_DORMANT`: Bandon Dunes 0.8 after its winter reference photos, the Old Course 0.3 for its pale
   yellow-green; Chambers Bay keeps the olive measured from its own photos), and how much tall fescue a course's
   open ground grows can be set apart from its dryness (`COURSE_FESCUE`): the Old Course is dry but mown short
   almost everywhere between its gorse, and at the dryness rule's figure the 1st and 18th stood in a field of

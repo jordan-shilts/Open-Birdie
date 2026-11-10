@@ -1,7 +1,7 @@
 // Time-of-day presets (public/render/sky-presets.js).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SKY_PRESETS, SKY_ORDER, DEFAULT_SKY, parseSkySetting, nextSkySetting, skyLabel } from '../public/render/sky-presets.js';
+import { SKY_PRESETS, SKY_ORDER, DEFAULT_SKY, parseSkySetting, nextSkySetting, skyLabel, lowSunLift } from '../public/render/sky-presets.js';
 
 test('every preset carries a full, plausible light rig', () => {
   for (const k of SKY_ORDER) {
@@ -63,4 +63,19 @@ test('weather: overcast is clear air under cloud, sea fog closes in', () => {
   assert.ok(fogAt(fog.fogDensity, 400) > 0.95);
   // a grey day is dimmer than a sunny one, not dark: the fill is raised to carry it
   assert.ok(overcast.environmentIntensity > midday.environmentIntensity);
+});
+
+test('a low sun lights standing grass far more than a level sheet; midday is left as tuned', () => {
+  const at = (deg) => lowSunLift(Math.sin(deg * Math.PI / 180));
+  assert.equal(at(SKY_PRESETS.midday.sunAltitudeDeg), 0, 'midday (24 degrees): unchanged');
+  assert.equal(at(40), 0);
+  assert.equal(at(90), 0);
+  assert.ok(Math.abs(at(10) - 1.3) < 0.1, `about 2.3x at 10 degrees (${at(10)})`);
+  // rises steadily as the sun sinks, with no jump where the fade starts
+  let last = -1;
+  for (let deg = 24; deg >= 4; deg -= 1) { const v = at(deg); assert.ok(v >= last, `more at ${deg}`); last = v; }
+  assert.ok(at(23) < 0.02 && at(18) > 0.1);
+  // bounded however low the sun, and never NaN
+  assert.ok(lowSunLift(0) < 6 && lowSunLift(-1) < 6);
+  for (const v of [NaN, undefined, null]) assert.equal(lowSunLift(v), 0);
 });

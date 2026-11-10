@@ -80,7 +80,7 @@ export const DORMANT_PALETTE = {
   range: '#9a9550',
 };
 export const COURSE_DORMANT = {
-  'Bandon Dunes Golf Resort': 0.55,
+  'Bandon Dunes Golf Resort': 0.8,
   'St Andrews Old Course': 0.3,
 };
 
