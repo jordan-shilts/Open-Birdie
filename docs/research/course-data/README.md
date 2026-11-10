@@ -1,6 +1,6 @@
 # Course reference data
 
-Researched hole-by-hole data for the six courses Open-Birdie features: Chambers Bay, the Old Course at St Andrews, Pebble Beach Golf Links, Bandon Dunes, the TPC Sawgrass Stadium Course and the Straits Course at Whistling Straits. Gathered November 2026 from official scorecards, course and resort sites, USGA, R&A and PGA TOUR material, and golf publications.
+Researched hole-by-hole data for the seven courses Open-Birdie features (`courses/featured.json`): Chambers Bay, the Old Course at St Andrews, Pebble Beach Golf Links, Bandon Dunes, the TPC Sawgrass Stadium Course, the Straits Course at Whistling Straits and Hazeltine National Golf Club. Gathered November 2026 from official scorecards, course and resort sites, USGA, R&A and PGA TOUR material, and golf publications.
 
 Every fact names its source, and a field nobody publishes is `null`, never an estimate. Use it for scorecards, tee selection, par and handicap, hazard and OB placement, and as ground truth when checking what the sim derives from OpenStreetMap and elevation data.
 
@@ -17,7 +17,7 @@ Every fact names its source, and a field nobody publishes is `null`, never an es
 | `tools/check.py` | Validates the JSON and reports coverage; checks that every tee's hole yardages add up to its published total. |
 | `tools/build.py` | Rebuilds `yardage-book.html` and `csv/` from `courses/*.json`. |
 
-Slugs: `chambers-bay`, `st-andrews-old`, `pebble-beach`, `bandon-dunes`, `tpc-sawgrass`.
+Slugs: `chambers-bay`, `st-andrews-old`, `pebble-beach`, `bandon-dunes`, `tpc-sawgrass`, `whistling-straits`, `hazeltine-national`. The folder also holds `augusta-national.json` and `augusta-national-par-3.json`, which the viewer and CSVs don't include.
 
 ## Coverage
 
@@ -30,8 +30,10 @@ Holes out of 18 with each figure:
 | Pebble Beach | 8, plus 3 tournament setups | 1 | 3 | 3 | 1 |
 | Bandon Dunes | 6 | 0 | 0 | 0 | 1 |
 | TPC Sawgrass | 6, plus 2026 PLAYERS | 0 | 1 | 1 | 18 |
+| Whistling Straits | 5 | 0 | 0 | 0 | 0 |
+| Hazeltine National | 9, plus 4 tournament setups | 1 | 2 | 0 | 0 |
 
-Par, handicap and per-tee yardages are complete for all 90 holes, and every tee's holes sum to its published total. Elevation in feet, OB and green sizes are rarely published, which is why the next section matters.
+Par, handicap and per-tee yardages are complete for all 126 holes, and every tee's holes sum to its published total. Elevation in feet, OB and green sizes are rarely published, which is why the next section matters.
 
 ## Things that affect the sim
 
@@ -40,6 +42,7 @@ Par, handicap and per-tee yardages are complete for all 90 holes, and every tee'
 - **St Andrews:** the tee entries with par 76 are women's ratings; hole pars are men's. No. 18 is printed longer from Blue (366) than Black (354) on the source card; kept as printed.
 - **Bandon Dunes:** only the Tournament tee comes from the resort's own site; the other tees come from matching third-party cards. One source says the greens have moved toward Poa annua.
 - **TPC Sawgrass:** green depths for all 18 holes come from TPC's yardage guide, which prints no unit; yards is inferred and cross-checked against No. 17.
+- **Hazeltine National** publishes no scorecard, so its yardages and ratings come from Stymie, checked against GolfPass and the 2024 U.S. Amateur fact sheet (Tournament tee 7,674 yd, 77.8/148). The 2016 Ryder Cup re-routed the course (holes 5–9 and 14–18 swapped); tournament setups are in notes. OB is documented on No. 5 (left) and No. 14 (right) only.
 - **OB vs penalty areas** are separate fields. Most water, cliffs and gorse on these courses are penalty areas, not OB.
 
 Each course's `gaps` list records the remaining conflicts between sources.
@@ -94,7 +97,7 @@ for (const h of course.holes) {
 
 Caveats when comparing with the published figures:
 
-- Where no HD bundle covers a hole, the base grid comes from coarse terrain tiles, so read small differences with care. The published drops (Chambers Bay Nos. 5, 9 and 14 at about 95–100 ft; Pebble Beach No. 7 at 40 ft) make good checks.
+- Where no HD bundle covers a hole, the base grid comes from coarse terrain tiles, so read small differences with care. The published drops (Chambers Bay Nos. 5, 9 and 14 at about 95–100 ft; Pebble Beach No. 7 at 40 ft; Hazeltine No. 10 at 40 ft or more) make good checks.
 - OSM tee points are usually the back tee, while published drops can refer to a different tee.
 - Shared double greens at St Andrews cover two holes, so their polygon area is the whole green, not one hole's half.
 

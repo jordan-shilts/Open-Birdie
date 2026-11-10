@@ -49,6 +49,7 @@ test('every researched course maps to its featured OSM course, with 18 holes and
     'augusta-national-par-3': 'osm:way:1481448305',
     'bandon-dunes': 'osm:way:362513477',
     'chambers-bay': 'osm:way:26787026',
+    'hazeltine-national': 'osm:relation:9892305',
     'pebble-beach': 'osm:relation:3741806',
     'st-andrews-old': 'osm:way:1019045811',
     'tpc-sawgrass': 'osm:relation:1783123',
@@ -73,7 +74,8 @@ test('a course finds its research by OSM id, a same-place course by location, ot
   const elsewhere = findReference({ source: { osmType: 'way', osmId: 1 }, origin: { lat: 36.5675, lon: -121.948 } });
   assert.equal(elsewhere.reference.slug, 'pebble-beach');
   assert.equal(elsewhere.matchedBy, 'location');
-  assert.equal(findReference({ source: { osmType: 'relation', osmId: 9892305 }, origin: { lat: 44.83, lon: -93.59 } }), null);
+  // an unresearched course far from every researched one (Torrey Pines, San Diego)
+  assert.equal(findReference({ source: { osmType: 'relation', osmId: 2 }, origin: { lat: 32.9, lon: -117.25 } }), null);
 });
 
 test('round selection uses research only for an exact OSM id match', () => {

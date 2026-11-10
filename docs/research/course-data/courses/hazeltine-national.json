@@ -1,0 +1,1301 @@
+{
+  "course": "Hazeltine National Golf Club",
+  "slug": "hazeltine-national",
+  "location": {
+    "city": "Chaska",
+    "region": "Minnesota",
+    "country": "USA",
+    "lat": 44.827778,
+    "lon": -93.582778,
+    "source": "S30"
+  },
+  "data_as_of": "Undated scorecard data as listed by Stymie (S1) and checked against GolfPass (S2), retrieved 2026-11-10. Hazeltine does not publish its scorecard online. The Tournament-tee rating matches the 2024 U.S. Amateur fact sheet (S19). The championship course has not been changed since the 2010 greens rebuild apart from the 16th-tee project: Love Golf Design's 2029 Ryder Cup master plan was still a future phase in March 2026 (S25). Tournament setups: 2009 PGA Championship, 2016 Ryder Cup (re-routed), 2024 U.S. Amateur, 2026 KPMG Women's PGA.",
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Hazeltine National Golf Course scorecard (all tees with men's and women's rating/slope, per-hole yardages, handicap)",
+      "url": "https://stymie.golf/golf-courses/minnesota/carver-county/chaska/hazeltine-national-golf-course",
+      "publisher": "Stymie"
+    },
+    {
+      "id": "S2",
+      "title": "Hazeltine National Golf Club Scorecard and Tees (per-hole yardages incl. combo tees; men's and women's handicaps)",
+      "url": "https://www.golfpass.com/courses/14976-hazeltine-national-golf-club/scorecard-and-layout",
+      "publisher": "GolfPass"
+    },
+    {
+      "id": "S3",
+      "title": "Hazeltine National Golf Club scorecard (older edition: Blue 7,137, Gold 6,665, Red 5,701)",
+      "url": "https://golflink.com/golf-courses/mn/chaska/hazeltine-national-golf-club",
+      "publisher": "GolfLink"
+    },
+    {
+      "id": "S4",
+      "title": "Hazeltine National Golf Club tees and scorecard (older ratings/handicaps)",
+      "url": "https://18birdies.com/golf-courses/club/97034bb0-86ac-11e4-8c28-020000005b00/hazeltine-national-golf-club",
+      "publisher": "18Birdies"
+    },
+    {
+      "id": "S5",
+      "title": "The Course (official hole-by-hole descriptions)",
+      "url": "https://www.hazeltinenational.com/the-course",
+      "publisher": "Hazeltine National Golf Club"
+    },
+    {
+      "id": "S6",
+      "title": "An Insider's Hole-by-Hole Look at Hazeltine During the 2016 Ryder Cup (July 1, 2024; same text also at /blog/2016/09/201609p10711)",
+      "url": "https://www.hazeltinenational.com/blog/hazeltine-during-the-2016-ryder-cup",
+      "publisher": "Hazeltine National Golf Club"
+    },
+    {
+      "id": "S7",
+      "title": "Hazeltine's Toughest Holes in Major Tournaments (updated March 5, 2026)",
+      "url": "https://www.hazeltinenational.com/blog/hazeltines-toughest-holes",
+      "publisher": "Hazeltine National Golf Club"
+    },
+    {
+      "id": "S8",
+      "title": "Hazeltine's signature hole reaches new heights (16th tee project; updated March 14, 2025)",
+      "url": "https://www.hazeltinenational.com/blog/hazeltines-signature-hole-reaches-new-heights",
+      "publisher": "Hazeltine National Golf Club"
+    },
+    {
+      "id": "S9",
+      "title": "Hazeltine National Golf Club (KPMG Women's PGA course page: 2026 hole-by-hole yardages and descriptions, total 6,760)",
+      "url": "https://www.kpmgwomenspgachampionship.com/hazeltine-national-golf-club",
+      "publisher": "KPMG Women's PGA Championship / PGA of America"
+    },
+    {
+      "id": "S10",
+      "title": "A hole-by-hole look at Hazeltine National (May 28, 2026)",
+      "url": "https://www.kpmgwomenspgachampionship.com/news-media/a-hole-by-hole-look-at-hazeltine-national/",
+      "publisher": "KPMG Women's PGA Championship / PGA of America"
+    },
+    {
+      "id": "S11",
+      "title": "RYDER CUP '16: A hole-by-hole look at Hazeltine National (Sept 24, 2016; Ryder Cup numbering)",
+      "url": "https://www.foxnews.com/sports/ryder-cup-16-a-hole-by-hole-look-at-hazeltine-national.print",
+      "publisher": "Associated Press (via Fox News)"
+    },
+    {
+      "id": "S12",
+      "title": "2016 Ryder Cup course stats (par and yardage by Ryder Cup hole number, 7,628 yd)",
+      "url": "https://www.pgatour.com/tournaments/2016/ryder-cup/R2016468/course-stats",
+      "publisher": "PGA TOUR"
+    },
+    {
+      "id": "S13",
+      "title": "Ryder Cup course tour 2016 (Ryder Cup numbering)",
+      "url": "https://rydercup.com/course-tour/2016",
+      "publisher": "Ryder Cup / PGA of America"
+    },
+    {
+      "id": "S14",
+      "title": "Why The Hazeltine You Recall From PGAs & U.S. Opens Got Re-Routed (Ron Whitten, Aug 29, 2016)",
+      "url": "https://www.golfdigest.com/story/why-the-hazeltine-you-recall-from-pgas-and-us-opens-got-re-routed",
+      "publisher": "Golf Digest"
+    },
+    {
+      "id": "S15",
+      "title": "Philip Reid on Hazeltine, hole by hole (Aug 13, 2009; 2009 PGA Championship card)",
+      "url": "https://www.irishtimes.com/sport/hole-by-hole-guide-1.718340",
+      "publisher": "The Irish Times"
+    },
+    {
+      "id": "S16",
+      "title": "PGA Championship - Hazeltine National course preview (GCSAA, Aug 11, 2009)",
+      "url": "https://www.golfchannel.com/news/article-gcsaa-pga-championship-hazeltine-national-preview",
+      "publisher": "Golf Channel / GCSAA"
+    },
+    {
+      "id": "S17",
+      "title": "Hazeltine National (Ron Whitten, Aug 4, 2009)",
+      "url": "https://www.golfdigest.com/story/hazeltine_ron_whitten",
+      "publisher": "Golf Digest"
+    },
+    {
+      "id": "S18",
+      "title": "Changing Course (Ron Whitten, Aug 3, 2009)",
+      "url": "https://golfdigest.com/story/golf_hazeltine_national_whitten_0810",
+      "publisher": "Golf Digest"
+    },
+    {
+      "id": "S19",
+      "title": "124th U.S. Amateur Championship fact sheet (2024; Hazeltine card 7,552 yd, CR 77.8 / slope 148)",
+      "url": "https://mngolf.org/news/124th_us_amateur_championship__fact_sheet",
+      "publisher": "Minnesota Golf Association"
+    },
+    {
+      "id": "S20",
+      "title": "Minnesota Golfer, Summer 2024 (U.S. Amateur preview: expected green speed and rough)",
+      "url": "https://nxtbook.com/mspc/mga/summer2024/index.php?startid=23",
+      "publisher": "Minnesota Golf Association"
+    },
+    {
+      "id": "S21",
+      "title": "Minnesota Golfer, Summer 2011 (2010 greens rebuild)",
+      "url": "https://www.nxtbook.com/mspc/mga/summer2011/index.php?startid=32",
+      "publisher": "Minnesota Golf Association"
+    },
+    {
+      "id": "S22",
+      "title": "Hazeltine National (firm project page)",
+      "url": "https://reesjonesinc.com/courses/hazeltine-national/",
+      "publisher": "Rees Jones, Inc."
+    },
+    {
+      "id": "S23",
+      "title": "Mission accomplished at Hazeltine National",
+      "url": "https://www.golfcoursearchitecture.net/topics/renovation2/mission-accomplished-at-hazeltine-national",
+      "publisher": "Golf Course Architecture"
+    },
+    {
+      "id": "S24",
+      "title": "Hazeltine National GC (Aug 10, 2022)",
+      "url": "https://roberttrentjonessociety.com/hazeltine-national-gc/",
+      "publisher": "Robert Trent Jones Society"
+    },
+    {
+      "id": "S25",
+      "title": "Hazeltine Vision 2040 long-range plan (Nov 20, 2024; updated March 5, 2026)",
+      "url": "https://www.hazeltinenational.com/blog/hazeltine-vision-2040-long-range-plan",
+      "publisher": "Hazeltine National Golf Club"
+    },
+    {
+      "id": "S26",
+      "title": "Love Golf Design appointed to reimagine Hazeltine National for 2029 Ryder Cup",
+      "url": "https://www.golfcoursearchitecture.net/love-golf-design-appointed-to-reimagine-hazeltine-national-for-2029-ryder-cup",
+      "publisher": "Golf Course Architecture"
+    },
+    {
+      "id": "S27",
+      "title": "Course guide to Hazeltine National: inside one of America's great championship venues (June 28, 2026)",
+      "url": "https://www.pga.com/story/course-guide-to-hazeltine-national-inside-one-of-americas-great-championship-venues",
+      "publisher": "PGA of America"
+    },
+    {
+      "id": "S28",
+      "title": "Hazeltine National goes the distance for KPMG Women's PGA Championship (June 22, 2019)",
+      "url": "https://www.startribune.com/hazeltine-national-goes-the-distance-for-kpmg-women-s-pga-championship/511662732",
+      "publisher": "Star Tribune"
+    },
+    {
+      "id": "S29",
+      "title": "2019 KPMG Women's PGA Championship (turf blog)",
+      "url": "https://www.hazeltinenational.com/turf-blog/2019-kpmg-womens-pga-championship",
+      "publisher": "Hazeltine National Golf Club"
+    },
+    {
+      "id": "S30",
+      "title": "Hazeltine National Golf Club (USGS GNIS locale 2094215)",
+      "url": "https://www.topoquest.com/place/minnesota/locale/hazeltine-national-golf-club/2094215",
+      "publisher": "TopoQuest (USGS GNIS data)"
+    },
+    {
+      "id": "S31",
+      "title": "Hazeltine National Golf Club Course Guide: Hole 16 (Ryder Cup numbering = member No. 7; Sept 13, 2016)",
+      "url": "https://golfmonthly.com/ryder-cup/ryder-cup-course/hazeltine-national-golf-club-course-guide-hole-16-114808",
+      "publisher": "Golf Monthly"
+    },
+    {
+      "id": "S32",
+      "title": "Hazeltine National Golf Club Course Guide: Hole 10 (2016)",
+      "url": "https://golfmonthly.com/ryder-cup/ryder-cup-course/hazeltine-national-golf-club-course-guide-hole-10-114601",
+      "publisher": "Golf Monthly"
+    },
+    {
+      "id": "S33",
+      "title": "KPMG Women's PGA Championship 2026 player scorecard (par by hole, 6,760 yd)",
+      "url": "https://www.espn.co.cr/golf/jugador/tarjetas/_/id/7774/torneo/401835161",
+      "publisher": "ESPN"
+    },
+    {
+      "id": "S34",
+      "title": "Hazeltine National Golf Course (OpenStreetMap-derived course data)",
+      "url": "https://courses.opengolfapi.org/courses/MN/hazeltine-national-golf-course",
+      "publisher": "OpenGolfAPI"
+    },
+    {
+      "id": "S35",
+      "title": "Golf Guest Card (course rules, dress code, championship history)",
+      "url": "https://www.hazeltinenational.com/hubfs/Golf%20Guest%20Card.pdf",
+      "publisher": "Hazeltine National Golf Club"
+    }
+  ],
+  "tees": [
+    {
+      "name": "Tournament",
+      "total_yards": 7674,
+      "par": 72,
+      "rating": 77.8,
+      "slope": 148,
+      "sex": "M",
+      "source": "S1, S19",
+      "notes": "Same per-hole yardages as the 2009 PGA Championship card (S15). Rating/slope 77.8/148 match the 2024 U.S. Amateur fact sheet (S19). Older listings give 78.1/152 (S3, S4) or 78.0/155 (S2 tee table)."
+    },
+    {
+      "name": "Blue",
+      "total_yards": 7252,
+      "par": 72,
+      "rating": 75.9,
+      "slope": 144,
+      "sex": "M",
+      "source": "S1, S2",
+      "notes": "Per-hole yardages (S1, S2) sum to 7,252. Older listings show Blue at 7,137 (Nos. 5 and 15 at 400 and 575) rated 75.7/147 (S3, S4), and GolfPass's own tee table still says 7,137 at 75.6/148 (S2)."
+    },
+    {
+      "name": "Blue/Gold",
+      "total_yards": 6924,
+      "par": 72,
+      "rating": null,
+      "slope": null,
+      "sex": "M",
+      "source": "S2",
+      "notes": "Combo tee listed only by GolfPass, with no rating or slope."
+    },
+    {
+      "name": "Gold",
+      "total_yards": 6683,
+      "par": 72,
+      "rating": 73.3,
+      "slope": 140,
+      "sex": "M",
+      "source": "S1, S2",
+      "notes": "Older listings: 6,665 (No. 5 at 382), 73.5/143 (S3, S4)."
+    },
+    {
+      "name": "Gold",
+      "total_yards": 6683,
+      "par": 72,
+      "rating": 79.9,
+      "slope": 146,
+      "sex": "F",
+      "source": "S1",
+      "notes": null
+    },
+    {
+      "name": "Gold/White",
+      "total_yards": 6412,
+      "par": 72,
+      "rating": 72.1,
+      "slope": 136,
+      "sex": "M",
+      "source": "S1",
+      "notes": "Per-hole mix from S1. GolfPass lists a 6,385 Gold/White with No. 9 at 389 and No. 16 at 312 (S2)."
+    },
+    {
+      "name": "Gold/White",
+      "total_yards": 6412,
+      "par": 72,
+      "rating": 78.4,
+      "slope": 143,
+      "sex": "F",
+      "source": "S1",
+      "notes": null
+    },
+    {
+      "name": "White",
+      "total_yards": 6221,
+      "par": 72,
+      "rating": 71.2,
+      "slope": 135,
+      "sex": "M",
+      "source": "S1, S2",
+      "notes": "Older listings: 71.5/139 (S3, S4)."
+    },
+    {
+      "name": "White",
+      "total_yards": 6221,
+      "par": 72,
+      "rating": 77.3,
+      "slope": 140,
+      "sex": "F",
+      "source": "S1",
+      "notes": "Older listings: 77.4/143 (S2, S4)."
+    },
+    {
+      "name": "White/Green",
+      "total_yards": 5570,
+      "par": 72,
+      "rating": null,
+      "slope": null,
+      "sex": "M",
+      "source": "S2",
+      "notes": "Combo tee listed only by GolfPass, with no rating or slope."
+    },
+    {
+      "name": "Green",
+      "total_yards": 5475,
+      "par": 72,
+      "rating": 67.7,
+      "slope": 127,
+      "sex": "M",
+      "source": "S1, S2",
+      "notes": "Older listings show a 5,701 Green/Red tee instead (Nos. 1, 5, 10 and 12 longer), rated 68.1/131 or 69.1/134 for men and 73.3/134 or 74.2/138 for women (S3, S4, S2)."
+    },
+    {
+      "name": "Green",
+      "total_yards": 5475,
+      "par": 72,
+      "rating": 73.2,
+      "slope": 132,
+      "sex": "F",
+      "source": "S1",
+      "notes": null
+    },
+    {
+      "name": "Black",
+      "total_yards": 5129,
+      "par": 72,
+      "rating": 66.1,
+      "slope": 125,
+      "sex": "M",
+      "source": "S1, S2",
+      "notes": "Older listing: 66.5/129 (S4)."
+    },
+    {
+      "name": "Black",
+      "total_yards": 5129,
+      "par": 72,
+      "rating": 71.3,
+      "slope": 128,
+      "sex": "F",
+      "source": "S1",
+      "notes": "Older listings: 71.2/131 (S2) or 71.3/131 (S4)."
+    }
+  ],
+  "greens": {
+    "grass": "Bentgrass. All 18 greens were rebuilt to USGA specification in summer 2010 under Rees Jones and re-grassed with bentgrass. GPS and laser surveys kept the original contours, and several greens were slightly enlarged to add hole locations (S21, S22, S23). Before the rebuild, at the 2009 PGA, they were Penncross creeping bentgrass with Poa annua (S16). The current bentgrass variety is not published.",
+    "typical_stimp": "12.5-13.5 expected for the 2024 U.S. Amateur (S20). For the 2019 KPMG Women's PGA the club said speeds would be nearly identical to daily member play (S29), but no daily Stimpmeter figure is published.",
+    "average_size_sqft": null,
+    "notes": "No average or per-hole green sizes published; Golf Digest calls them 'good-size targets' (S17). Tiered or shelved greens: 1 (three tiers), 4 (two tiers with a back shelf), 10 (ridge), 17 (bowl and shelves) and 18 (three tiers). Flashed-up greenside bunkers throughout (S24).",
+    "source": "S21, S22, S23, S16, S20, S29, S17, S24"
+  },
+  "boundaries": {
+    "ob_summary": "OB is documented on only two holes: No. 14, where it lines the right side and lies right of the green (S5, S18), and No. 5, where the club says OB is possible left of the fairway (S6). No local-rules sheet or white-stake map was found, so OB on the other 16 holes is unknown (null), not confirmed absent.",
+    "penalty_area_summary": "Hazeltine Lake borders the back nine. It lies left of and behind the 10th green and runs down the right of the 16th, where the drive carries it and the green sits on a peninsula; a creek runs down the left of the 16th fairway. Ponds guard the greens on 6 (front-left), 7 (left), 8 (front and right) and 13 (left), and water sits left of and around the 17th green. At championships the 8th's water has no lateral relief option, and the 17th's left-side water is described as a lateral hazard (S7). No water is described on 1-5, 9, 11, 12, 14, 15 or 18. Red/yellow marking for daily play is not published.",
+    "source": "S5, S6, S7, S9, S11, S14, S18"
+  },
+  "holes": [
+    {
+      "number": 1,
+      "name": null,
+      "par": 4,
+      "handicap": 5,
+      "handicap_women": 7,
+      "yards": {
+        "Tournament": 490,
+        "Blue": 442,
+        "Blue/Gold": 442,
+        "Gold": 412,
+        "Gold/White": 390,
+        "White": 390,
+        "White/Green": 321,
+        "Green": 321,
+        "Black": 321,
+        "PGA Championship 2009": 490,
+        "Ryder Cup 2016": 442,
+        "U.S. Amateur 2024": 439,
+        "KPMG Women's PGA 2026": 417
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "downhill",
+        "description": "Club calls it slightly downhill; no figure published.",
+        "source": "S6",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water or other penalty area is described on this hole by the club or the 2026 KPMG guide.",
+        "source": "S5, S9"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Back-right to front-left, with a narrow opening at the front left (S6).",
+        "features": "Three tiers; bunkered on every side except long (S9); three greenside bunkers (S6). Hitting the right tier is the key (S5, S11).",
+        "source": "S9, S6, S5",
+        "confidence": "medium"
+      },
+      "notes": "Fairway bunkers on both sides squeeze the landing area (three of them, S6); they were moved closer to the fairway for 2009 (S16). 2016 Ryder Cup: played 442 because a grandstand blocked the 490 championship tee (S6, S12). Tournament setups: 2009 PGA Championship 490 (S15); 2016 Ryder Cup 442, played as Ryder Cup No. 1 (S12, S6); 2024 U.S. Amateur 439 (S19); 2026 KPMG Women's PGA 417 (S9). Women's handicap 7 (S2)."
+    },
+    {
+      "number": 2,
+      "name": null,
+      "par": 4,
+      "handicap": 9,
+      "handicap_women": 9,
+      "yards": {
+        "Tournament": 431,
+        "Blue": 425,
+        "Blue/Gold": 425,
+        "Gold": 384,
+        "Gold/White": 384,
+        "White": 368,
+        "White/Green": 368,
+        "Green": 360,
+        "Black": 308,
+        "PGA Championship 2009": 431,
+        "Ryder Cup 2016": 429,
+        "U.S. Amateur 2024": 427,
+        "KPMG Women's PGA 2026": 384
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Club calls it slightly uphill; no figure published.",
+        "source": "S6",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water or other penalty area is described on this hole by the club or the 2026 KPMG guide.",
+        "source": "S5, S9"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Large bunkers guard the front left (S5, S9, S11); four greenside bunkers and subtle breaks (S6); deep bunkers left (S15).",
+        "source": "S5, S9, S6, S15",
+        "confidence": "medium"
+      },
+      "notes": "Dogleg left. For 2009 the left fairway bunker was moved so it is harder to carry, pushing play right toward two more bunkers (S16). Three fairway bunkers (S6). Hills were cut down in the 1970s so the fairway can be seen from the tee (S18). Tournament setups: 2009 PGA Championship 431 (S15); 2016 Ryder Cup 429, played as Ryder Cup No. 2 (S12, S6); 2024 U.S. Amateur 427 (S19); 2026 KPMG Women's PGA 384 (S9). Women's handicap 9 (S2)."
+    },
+    {
+      "number": 3,
+      "name": null,
+      "par": 5,
+      "handicap": 11,
+      "handicap_women": 15,
+      "yards": {
+        "Tournament": 633,
+        "Blue": 568,
+        "Blue/Gold": 560,
+        "Gold": 560,
+        "Gold/White": 522,
+        "White": 522,
+        "White/Green": 468,
+        "Green": 468,
+        "Black": 396,
+        "PGA Championship 2009": 633,
+        "Ryder Cup 2016": 633,
+        "U.S. Amateur 2024": 633,
+        "KPMG Women's PGA 2026": 568
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "A significant upslope starts about 330 yd from the tee, and the fairway slopes hard left to right over the last 120 yd (S6). No figure published.",
+        "source": "S6",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water or other penalty area is described on this hole by the club or the 2026 KPMG guide.",
+        "source": "S5, S9"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Large green with many demanding hole locations (S5, S9). One of the largest, deepest bunkers on the course guards all but the front left (S6).",
+        "source": "S5, S9, S6",
+        "confidence": "medium"
+      },
+      "notes": "Two large bunkers left and thick rough right off the tee; a flat layup area about 130 yd short sets up a wedge (S9, S11). Tournament setups: 2009 PGA Championship 633 (S15); 2016 Ryder Cup 633, played as Ryder Cup No. 3 (S12, S6); 2024 U.S. Amateur 633 (S19); 2026 KPMG Women's PGA 568 (S9). Women's handicap 15 (S2)."
+    },
+    {
+      "number": 4,
+      "name": null,
+      "par": 3,
+      "handicap": 15,
+      "handicap_women": 11,
+      "yards": {
+        "Tournament": 210,
+        "Blue": 205,
+        "Blue/Gold": 186,
+        "Gold": 186,
+        "Gold/White": 160,
+        "White": 160,
+        "White/Green": 142,
+        "Green": 142,
+        "Black": 142,
+        "PGA Championship 2009": 210,
+        "Ryder Cup 2016": 210,
+        "U.S. Amateur 2024": 207,
+        "KPMG Women's PGA 2026": 165
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No elevation information published for this par 3.",
+        "source": null,
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water: the only par 3 at Hazeltine without water (S6).",
+        "source": "S6"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Severe front-to-back slope; sidehill and downhill putts are hard (S11, S6).",
+        "features": "Large two-tier green: a difficult back shelf about 10 yd deep and a flatter front, separated by a pronounced slope; small front-right section; bunkers all around (S9, S5). Only the back shelf's depth is published, not the whole green.",
+        "source": "S9, S5, S11, S6",
+        "confidence": "medium"
+      },
+      "notes": "Green speed and hole location are its main defence (S6). Tournament setups: 2009 PGA Championship 210 (S15); 2016 Ryder Cup 210, played as Ryder Cup No. 4 (S12, S6); 2024 U.S. Amateur 207 (S19); 2026 KPMG Women's PGA 165 (S9). Women's handicap 11 (S2)."
+    },
+    {
+      "number": 5,
+      "name": null,
+      "par": 4,
+      "handicap": 1,
+      "handicap_women": 1,
+      "yards": {
+        "Tournament": 448,
+        "Blue": 448,
+        "Blue/Gold": 448,
+        "Gold": 400,
+        "Gold/White": 365,
+        "White": 365,
+        "White/Green": 284,
+        "Green": 284,
+        "Black": 284,
+        "PGA Championship 2009": 448,
+        "Ryder Cup 2016": 448,
+        "U.S. Amateur 2024": 445,
+        "KPMG Women's PGA 2026": 402
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "Downhill or sidehill lies are possible in the fairway (S6); no tee-to-green figure.",
+        "source": "S6",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": true,
+        "sides": [
+          "left"
+        ],
+        "description": "Club's insider guide says out of bounds is possible left of the fairway.",
+        "source": "S6",
+        "confidence": "medium"
+      },
+      "penalty_areas": {
+        "description": "No water or other penalty area is described on this hole by the club or the 2026 KPMG guide.",
+        "source": "S5, S9"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Narrow green, only a few paces wide at the opening, guarded by deep bunkers in front and on both sides (S5, S9, S6).",
+        "source": "S5, S9, S6",
+        "confidence": "medium"
+      },
+      "notes": "Slight dogleg right with mature trees on the right and three fairway bunkers (S9, S6). Extended almost 50 yd for 2009 (Golf Channel says to 455; the card shows 448), with the right-side bunkers rebuilt closer to the fairway (S16). The No. 1 men's handicap hole (S1, S2). Tournament setups: 2009 PGA Championship 448 (S15); 2016 Ryder Cup 448, played as Ryder Cup No. 14 (S12, S6); 2024 U.S. Amateur 445 (S19); 2026 KPMG Women's PGA 402 (S9). Women's handicap 1 (S2)."
+    },
+    {
+      "number": 6,
+      "name": null,
+      "par": 4,
+      "handicap": 3,
+      "handicap_women": 17,
+      "yards": {
+        "Tournament": 405,
+        "Blue": 380,
+        "Blue/Gold": 380,
+        "Gold": 368,
+        "Gold/White": 368,
+        "White": 345,
+        "White/Green": 345,
+        "Green": 338,
+        "Black": 256,
+        "PGA Championship 2009": 405,
+        "Ryder Cup 2016": 405,
+        "U.S. Amateur 2024": 406,
+        "KPMG Women's PGA 2026": 380
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "downhill",
+        "description": "The fairway slopes downhill toward the green from about 150 yd out (S6). No figure published.",
+        "source": "S6",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "Pond front and left of the green (S5, S6, S15); Golf Digest lists the 6th as one of three holes whose greens are guarded by ponds (S14).",
+        "source": "S5, S6, S15, S14"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Long, narrow green between bunkers on the right and the pond on the left (S5, S9, S11).",
+        "source": "S5, S9, S11",
+        "confidence": "medium"
+      },
+      "notes": "Narrow fairway lined by trees on both sides (S5). Largely unchanged from the original layout (S5). Potentially drivable from forward tees (S6). Tournament setups: 2009 PGA Championship 405 (S15); 2016 Ryder Cup 405, played as Ryder Cup No. 15 (S12, S6); 2024 U.S. Amateur 406 (S19); 2026 KPMG Women's PGA 380 (S9). Women's handicap 17 (S2)."
+    },
+    {
+      "number": 7,
+      "name": null,
+      "par": 5,
+      "handicap": 13,
+      "handicap_women": 3,
+      "yards": {
+        "Tournament": 572,
+        "Blue": 562,
+        "Blue/Gold": 512,
+        "Gold": 512,
+        "Gold/White": 512,
+        "White": 494,
+        "White/Green": 422,
+        "Green": 422,
+        "Black": 422,
+        "PGA Championship 2009": 572,
+        "Ryder Cup 2016": 572,
+        "U.S. Amateur 2024": 568,
+        "KPMG Women's PGA 2026": 516
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No elevation information published.",
+        "source": null,
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "Large pond left of the green; water starts about 40 yd short and runs along the left to the back of the green (S9, S31, S5).",
+        "source": "S9, S31, S5"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Hard to hold, especially downwind (S5, S9). The back-left corner appears to break uphill (S17).",
+        "source": "S5, S9, S17",
+        "confidence": "medium"
+      },
+      "notes": "Shortest par 5; dogleg right and reachable in two (S6, S31). For 2009 a new tee at a different angle added 27 yd (S16). A new fairway built in 1977 removed a 90-degree dogleg right (S18). Fairway bunkers were added on the left of the landing area (S11). It was the easiest hole at the 2002 and 2009 PGA Championships (S31). Tournament setups: 2009 PGA Championship 572 (S15); 2016 Ryder Cup 572, played as Ryder Cup No. 16 (S12, S6); 2024 U.S. Amateur 568 (S19); 2026 KPMG Women's PGA 516 (S9). Women's handicap 3 (S2)."
+    },
+    {
+      "number": 8,
+      "name": null,
+      "par": 3,
+      "handicap": 17,
+      "handicap_women": 13,
+      "yards": {
+        "Tournament": 176,
+        "Blue": 166,
+        "Blue/Gold": 166,
+        "Gold": 144,
+        "Gold/White": 144,
+        "White": 124,
+        "White/Green": 124,
+        "Green": 116,
+        "Black": 116,
+        "PGA Championship 2009": 176,
+        "Ryder Cup 2016": 176,
+        "U.S. Amateur 2024": 173,
+        "KPMG Women's PGA 2026": 152
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No elevation information published.",
+        "source": null,
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "Pond in front of and right of the green; the club says the small green is encircled by water and sand (S5, S9, S11, S6). For championships the lateral relief option is removed, so a ball short in the water means dropping behind it and playing a third from about 100 yd (S7).",
+        "source": "S5, S9, S11, S6, S7"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Long, small green with sand left (S9) and bunkers behind (S11); the narrow front section makes front hole locations dangerous (S11, S15).",
+        "source": "S9, S11, S15",
+        "confidence": "medium"
+      },
+      "notes": "Justin Leonard (2002) and Padraig Harrington (2009) both lost a share of the PGA lead here (S7). Tournament setups: 2009 PGA Championship 176 (S15); 2016 Ryder Cup 176, played as Ryder Cup No. 17 (S12, S6); 2024 U.S. Amateur 173 (S19); 2026 KPMG Women's PGA 152 (S9). Women's handicap 13 (S2)."
+    },
+    {
+      "number": 9,
+      "name": null,
+      "par": 4,
+      "handicap": 7,
+      "handicap_women": 5,
+      "yards": {
+        "Tournament": 432,
+        "Blue": 425,
+        "Blue/Gold": 389,
+        "Gold": 389,
+        "Gold/White": 376,
+        "White": 376,
+        "White/Green": 320,
+        "Green": 320,
+        "Black": 320,
+        "PGA Championship 2009": 432,
+        "Ryder Cup 2016": 432,
+        "U.S. Amateur 2024": 432,
+        "KPMG Women's PGA 2026": 394
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Uphill approach to a partly hidden, elevated green (S5, S9, S6, S11). No figure published.",
+        "source": "S5, S9, S6, S11",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water or other penalty area is described on this hole by the club or the 2026 KPMG guide.",
+        "source": "S5, S9"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Partly hidden from the fairway; sand short-left and along the right (S9); bunkers on both sides (S6); a depression on the right side (S13).",
+        "source": "S9, S6, S13",
+        "confidence": "medium"
+      },
+      "notes": "Three bunkers on each side of the fairway (S9). In the 1970s it was rebuilt as an uphill, straight hole in place of a sharp dogleg left (S18). Northwest winds make it play hard (S6). Tournament setups: 2009 PGA Championship 432 (S15); 2016 Ryder Cup 432, played as Ryder Cup No. 18 (S12, S6); 2024 U.S. Amateur 432 (S19); 2026 KPMG Women's PGA 394 (S9). Women's handicap 5 (S2)."
+    },
+    {
+      "number": 10,
+      "name": null,
+      "par": 4,
+      "handicap": 8,
+      "handicap_women": 8,
+      "yards": {
+        "Tournament": 452,
+        "Blue": 424,
+        "Blue/Gold": 424,
+        "Gold": 404,
+        "Gold/White": 378,
+        "White": 378,
+        "White/Green": 318,
+        "Green": 318,
+        "Black": 318,
+        "PGA Championship 2009": 452,
+        "Ryder Cup 2016": 452,
+        "U.S. Amateur 2024": 450,
+        "KPMG Women's PGA 2026": 412
+      },
+      "elevation": {
+        "change_ft": -40,
+        "direction": "downhill",
+        "description": "The club says the fairway drops more than 40 ft from its centre to the green, toward Hazeltine Lake (S6, S5). The figure is a lower bound measured from mid-fairway, not from the tee; no tee-to-green figure is published.",
+        "source": "S6, S5",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "Hazeltine Lake left of and behind the green; back-left hole locations bring it into play, and an approach without spin can roll through into it (S5, S6, S32, S9).",
+        "source": "S5, S6, S32, S9"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "Front-right to back-left, falling sharply toward the lake (S6, S27).",
+        "features": "A ridge divides the green, so two-putts from the wrong side are hard (S5, S9, S11). Bunkers short and right (S32).",
+        "source": "S6, S27, S5, S9, S11, S32",
+        "confidence": "medium"
+      },
+      "notes": "Dogleg left with three bunkers down the left (S32) and bunkers on both sides (S9); they were moved closer to the fairway for 2009 (S16). Tournament setups: 2009 PGA Championship 452 (S15); 2016 Ryder Cup 452, played as Ryder Cup No. 10 (S12, S6); 2024 U.S. Amateur 450 (S19); 2026 KPMG Women's PGA 412 (S9). Women's handicap 8 (S2)."
+    },
+    {
+      "number": 11,
+      "name": null,
+      "par": 5,
+      "handicap": 12,
+      "handicap_women": 14,
+      "yards": {
+        "Tournament": 606,
+        "Blue": 570,
+        "Blue/Gold": 570,
+        "Gold": 550,
+        "Gold/White": 550,
+        "White": 515,
+        "White/Green": 464,
+        "Green": 464,
+        "Black": 406,
+        "PGA Championship 2009": 606,
+        "Ryder Cup 2016": 606,
+        "U.S. Amateur 2024": 606,
+        "KPMG Women's PGA 2026": 555
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "The tee shot plays uphill (S6); no tee-to-green figure.",
+        "source": "S6",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water is described on this hole by the club or the 2026 KPMG guide. Hazeltine Lake is in play on 10 and 16, not 11; no source puts it on this hole.",
+        "source": "S5, S9"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Large, strongly sloped green (S6); sand on the right of the approach (S9); a bunker about 30 yd short of the green was added for 2009 (S15).",
+        "source": "S6, S9, S15",
+        "confidence": "medium"
+      },
+      "notes": "Double dogleg right with an hourglass fairway and 14 bunkers, tied for the most on the course (S6). A cluster of bunkers sits at the corner, and a big drive lets players go for the green in two (S11). Tournament setups: 2009 PGA Championship 606 (S15); 2016 Ryder Cup 606, played as Ryder Cup No. 11 (S12, S6); 2024 U.S. Amateur 606 (S19); 2026 KPMG Women's PGA 555 (S9). Women's handicap 14 (S2)."
+    },
+    {
+      "number": 12,
+      "name": null,
+      "par": 4,
+      "handicap": 2,
+      "handicap_women": 2,
+      "yards": {
+        "Tournament": 518,
+        "Blue": 445,
+        "Blue/Gold": 420,
+        "Gold": 420,
+        "Gold/White": 374,
+        "White": 374,
+        "White/Green": 313,
+        "Green": 313,
+        "Black": 313,
+        "PGA Championship 2009": 518,
+        "Ryder Cup 2016": 518,
+        "U.S. Amateur 2024": 518,
+        "KPMG Women's PGA 2026": 429
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Uphill approach of about 200 yd to an elevated green (S6, S9, S15). No figure published.",
+        "source": "S6, S9, S15",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water or other penalty area is described on this hole by the club or the 2026 KPMG guide.",
+        "source": "S5, S9"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": "A slick slope at the front, with subtle breaks (S11, S9).",
+        "features": "Elevated, shallow, firm green that is hard to hold (S9, S5); bunkers front left and front right (S6).",
+        "source": "S9, S5, S11, S6",
+        "confidence": "medium"
+      },
+      "notes": "The longest par 4 on the course, dogleg right, with three fairway bunkers on the right (S6, S9). It plays into the prevailing wind (S5). At 2009 it was the longest par 4 in major championship history (S16). Tournament setups: 2009 PGA Championship 518 (S15); 2016 Ryder Cup 518, played as Ryder Cup No. 12 (S12, S6); 2024 U.S. Amateur 518 (S19); 2026 KPMG Women's PGA 429 (S9). Women's handicap 2 (S2)."
+    },
+    {
+      "number": 13,
+      "name": null,
+      "par": 3,
+      "handicap": 16,
+      "handicap_women": 12,
+      "yards": {
+        "Tournament": 248,
+        "Blue": 198,
+        "Blue/Gold": 198,
+        "Gold": 174,
+        "Gold/White": 166,
+        "White": 166,
+        "White/Green": 166,
+        "Green": 144,
+        "Black": 144,
+        "PGA Championship 2009": 248,
+        "Ryder Cup 2016": 248,
+        "U.S. Amateur 2024": 198,
+        "KPMG Women's PGA 2026": 178
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No elevation information published.",
+        "source": null,
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "Pond left of the green (S5, S9, S11).",
+        "source": "S5, S9, S11"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Bunkers front/short-left and short-right (S5, S9); a bunker about 6 ft deep sits front-left between the green and the water (S6). The back-left hole location is the hardest (S6).",
+        "source": "S5, S9, S6",
+        "confidence": "medium"
+      },
+      "notes": "Trees right (S9). The longest par 3 (248 from the Tournament tee), the longest in major championship history in 2009 (S6, S16). Tournament setups: 2009 PGA Championship 248 (S15); 2016 Ryder Cup 248, played as Ryder Cup No. 13 (S12, S6); 2024 U.S. Amateur 198 (S19); 2026 KPMG Women's PGA 178 (S9). Women's handicap 12 (S2)."
+    },
+    {
+      "number": 14,
+      "name": null,
+      "par": 4,
+      "handicap": 18,
+      "handicap_women": 6,
+      "yards": {
+        "Tournament": 352,
+        "Blue": 352,
+        "Blue/Gold": 352,
+        "Gold": 328,
+        "Gold/White": 328,
+        "White": 310,
+        "White/Green": 310,
+        "Green": 303,
+        "Black": 303,
+        "PGA Championship 2009": 352,
+        "Ryder Cup 2016": 352,
+        "U.S. Amateur 2024": 352,
+        "KPMG Women's PGA 2026": 337
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No elevation information published.",
+        "source": null,
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": true,
+        "sides": [
+          "right"
+        ],
+        "description": "Out of bounds lines the right side of the hole (S5) and lies to the right of the green (S18).",
+        "source": "S5, S18",
+        "confidence": "high"
+      },
+      "penalty_areas": {
+        "description": "No water or other penalty area is described on this hole by the club or the 2026 KPMG guide.",
+        "source": "S5, S9"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Small green with subtle contours (S5, S9). An angled cross-bunker about 50 yd short and left of the green was added for 2009 (S9, S18, S16).",
+        "source": "S5, S9, S18, S16",
+        "confidence": "medium"
+      },
+      "notes": "Shortest par 4, reachable with driver or 3-wood (S6); championship committees move the tee up to tempt players (S16). Trees and bunkers on both sides (S9). Tournament setups: 2009 PGA Championship 352 (S15); 2016 Ryder Cup 352, played as Ryder Cup No. 5 (S12, S6); 2024 U.S. Amateur 352 (S19); 2026 KPMG Women's PGA 337 (S9). Women's handicap 6 (S2)."
+    },
+    {
+      "number": 15,
+      "name": null,
+      "par": 5,
+      "handicap": 6,
+      "handicap_women": 10,
+      "yards": {
+        "Tournament": 642,
+        "Blue": 642,
+        "Blue/Gold": 538,
+        "Gold": 538,
+        "Gold/White": 525,
+        "White": 525,
+        "White/Green": 468,
+        "Green": 468,
+        "Black": 426,
+        "PGA Championship 2009": 642,
+        "Ryder Cup 2016": 642,
+        "U.S. Amateur 2024": 642,
+        "KPMG Women's PGA 2026": 530
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No elevation information published.",
+        "source": null,
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water or other penalty area is described on this hole by the club or the 2026 KPMG guide.",
+        "source": "S5, S9"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Squarish green with bunkers on all four sides; more than six bunkers in the last ~100 yd (S9, S10).",
+        "source": "S9, S10",
+        "confidence": "medium"
+      },
+      "notes": "Longest hole on the course, with 14 bunkers, tied for the most (S6). Fairway bunkers on the left come into play on both the drive and the second shot (S9, S5). A new tee for 2009 stretched it to 642 and brought those bunkers back into play (S16). The original tee was a 100-yd 'runway' (S24). Tournament setups: 2009 PGA Championship 642 (S15); 2016 Ryder Cup 642, played as Ryder Cup No. 6 (S12, S6); 2024 U.S. Amateur 642 (S19); 2026 KPMG Women's PGA 530 (S9). Women's handicap 10 (S2)."
+    },
+    {
+      "number": 16,
+      "name": null,
+      "par": 4,
+      "handicap": 10,
+      "handicap_women": 16,
+      "yards": {
+        "Tournament": 402,
+        "Blue": 380,
+        "Blue/Gold": 352,
+        "Gold": 352,
+        "Gold/White": 352,
+        "White": 312,
+        "White/Green": 240,
+        "Green": 240,
+        "Black": 240,
+        "PGA Championship 2009": 402,
+        "Ryder Cup 2016": 402,
+        "U.S. Amateur 2024": 400,
+        "KPMG Women's PGA 2026": 370
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "Elevated peninsula green (S5, S6); the tees were moved back and up the hillside above the lake (S8). No figure published.",
+        "source": "S5, S6, S8",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "Hazeltine Lake runs down the right, and the tee shot must carry it: 200+ yd from the championship tee (S6), about 220 yd (S15), and 150-200 yd from the members' back tees after the tee rebuild (S8). A creek runs down the left of the fairway (S5, S9). The peninsula green is surrounded by the lake, and hole locations on the right bring it into play (S9, S5).",
+        "source": "S5, S6, S8, S9, S15"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Narrow, elevated peninsula green that angles away and is hard to hold (S5, S9, S11). It is the only hole on the course without a bunker (S24, S17).",
+        "source": "S5, S9, S11, S24, S17",
+        "confidence": "medium"
+      },
+      "notes": "Signature hole; carts are not allowed on its fairway (S35). It was a 214-220 yd par 3 until it was converted to a par 4 after the 1970 U.S. Open; the old green was bulldozed into the lake to form the peninsula, and the new hole was first played publicly at the 1983 U.S. Senior Open (S8, S18, S19). It was lengthened 18 yd after 1991 (S8). Rees Jones later moved the tees back and up (S8: page dated 2025, section headed '2021 Changes'; S22 lists 2021 course updates). It played 396 yd at the 1991 U.S. Open (S7) and was the hardest hole at the 2002 PGA (S7). Wind off the lake is a major factor (S6, S27). Tournament setups: 2009 PGA Championship 402 (S15); 2016 Ryder Cup 402, played as Ryder Cup No. 7 (S12, S6); 2024 U.S. Amateur 400 (S19); 2026 KPMG Women's PGA 370 (S9). Women's handicap 16 (S2)."
+    },
+    {
+      "number": 17,
+      "name": null,
+      "par": 3,
+      "handicap": 14,
+      "handicap_women": 18,
+      "yards": {
+        "Tournament": 182,
+        "Blue": 182,
+        "Blue/Gold": 156,
+        "Gold": 156,
+        "Gold/White": 156,
+        "White": 135,
+        "White/Green": 135,
+        "Green": 108,
+        "Black": 108,
+        "PGA Championship 2009": 182,
+        "Ryder Cup 2016": 186,
+        "U.S. Amateur 2024": 184,
+        "KPMG Women's PGA 2026": 159
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": null,
+        "description": "No elevation information published.",
+        "source": null,
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "Water left of the green, described as a lateral hazard (S7); the club's guide says two water hazards are in play (S6). The green is surrounded by bunkers and water (S5, S11).",
+        "source": "S7, S6, S5, S11"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Large, deep green with a pronounced bowl front-left and narrow shelves on the right and at the back (S5, S9, S11). Also described as two-tiered, with deep rough and bunkers long (S7); one of the most undulating greens on the course (S27).",
+        "source": "S5, S9, S11, S7, S27",
+        "confidence": "medium"
+      },
+      "notes": "Converted from a par 4 with a humpbacked fairway into a par 3 in the 1970s, with tees built where the fairway had been (Golf Digest dates it to 1979; S17, S23). Scott Simpson found the water in the 1991 U.S. Open playoff (S7). Fifth-hardest hole at the 2009 PGA (S7). Tournament setups: 2009 PGA Championship 182 (S15); 2016 Ryder Cup 186, played as Ryder Cup No. 8 (S12, S6); 2024 U.S. Amateur 184 (S19); 2026 KPMG Women's PGA 159 (S9). Women's handicap 18 (S2)."
+    },
+    {
+      "number": 18,
+      "name": null,
+      "par": 4,
+      "handicap": 4,
+      "handicap_women": 4,
+      "yards": {
+        "Tournament": 475,
+        "Blue": 438,
+        "Blue/Gold": 406,
+        "Gold": 406,
+        "Gold/White": 362,
+        "White": 362,
+        "White/Green": 362,
+        "Green": 346,
+        "Black": 306,
+        "PGA Championship 2009": 475,
+        "Ryder Cup 2016": 475,
+        "U.S. Amateur 2024": 472,
+        "KPMG Women's PGA 2026": 412
+      },
+      "elevation": {
+        "change_ft": null,
+        "direction": "uphill",
+        "description": "Long, uphill finishing hole (S7, S17, S14). No figure published.",
+        "source": "S7, S17, S14",
+        "confidence": "low"
+      },
+      "out_of_bounds": {
+        "present": null,
+        "sides": [],
+        "description": null,
+        "source": null,
+        "confidence": null
+      },
+      "penalty_areas": {
+        "description": "No water or other penalty area is described on this hole by the club or the 2026 KPMG guide.",
+        "source": "S5, S9"
+      },
+      "green": {
+        "size_sqft": null,
+        "depth_yards": null,
+        "width_yards": null,
+        "slope": null,
+        "features": "Three tiers, front to back (S5, S9, S15); a narrow front section (S13); a left bunker cuts into the green, with trees to the left (S9).",
+        "source": "S5, S9, S15, S13",
+        "confidence": "medium"
+      },
+      "notes": "Bunkers on both sides of the fairway (S9, S11). A crest in the landing area hides a sideslope that kicks drives into the right rough (S17). A fairway bunker was removed for 2009; the left bunker from which Tiger Woods hit his 3-iron in 2002 was kept (S17). Fourth-hardest hole at both the 2002 and 2009 PGAs (S7). Tournament setups: 2009 PGA Championship 475 (S15); 2016 Ryder Cup 475, played as Ryder Cup No. 9 (S12, S6); 2024 U.S. Amateur 472 (S19); 2026 KPMG Women's PGA 412 (S9). Women's handicap 4 (S2)."
+    }
+  ],
+  "gaps": [
+    "Scorecard: Hazeltine publishes no scorecard online. Per-hole yardages come from Stymie (S1) and GolfPass (S2), which agree on every hole for the Tournament, Blue, Gold, White, Green and Black tees. They differ on Gold/White: S1 has 6,412 and S2 has 6,385 (Nos. 9 and 16). Neither page is dated. Blue/Gold (6,924) and White/Green (5,570) are listed only by S2, with no rating.",
+    "Older editions conflict: GolfLink (S3), 18Birdies (S4) and GolfPass's own tee table (S2) list Blue at 7,137, Gold at 6,665 and a 5,701 Red/Green tee, with different ratings. Stymie's set was used because its Tournament rating (77.8/148) matches the 2024 U.S. Amateur fact sheet (S19). The USGA NCRDB could not be queried (its search is a scripted form), so no tee rating is confirmed from the USGA directly.",
+    "Handicaps: men's indexes from S1 and S2 agree, and the club confirms No. 12 as the No. 2 handicap (S6). Women's indexes come from S2 only. 18Birdies (S4) lists a different, apparently older set, with No. 3 as the No. 1 handicap.",
+    "16th tee project: the club says the members' back tees on 16 were moved back and up (S8), but the page is dated 2025 under a '2021 Changes' heading, and it is unclear whether the card's 16th yardages (380 Blue, 352 Gold) reflect the change.",
+    "Elevation: the only number is for No. 10, a drop of more than 40 ft from mid-fairway to the green (S6), which is a lower bound and not tee-to-green. Nos. 1, 2, 3, 6, 9, 12 and 18 have direction only. Nos. 4, 5, 7, 8, 11, 13, 14, 15, 16 and 17 have no tee-to-green direction. Site elevation is about 961 ft (USGS GNIS via S30).",
+    "Out of bounds: no local-rules sheet found. Only Nos. 5 (left) and 14 (right) have OB documented; all other holes are present = null.",
+    "Penalty areas: water locations are well documented, but red/yellow colour for daily play is not published; the only colour clues are from championship notes (S7). The brief's mention of Hazeltine Lake on No. 11 is not supported by any source.",
+    "Green size, depth and width: no per-hole or average figures found. The only measurement is No. 4's back shelf, about 10 yd deep (S9).",
+    "Green speed: no daily member Stimpmeter figure; only the 2024 U.S. Amateur expectation of 12.5-13.5 (S20). The current bentgrass variety is not named.",
+    "Hole names: none found; Hazeltine does not appear to name its holes.",
+    "Tournament data: the 2026 KPMG news article (S10) lists No. 6 at 402, which makes its total 6,782 instead of its stated 6,760; the KPMG course page (S9) has No. 6 at 380, summing to 6,760 (also on ESPN, S33), so S9 was used. The club's toughest-holes page (S7) captions No. 16 as a 572-yd par 5 for 2016, but that is Ryder Cup No. 16 (member No. 7). The 2016 Ryder Cup played member No. 17 at 186 against 182 on the card. Golf Channel (S16) gives the 2009 length as 7,685 in its text and 7,672 in a table; the per-hole card sums to 7,674. No per-hole yardages were found for the 2019 KPMG (listed at 6,807; S28) or the 1970 and 1991 U.S. Opens.",
+    "Location: OpenGolfAPI (S34) gives 44.736, -93.796, about 20 km south-west of the club. The USGS GNIS point (44.8278, -93.5828, S30) was used.",
+    "Blocked pages: en.wikipedia.org/wiki/Hazeltine_National_Golf_Club, the LPGA article on 2026 course preparation, and Golf Monthly's hole-11 guides could not be fetched (permission timeouts).",
+    "Women's par is not listed separately; par 72 is used for all tees."
+  ]
+}

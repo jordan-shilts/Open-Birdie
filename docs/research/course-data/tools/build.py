@@ -7,7 +7,7 @@ import json
 import os
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ORDER = ["chambers-bay", "st-andrews-old", "pebble-beach", "bandon-dunes", "tpc-sawgrass", "whistling-straits"]
+ORDER = ["chambers-bay", "st-andrews-old", "pebble-beach", "bandon-dunes", "tpc-sawgrass", "whistling-straits", "hazeltine-national"]
 
 data = [json.load(open(os.path.join(BASE, "courses", f"{s}.json"))) for s in ORDER]
 blob = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")

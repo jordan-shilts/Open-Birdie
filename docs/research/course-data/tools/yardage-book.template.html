@@ -126,7 +126,7 @@
   <header>
     <div class="eyebrow">Open-Birdie · course research · November 2026</div>
     <h1>Yardage Book</h1>
-    <p class="lede">Hole-by-hole yardages, elevation, out of bounds, penalty areas and green data for the six courses the sim features. Every figure links to where it came from. A dash means no published figure was found; nothing here is estimated.</p>
+    <p class="lede">Hole-by-hole yardages, elevation, out of bounds, penalty areas and green data for the courses the sim features. Every figure links to where it came from. A dash means no published figure was found; nothing here is estimated.</p>
   </header>
   <nav class="tabs" role="tablist" id="tabs" aria-label="Courses"></nav>
   <main id="course" class="course"></main>
@@ -137,8 +137,8 @@
 
 <script>
 const DATA = /*__DATA__*/;
-const ORDER = ["chambers-bay", "st-andrews-old", "pebble-beach", "bandon-dunes", "tpc-sawgrass"];
-const SHORT = { "chambers-bay": "Chambers Bay", "st-andrews-old": "Old Course", "pebble-beach": "Pebble Beach", "bandon-dunes": "Bandon Dunes", "tpc-sawgrass": "TPC Sawgrass" };
+const ORDER = DATA.map(c => c.slug); // tabs follow the order build.py writes
+const SHORT = { "chambers-bay": "Chambers Bay", "st-andrews-old": "Old Course", "pebble-beach": "Pebble Beach", "bandon-dunes": "Bandon Dunes", "tpc-sawgrass": "TPC Sawgrass", "whistling-straits": "Whistling Straits", "hazeltine-national": "Hazeltine" };
 const TEE_COLORS = { black: "#1b1b1b", blue: "#2a5db0", "royal blue": "#2340b5", sand: "#cdb98e", white: "#f7f7f5", teal: "#2a9d8f", gold: "#d4a52a", green: "#2e7d32", red: "#c0392b", orange: "#e67e22", tournament: "#4a4a4a", "the players": "#1b1b1b" };
 const LETTER = { b: "blue", w: "white", g: "green" };
 
@@ -350,7 +350,7 @@ function drawHoles(c, tee) {
 }
 
 const tabs = document.getElementById("tabs");
-tabs.innerHTML = ORDER.filter(s => courses[s]).map(s => `<button class="tab" role="tab" type="button" data-slug="${s}">${SHORT[s]}</button>`).join("");
+tabs.innerHTML = ORDER.filter(s => courses[s]).map(s => `<button class="tab" role="tab" type="button" data-slug="${s}">${esc(SHORT[s] || courses[s].course)}</button>`).join("");
 tabs.addEventListener("click", e => {
   const b = e.target.closest(".tab");
   if (!b) return;
