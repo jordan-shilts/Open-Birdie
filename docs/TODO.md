@@ -1,5 +1,34 @@
 # Open-Birdie — TODO
 
+## Photo-match gaps (2026-11-10)
+
+From the first same-spot comparison of the sim against the located course photos
+(`docs/research/course-photos/`, 36 positions on the seven featured courses, courses downloaded
+fresh without HD holes, software renderer). Fixed in that pass: turf mirroring a low sun, links
+drawn as parkland from the picker's names, no overcast or fog, no dormant fescue. Still open,
+biggest first per course:
+
+- **Old Course, St Andrews** — flat: no lidar outside the US, so no humps, no pit to Hell Bunker
+  or the Road Hole bunker, no revetted faces. No aerial photo either (NAIP is US only), so no
+  ground tint. The town and the R&A clubhouse are plain boxes. No gorse.
+- **Bandon Dunes** — bunkers are flat sand with no revetted (stacked-sod) faces; the gorse and
+  sand ridges beside 16 and 17 are bare slopes; fairways are still a little greener than the
+  winter photos.
+- **Pebble Beach** — no Monterey cypress (the pine model is tall and bare); the rocks and white
+  water below the 7th and 18th are thin; the sea mirrors the clouds in long streaks; the stored
+  camera for the three photos "from The Lodge" stands inside the building.
+- **Chambers Bay** — fescue stands as a dense straw wall where the photos show thin wisps over
+  tan turf; mow stripes read bold from above on fescue fairways; the far field is a tan land
+  ring where Puget Sound and its haze should be.
+- **TPC Sawgrass** — no timber bulkhead round the 17th green or along the water; the Morning sky
+  is a deep midday blue where the dawn photo is pale, so the water is navy.
+- **Hazeltine National** — the species are right now but the two big oaks at 17 and the trees at
+  10 are not where the photos have them; no reeds or native grass round the ponds.
+- **Whistling Straits** — closest of the seven; the sand and fescue beside the 11th are thinner
+  than the photo.
+- **Every course** — the baseline capture suite names legacy cache files
+  (`chambers-bay.json`, ...) that only the dev Mac has; it could not be run from a fresh download.
+
 ## ACTIVE ROADMAP: Pro Visuals Program (2026-07-23)
 
 ### SP-02a CoursePresentation contract — DONE (2026-07-28)
