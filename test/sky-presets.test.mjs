@@ -19,7 +19,7 @@ test('every preset carries a full, plausible light rig', () => {
     }
     assert.ok(p.exposure > 0.4 && p.exposure < 1.5);
     assert.ok(p.fogDensity > 0 && p.fogDensity < (k === 'fog' ? 0.01 : 0.002));
-    if (p.hdri) assert.match(p.hdri, /^https:\/\/dl\.polyhaven\.org\/.+_4k\.hdr$/);
+    if (p.hdri) assert.match(p.hdri, /^\/sky\/[a-z0-9_]+_4k\.hdr$/, 'served (and kept) by the game server');
   }
 });
 

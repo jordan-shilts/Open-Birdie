@@ -39,6 +39,7 @@ const { PredictError, predictCarries, predictShot } = require('./lib/predict');
 const { serveHdAsset, publicHdMetadata, pickDescriptor } = require('./lib/hd-http');
 const { makeNonce, verifyReadinessAck } = require('./lib/hd-readiness');
 const { googleTilesConfig } = require('./lib/google-tiles-config');
+const { createSkyCache } = require('./lib/sky-cache');
 
 const HTTP_PORT = +(process.env.BIRDIE_PORT || 8222);
 const OC_PORT = +(process.env.BIRDIE_OC_PORT || 921);
@@ -59,6 +60,7 @@ const SCENERY_ENABLED = process.env.BIRDIE_ENRICH !== '0';
 // Bounded local course cache (BIRDIE_CACHE_MAX_MB, default 1024): least recently
 // played courses are deleted past the cap, never the active one.
 const courseCache = createCourseCache({ dataDir: DATA_DIR });
+const skyCache = createSkyCache({ dataDir: DATA_DIR });
 // the course picker's list: every downloaded course and the featured ones (lib/course-library.js)
 const courseLibrary = createCourseLibrary();
 // Cloud course service (BIRDIE_CLOUD_URL): courses and their scenery are downloaded
@@ -135,6 +137,7 @@ oc.on('disconnected', () => {
   broadcast('lm', lmStatus);
 });
 oc.on('status', (s) => { lmStatus.ready = s.ready; broadcast('lm', lmStatus); });
+oc.on('duplicate', (d) => console.log(`[OC] shot #${d.shotNumber} sent again after a dropped link; already played`));
 oc.on('shot', (shot) => {
   if (SPEED_SCALE !== 1 && typeof shot.ball.Speed === 'number') shot.ball.Speed *= SPEED_SCALE;
   console.log(`[OC] shot: ${shot.ball.Speed} mph, VLA ${shot.ball.VLA}, HLA ${shot.ball.HLA}, spin ${shot.ball.TotalSpin}${shot.clubName ? ' (' + shot.clubName + ')' : ''}`);
@@ -426,6 +429,8 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (p === '/api/state') return json(res, game.state());
+    // Web skies, fetched once and then served from disk (lib/sky-cache.js).
+    if (p.startsWith('/sky/')) return await skyCache.serve(req, res, p.slice('/sky/'.length));
     if (p === '/api/clubs') return json(res, CLUB_FULL);
     // Shot lineup: conditions, predictions, the player's bag (lib/conditions.js,
     // lib/predict.js, lib/bag.js).

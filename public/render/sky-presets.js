@@ -6,9 +6,10 @@
 // hdri-analyze.js), so shadows fall away from the bright part of the sky. Midday
 // keeps a lowered sun (24 deg since the 2026-11 visual pass: at 36 the light came in
 // flat and the 1 m lidar relief, bunker faces and green slopes all but vanished) and
-// ships with the app; morning and golden hour are CC0 Poly Haven skies fetched
-// when first picked, so the install stays small, with midday as the fallback when
-// one can't be fetched.
+// ships with the app; the others are CC0 Poly Haven skies the game server fetches
+// the first time they're picked and keeps (lib/sky-cache.js), so the install stays
+// small and a sky picked once works offline. Midday is the fallback when one can't
+// be fetched.
 //
 // Weather is a sky too. Under cloud or in fog the sky itself is the light (`overcast`):
 // the sun is a faint hint of direction with barely a shadow, the fill carries the scene
@@ -18,7 +19,9 @@
 // sky photos' own radiance (a level, fully diffuse surface under each sky) so a grey day
 // is a little dimmer than a sunny one, not a different exposure.
 
-const POLY_HAVEN_4K = (id) => `https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/${id}_4k.hdr`;
+// Served by the game server, which fetches each Poly Haven sky once and keeps it
+// (lib/sky-cache.js), so a sky picked once also works without the internet.
+const POLY_HAVEN_4K = (id) => `/sky/${id}_4k.hdr`;
 
 export const SKY_PRESETS = Object.freeze({
   morning: Object.freeze({
