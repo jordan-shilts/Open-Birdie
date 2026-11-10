@@ -64,6 +64,8 @@ EA's list: [Golf Monthly](https://golfmonthly.com/news/which-golf-courses-are-in
 - [Golf.com aerial tour](https://golf.com/travel/a-birds-eye-view-of-hazeltine-national-golf-club/)
 - [Hazeltine's own course page](https://www.hazeltinenational.com/the-course)
 
+**Located photos.** `docs/research/course-photos/photos.json` (in the repo) has 47 freely licensed Commons photos of these courses, 36 of them with the photographer's position and heading, and `tools/visual-capture/photo-suite.mjs` turns them into capture poses from the same spots. Its README says how each position was found and how far off it may be.
+
 ## 4. Product galleries
 
 What each product is the reference for:
