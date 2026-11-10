@@ -1,0 +1,573 @@
+{
+  "schemaVersion": 1,
+  "about": "Freely licensed photos of the featured courses on Wikimedia Commons, with where each was taken. Links only: the images stay on Commons. See README.md for how locations were found and how accurate they are.",
+  "gathered": "2026-11-10",
+  "courses": [
+    {
+      "slug": "chambers-bay",
+      "osm": "way/26787026",
+      "name": "Chambers Bay",
+      "photos": [
+        {
+          "id": "cb-us-open-panorama",
+          "file": "Chambers Bay during the US Open -Panorama- (18876202030).jpg",
+          "author": "Atomic Taco", "license": "CC BY-SA 2.0", "date": "2015-06-20",
+          "hole": null,
+          "subject": "Panorama over the course during the 2015 U.S. Open, from the slope above holes 13 and 14",
+          "camera": { "lat": 47.21098, "lon": -122.56919, "source": "photographer", "accuracyM": 30 },
+          "heading": { "deg": 240, "source": "estimated" },
+          "role": "high-overview", "band": "overview",
+          "light": "summer daylight"
+        },
+        {
+          "id": "cb-trail-west",
+          "file": "Chambers Bay during the US Open (19067123301).jpg",
+          "author": "Atomic Taco", "license": "CC BY-SA 2.0", "date": "2015-06-20",
+          "hole": null,
+          "subject": "From the public trail above the course, west across the links to Puget Sound and the islands",
+          "camera": { "lat": 47.20943, "lon": -122.56895, "source": "photographer", "accuracyM": 30 },
+          "heading": { "deg": 240, "source": "estimated" },
+          "role": "horizon", "band": "horizon",
+          "light": "clear, high sun, light haze over the water"
+        },
+        {
+          "id": "cb-south-end-north",
+          "file": "Chambers Bay Golf Course (17998597488).jpg",
+          "author": "Atomic Taco", "license": "CC BY-SA 2.0", "date": "2015-05-26",
+          "hole": 9,
+          "subject": "From the southern end near the 9th tee, north over the course as the U.S. Open grandstands went up",
+          "camera": { "lat": 47.20081, "lon": -122.57046, "source": "photographer", "accuracyM": 30 },
+          "heading": { "deg": 0, "source": "description" },
+          "role": "high-overview", "band": "overview",
+          "light": "broken cloud"
+        },
+        {
+          "id": "cb-elevated-sound",
+          "file": "Chambers Bay Golf Course (17998751820).jpg",
+          "author": "Atomic Taco", "license": "CC BY-SA 2.0", "date": "2015-05-26",
+          "hole": 8,
+          "subject": "Elevated view beside the 8th, over the dunes and fescue to the Sound",
+          "camera": { "lat": 47.2038, "lon": -122.5694, "source": "photographer", "accuracyM": 30 },
+          "heading": { "deg": 270, "source": "estimated" },
+          "role": "high-overview", "band": "overview",
+          "light": "broken cloud"
+        }
+      ]
+    },
+    {
+      "slug": "st-andrews-old",
+      "osm": "way/1019045811",
+      "name": "Old Course, St Andrews",
+      "photos": [
+        {
+          "id": "sa-18-tee-golden",
+          "file": "Old 18th tee lr.jpg",
+          "author": "Standrewslinks", "license": "CC BY-SA 4.0", "date": "2016-06-28",
+          "hole": 18,
+          "subject": "From the 18th tee toward the town, low sun behind the buildings",
+          "camera": { "lat": 56.34337, "lon": -2.80848, "source": "derived", "accuracyM": 20 },
+          "heading": { "deg": 95, "source": "derived" },
+          "role": "hole-overview", "band": "hole",
+          "light": "low golden sun, backlit, dramatic cloud"
+        },
+        {
+          "id": "sa-18-fairway-town",
+          "file": "Old Course St Andrews The 18th Fairway - geograph.org.uk - 361966.jpg",
+          "author": "John McMillan", "license": "CC BY-SA 2.0", "date": "2006-06-15",
+          "hole": 18,
+          "subject": "Down the 18th fairway, east to the town and the red Hamilton Grand",
+          "camera": { "lat": 56.34374, "lon": -2.8099, "source": "geograph", "accuracyM": 100 },
+          "heading": { "deg": 90, "source": "geograph" },
+          "role": "hole-overview", "band": "hole",
+          "light": "clear, midday"
+        },
+        {
+          "id": "sa-18-fairway-clubhouse",
+          "file": "18th Fairway - geograph.org.uk - 976709.jpg",
+          "author": "Dannie Calder", "license": "CC BY-SA 2.0", "date": "2007-07-15",
+          "hole": 18,
+          "subject": "The 18th fairway toward the clubhouse and town",
+          "camera": { "lat": 56.34402, "lon": -2.808, "source": "geograph", "accuracyM": 100 },
+          "heading": { "deg": 112, "source": "geograph" },
+          "role": "landing", "band": "hole",
+          "light": "bright, thin cloud"
+        },
+        {
+          "id": "sa-18-from-west",
+          "file": "Old course St Andrews - geograph.org.uk - 135907.jpg",
+          "author": "rob bishop", "license": "CC BY-SA 2.0", "date": "2006-02-07",
+          "hole": 18,
+          "subject": "Across the 18th toward the R&A clubhouse and Hamilton Grand, winter turf",
+          "camera": { "lat": 56.34338, "lon": -2.8101, "source": "geograph", "accuracyM": 100 },
+          "heading": { "deg": 90, "source": "geograph" },
+          "role": "hole-overview", "band": "hole",
+          "light": "flat overcast, winter"
+        },
+        {
+          "id": "sa-granny-clarks-wynd",
+          "file": "Granny Clark's Wynd on the 18th hole on the Old Course @ St Andrews-geograph-5515245-by-Scott-Cormie.jpg",
+          "author": "Scott Cormie", "license": "CC BY-SA 2.0", "date": "2017-08-27",
+          "hole": 18,
+          "subject": "Granny Clark's Wynd crossing the 18th, the town and clubhouse ahead",
+          "camera": { "lat": 56.34318, "lon": -2.80545, "source": "geograph", "accuracyM": 50 },
+          "heading": { "deg": 90, "source": "geograph" },
+          "role": "landing", "band": "hole",
+          "light": "overcast"
+        },
+        {
+          "id": "sa-18-green-clubhouse",
+          "file": "18th Green and Clubhouse.jpg",
+          "author": "paul birrell", "license": "CC BY-SA 2.0", "date": "2004-08-14",
+          "hole": 18,
+          "subject": "The 18th green with the R&A clubhouse behind",
+          "camera": { "lat": 56.34315, "lon": -2.8036, "source": "derived", "accuracyM": 30 },
+          "heading": { "deg": 59, "source": "derived" },
+          "role": "close-green", "band": "feature",
+          "light": "sunny, blue sky"
+        },
+        {
+          "id": "sa-1-tee-starter",
+          "file": "Old Course, St Andrews, 2006 (03).jpg",
+          "author": "Bahnfrend", "license": "CC BY-SA 4.0", "date": "2006-08-07",
+          "hole": 1,
+          "subject": "The starter's hut by the 1st tee and the R&A clubhouse, West Sands beyond",
+          "camera": { "lat": 56.34294, "lon": -2.80219, "source": "photographer", "accuracyM": 50 },
+          "heading": { "deg": 338, "source": "photographer" },
+          "role": "horizon", "band": "horizon",
+          "light": "sunny with cumulus"
+        },
+        {
+          "id": "sa-swilken-east",
+          "file": "Swilken Bridge, Old Course geograph-6310525-by-Gordon-Hatton.jpg",
+          "author": "Gordon Hatton", "license": "CC BY-SA 2.0", "date": "2019-10-17",
+          "hole": 18,
+          "subject": "Swilken Bridge, east to the R&A clubhouse and Hamilton Grand",
+          "camera": { "lat": 56.34317, "lon": -2.80755, "source": "geograph", "accuracyM": 50 },
+          "heading": { "deg": 90, "source": "geograph" },
+          "role": "landing", "band": "feature",
+          "light": "soft overcast"
+        },
+        {
+          "id": "sa-swilken-burn",
+          "file": "Swilken Burn and Bridge - geograph.org.uk - 519820.jpg",
+          "author": "Jim Bain", "license": "CC BY-SA 2.0", "date": "2007-08-07",
+          "hole": 18,
+          "subject": "Swilken Burn's stone walls and the bridge, low and close",
+          "camera": { "lat": 56.34331, "lon": -2.807, "source": "geograph", "accuracyM": 50 },
+          "heading": { "deg": 337, "source": "geograph" },
+          "role": "landing", "band": "feature",
+          "light": "warm, low sun"
+        },
+        {
+          "id": "sa-swilken-snow",
+          "file": "Swilken Bridge - geograph.org.uk - 1058517.jpg",
+          "author": "Jim Bain", "license": "CC BY-SA 2.0", "date": "2008-11-23",
+          "hole": 18,
+          "subject": "Swilken Bridge in snow, the Old Course Hotel behind",
+          "camera": { "lat": 56.34286, "lon": -2.806, "source": "geograph", "accuracyM": 50 },
+          "heading": { "deg": 292, "source": "geograph" },
+          "role": "landing", "band": "feature",
+          "light": "snow cover, winter: geometry only, not turf colour"
+        },
+        {
+          "id": "sa-road-hole-green",
+          "file": "The Road Hole green - geograph.org.uk - 606881.jpg",
+          "author": "Sandy Gemmill", "license": "CC BY-SA 2.0", "date": "2007-10-18",
+          "hole": 17,
+          "subject": "The Road Hole (17th) green with the road, path and town behind",
+          "camera": { "lat": 56.3432, "lon": -2.81, "source": "geograph", "accuracyM": 100 },
+          "heading": { "deg": 90, "source": "geograph" },
+          "role": "close-green", "band": "feature",
+          "light": "bright overcast, autumn"
+        },
+        {
+          "id": "sa-road-hole-bunker",
+          "file": "The Road Hole Bunker @ St Andrewsgeograph-5515234-by-Scott-Cormie.jpg",
+          "author": "Scott Cormie", "license": "CC BY-SA 2.0", "date": "2017-08-27",
+          "hole": 17,
+          "subject": "The Road Hole bunker cut into the front of the 17th green",
+          "camera": { "lat": 56.34334, "lon": -2.80917, "source": "geograph", "accuracyM": 50 },
+          "heading": { "deg": 112, "source": "geograph" },
+          "role": "close-bunker", "band": "feature",
+          "light": "overcast"
+        },
+        {
+          "id": "sa-hell-bunker",
+          "file": "Hell Bunker, 14th hole, Old Course, St.Andrews-geograph-5178864-by-Scott-Cormie.jpg",
+          "author": "Scott Cormie", "license": "CC BY-SA 2.0", "date": "2016-08-21",
+          "hole": 14,
+          "subject": "Hell Bunker on the 14th, looking down the hole toward the green",
+          "camera": { "lat": 56.35296, "lon": -2.81795, "source": "geograph", "accuracyM": 50 },
+          "heading": { "deg": 135, "source": "geograph" },
+          "role": "close-bunker", "band": "feature",
+          "light": "sunny with cloud"
+        }
+      ]
+    },
+    {
+      "slug": "pebble-beach",
+      "osm": "relation/3741806",
+      "name": "Pebble Beach Golf Links",
+      "photos": [
+        {
+          "id": "pb-7-tee",
+          "file": "Pebble Beach Golf Links, hole 7.jpg",
+          "author": "Metallion", "license": "CC BY-SA 3.0", "date": "2005-06",
+          "hole": 7,
+          "subject": "The 7th green from the elevated tee, Carmel Bay and the rocks behind",
+          "camera": { "lat": 36.56223, "lon": -121.9405, "source": "derived", "accuracyM": 20 },
+          "heading": { "deg": 174, "source": "derived" },
+          "role": "hole-overview", "band": "hole",
+          "light": "clear, sunny"
+        },
+        {
+          "id": "pb-18-lodge-cypress",
+          "file": "18th Hole, pebble beach.jpg",
+          "author": "glwx", "license": "CC BY-SA 3.0", "date": "2014-09-01",
+          "hole": 18,
+          "subject": "The 18th from beside The Lodge: the fairway cypress, the bay on the right",
+          "camera": { "lat": 36.56844, "lon": -121.95033, "source": "photographer", "accuracyM": 30 },
+          "heading": { "deg": 146, "source": "derived" },
+          "role": "hole-overview", "band": "hole",
+          "light": "marine layer, soft"
+        },
+        {
+          "id": "pb-18-back-up",
+          "file": "18th hole at Pebble Beach, Dudesleeper.jpg",
+          "author": "Dudesleeper", "license": "CC BY 2.5", "date": "2004-10-09",
+          "hole": 18,
+          "subject": "Back up the 18th from behind the green, the cypress and the ocean on the right",
+          "camera": { "lat": 36.56758, "lon": -121.94991, "source": "derived", "accuracyM": 40 },
+          "heading": { "deg": 101, "source": "derived" },
+          "role": "hole-overview", "band": "hole",
+          "light": "clear, high sun"
+        },
+        {
+          "id": "pb-18-green-fog",
+          "file": "Pebble Beach Golf Links 02.jpg",
+          "author": "Tewy", "license": "CC BY 2.5", "date": "2006-07-13",
+          "hole": 18,
+          "subject": "The 18th green's bunkers and the bay from The Lodge in sea fog",
+          "camera": { "lat": 36.56844, "lon": -121.95033, "source": "derived", "accuracyM": 50 },
+          "heading": { "deg": 146, "source": "derived" },
+          "role": "close-green", "band": "feature",
+          "light": "thick sea fog: the haze reference"
+        },
+        {
+          "id": "pb-18-fairway-fog",
+          "file": "Pebble Beach Golf Links 01.jpg",
+          "author": "Tewy", "license": "CC BY 2.5", "date": "2006-07-13",
+          "hole": 18,
+          "subject": "Along the 18th from The Lodge in sea fog, cart path and cypress",
+          "camera": { "lat": 36.56844, "lon": -121.95033, "source": "derived", "accuracyM": 50 },
+          "heading": { "deg": 160, "source": "estimated" },
+          "role": "hole-overview", "band": "hole",
+          "light": "thick sea fog"
+        },
+        {
+          "id": "pb-6-cliff",
+          "file": "Pebble Beach 6th hole.jpg",
+          "author": "Bernard Gagnon", "license": "CC BY-SA 3.0", "date": "2008-09-04",
+          "hole": 6,
+          "subject": "The cliff under the 6th fairway seen across Stillwater Cove",
+          "camera": null,
+          "heading": null,
+          "role": "horizon", "band": "horizon",
+          "light": "hazy sun"
+        },
+        {
+          "id": "pb-aerial",
+          "file": "Pebble-Beach-CA.jpg",
+          "author": "Robert Campbell", "license": "CC BY-SA 3.0", "date": null,
+          "hole": null,
+          "subject": "Aerial of the peninsula with the links along Carmel Bay",
+          "camera": null,
+          "heading": null,
+          "role": "high-overview", "band": "overview",
+          "light": "clear"
+        }
+      ]
+    },
+    {
+      "slug": "bandon-dunes",
+      "osm": "way/362513477",
+      "name": "Bandon Dunes Golf Resort",
+      "photos": [
+        {
+          "id": "bd-16-tee",
+          "file": "16th at Bandon from the tee.jpg",
+          "author": "Matthewwlloyd", "license": "CC BY-SA 3.0", "date": "2013-12-20",
+          "hole": 16,
+          "subject": "The 16th from the tee along the bluff, the Pacific on the right",
+          "camera": { "lat": 43.18842, "lon": -124.39967, "source": "derived", "accuracyM": 25 },
+          "heading": { "deg": 175, "source": "derived" },
+          "role": "hole-overview", "band": "hole",
+          "light": "low winter sun, haze over the ocean"
+        },
+        {
+          "id": "bd-16-green",
+          "file": "16th green at Bandon.jpg",
+          "author": "Matthewwlloyd", "license": "CC BY-SA 3.0", "date": "2013-12-20",
+          "hole": 16,
+          "subject": "A deep revetted bunker beside the 16th green",
+          "camera": { "lat": 43.18589, "lon": -124.39999, "source": "derived", "accuracyM": 25 },
+          "heading": { "deg": 225, "source": "derived" },
+          "role": "close-green", "band": "feature",
+          "light": "clear winter sun"
+        },
+        {
+          "id": "bd-16-side",
+          "file": "16th at Bandon from another fairway.jpg",
+          "author": "Matthewwlloyd", "license": "CC BY-SA 3.0", "date": "2013-12-20",
+          "hole": 16,
+          "subject": "The 16th from a neighbouring fairway: gorse, fescue and the ocean",
+          "camera": null,
+          "heading": null,
+          "role": "hole-overview", "band": "hole",
+          "light": "clear winter sun"
+        },
+        {
+          "id": "bd-17-fairway",
+          "file": "17th at Bandon from the fairway.jpg",
+          "author": "Matthewwlloyd", "license": "CC BY-SA 3.0", "date": "2013-12-20",
+          "hole": 17,
+          "subject": "Up the 17th fairway to the green under a gorse and sand ridge",
+          "camera": { "lat": 43.18462, "lon": -124.39779, "source": "derived", "accuracyM": 40 },
+          "heading": { "deg": 106, "source": "derived" },
+          "role": "landing", "band": "hole",
+          "light": "clear winter sun, dormant fescue"
+        },
+        {
+          "id": "bd-4-fairway",
+          "file": "Bandon Dunes - 4th hole.jpg",
+          "author": "mwlloyd1216", "license": "CC BY-SA 4.0", "date": "2013-11-26",
+          "hole": 4,
+          "subject": "Down the 4th fairway toward the ocean",
+          "camera": { "lat": 43.19136, "lon": -124.39704, "source": "derived", "accuracyM": 40 },
+          "heading": { "deg": 228, "source": "derived" },
+          "role": "landing", "band": "hole",
+          "light": "clear, thin cirrus"
+        },
+        {
+          "id": "bd-4-green",
+          "file": "4th green at Bandon.jpg",
+          "author": "Matthewwlloyd", "license": "CC BY-SA 3.0", "date": "2013-12-20",
+          "hole": 4,
+          "subject": "Approaching the 4th green on the bluff, the ocean behind",
+          "camera": { "lat": 43.19041, "lon": -124.39844, "source": "derived", "accuracyM": 40 },
+          "heading": { "deg": 232, "source": "derived" },
+          "role": "close-green", "band": "feature",
+          "light": "clear winter sun"
+        },
+        {
+          "id": "bd-18-lodge",
+          "file": "View of lodge and clubhouse from 18th fairway - Bandon Dunes.jpg",
+          "author": "Mwlloyd1216", "license": "CC BY-SA 4.0", "date": "2013-11-26",
+          "hole": 18,
+          "subject": "The lodge and clubhouse from the 18th fairway",
+          "camera": { "lat": 43.18627, "lon": -124.39297, "source": "derived", "accuracyM": 50 },
+          "heading": { "deg": 59, "source": "derived" },
+          "role": "landing", "band": "hole",
+          "light": "clear, thin cirrus"
+        }
+      ]
+    },
+    {
+      "slug": "tpc-sawgrass",
+      "osm": "relation/1783123",
+      "name": "TPC Sawgrass",
+      "photos": [
+        {
+          "id": "ts-17-tee-dawn",
+          "file": "TPC Sawgrass 17.jpg",
+          "author": "Craig ONeal", "license": "CC BY-SA 2.0", "date": "2008-01-03",
+          "hole": 17,
+          "subject": "The island green from the 17th tee, its bulkhead reflected in still water",
+          "camera": { "lat": 30.19367, "lon": -81.39018, "source": "derived", "accuracyM": 20 },
+          "heading": { "deg": 329, "source": "derived" },
+          "role": "hole-overview", "band": "hole",
+          "light": "early morning, low warm sun, glassy water"
+        },
+        {
+          "id": "ts-17-panorama",
+          "file": "Sawgrassnarrow.jpg",
+          "author": "Craig Oneal", "license": "CC BY-SA 2.0", "date": "2008-01-03",
+          "hole": 17,
+          "subject": "Wide panorama of the 17th island green",
+          "camera": { "lat": 30.19367, "lon": -81.39018, "source": "derived", "accuracyM": 30 },
+          "heading": { "deg": 329, "source": "derived" },
+          "role": "hole-overview", "band": "hole",
+          "light": "early morning"
+        },
+        {
+          "id": "ts-17-aerial",
+          "file": "TournamentPlayersClub Sawgrass17thHole.jpg",
+          "author": null, "license": "Public domain", "date": null,
+          "hole": 17,
+          "subject": "Aerial of the 17th island green and the 16th green beside the lake",
+          "camera": null,
+          "heading": null,
+          "role": "high-overview", "band": "overview",
+          "light": "sunny"
+        },
+        {
+          "id": "ts-18-tee",
+          "file": "TPC at Sawgrass (3423941155).jpg",
+          "author": "Philip Larson", "license": "CC BY-SA 2.0", "date": "2009-04-03",
+          "hole": 18,
+          "subject": "Probably the 18th from the tee: water all down the left, the clubhouse in the distance",
+          "camera": { "lat": 30.19458, "lon": -81.39178, "source": "derived", "accuracyM": 40 },
+          "heading": { "deg": 340, "source": "derived" },
+          "role": "hole-overview", "band": "hole",
+          "light": "clear, spring"
+        },
+        {
+          "id": "ts-bulkhead",
+          "file": "TPC at Sawgrass (3423937629).jpg",
+          "author": "Philip Larson", "license": "CC BY-SA 2.0", "date": "2009-04-03",
+          "hole": null,
+          "subject": "A timber bulkhead along a water hazard (hole not identified)",
+          "camera": null,
+          "heading": null,
+          "role": "landing", "band": "feature",
+          "light": "clear, spring"
+        },
+        {
+          "id": "ts-pine-straw",
+          "file": "TPC at Sawgrass (3423934769).jpg",
+          "author": "Philip Larson", "license": "CC BY-SA 2.0", "date": "2009-04-03",
+          "hole": null,
+          "subject": "A fairway lined with pines over pine straw (hole not identified)",
+          "camera": null,
+          "heading": null,
+          "role": "landing", "band": "hole",
+          "light": "clear, morning shadows"
+        }
+      ]
+    },
+    {
+      "slug": "whistling-straits",
+      "osm": "way/205111637",
+      "name": "Whistling Straits",
+      "photos": [
+        {
+          "id": "ws-11-fairway",
+          "file": "WhistlingStraits11Fairway.JPG",
+          "author": "KevinTR", "license": "Public domain", "date": "2010-08-08",
+          "hole": 11,
+          "subject": "The 11th fairway, waste bunkers and dunes, Lake Michigan beyond",
+          "camera": { "lat": 43.8559, "lon": -87.73282, "source": "derived", "accuracyM": 50 },
+          "heading": { "deg": 0, "source": "derived" },
+          "role": "landing", "band": "hole",
+          "light": "clear, deep blue sky"
+        },
+        {
+          "id": "ws-lake-par-5",
+          "file": "WhistlingStraits-Shoreline-Par5.jpg",
+          "author": "Baybay1901", "license": "CC BY-SA 4.0", "date": "2013-06-20",
+          "hole": null,
+          "subject": "A par 5 from its tee along the bluff, the lake and beach on the left (No. 2 or No. 16, which both run south beside the lake)",
+          "camera": null,
+          "heading": null,
+          "role": "hole-overview", "band": "hole",
+          "light": "clear, hazy horizon"
+        },
+        {
+          "id": "ws-lake-par-3",
+          "file": "Whistling Straits golf course, far shot.jpg",
+          "author": "Specialkboyle", "license": "Public domain", "date": "2008-05-16",
+          "hole": null,
+          "subject": "A par-3 green on the bluff above the lake, sod-faced bunkers in the dunes (hole not identified)",
+          "camera": null,
+          "heading": null,
+          "role": "close-green", "band": "feature",
+          "light": "sunny"
+        },
+        {
+          "id": "ws-aerial",
+          "file": "Whistling Straights golf course, arieal view.jpg",
+          "author": "ZimZalaBim", "license": "Public domain", "date": "2005-06-01",
+          "hole": null,
+          "subject": "Aerial of both courses along the Lake Michigan shore",
+          "camera": null,
+          "heading": null,
+          "role": "high-overview", "band": "overview",
+          "light": "hazy"
+        }
+      ]
+    },
+    {
+      "slug": "hazeltine-national",
+      "osm": "relation/9892305",
+      "name": "Hazeltine National Golf Club",
+      "photos": [
+        {
+          "id": "hz-10-back",
+          "file": "Tenth Hole at Hazeltine National Golf Club.jpg",
+          "author": "Laymans Hall", "license": "CC BY-SA 4.0", "date": "2024-05-22",
+          "hole": 10,
+          "subject": "Back up the 10th from behind the green: native grass, a creek and mature oaks",
+          "camera": { "lat": 44.8354, "lon": -93.586, "source": "derived", "accuracyM": 30 },
+          "heading": { "deg": 242, "source": "derived" },
+          "role": "hole-overview", "band": "hole",
+          "light": "clear, late spring"
+        },
+        {
+          "id": "hz-15-fairway",
+          "file": "15th Hole at Hazeltine National Golf Club.jpg",
+          "author": "Laymans Hall", "license": "CC BY-SA 4.0", "date": "2024-05-22",
+          "hole": 15,
+          "subject": "Up the 15th fairway under cumulus",
+          "camera": { "lat": 44.83247, "lon": -93.58089, "source": "derived", "accuracyM": 50 },
+          "heading": { "deg": 347, "source": "derived" },
+          "role": "landing", "band": "hole",
+          "light": "sun and cumulus"
+        },
+        {
+          "id": "hz-16-bridge",
+          "file": "16th Hole at Hazeltine National Golf Club.jpg",
+          "author": "Laymans Hall", "license": "CC BY-SA 4.0", "date": "2024-05-22",
+          "hole": 16,
+          "subject": "The 16th with the Payne Stewart bridge over the creek",
+          "camera": null,
+          "heading": null,
+          "role": "landing", "band": "feature",
+          "light": "low evening sun"
+        },
+        {
+          "id": "hz-17-tee",
+          "file": "17th Hole at Hazeltine National Golf Club.jpg",
+          "author": "Laymans Hall", "license": "CC BY-SA 4.0", "date": "2024-05-22",
+          "hole": 17,
+          "subject": "The par-3 17th from the tee: green, bunkers and two big oaks",
+          "camera": { "lat": 44.83395, "lon": -93.58512, "source": "derived", "accuracyM": 25 },
+          "heading": { "deg": 199, "source": "derived" },
+          "role": "hole-overview", "band": "hole",
+          "light": "late afternoon, long shadows"
+        },
+        {
+          "id": "hz-17-behind-green",
+          "file": "17th at Hazeltine National Golf Club.jpg",
+          "author": "Laymans Hall", "license": "CC BY-SA 4.0", "date": "2024-05-22",
+          "hole": 17,
+          "subject": "From behind the 17th green back toward the tee, the pond in between",
+          "camera": { "lat": 44.83237, "lon": -93.58587, "source": "derived", "accuracyM": 25 },
+          "heading": { "deg": 19, "source": "derived" },
+          "role": "close-green", "band": "feature",
+          "light": "late afternoon, long shadows"
+        },
+        {
+          "id": "hz-lake-ryder-cup",
+          "file": "Hazeltine National Golf Club 2016 Ryder Cup.jpg",
+          "author": "Darb02", "license": "CC BY-SA 4.0", "date": "2016-10-02",
+          "hole": null,
+          "subject": "Hazeltine Lake with the Ryder Cup grandstands mirrored in still water",
+          "camera": null,
+          "heading": null,
+          "role": "horizon", "band": "horizon",
+          "light": "clear autumn, glassy water"
+        }
+      ]
+    }
+  ]
+}

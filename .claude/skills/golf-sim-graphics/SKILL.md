@@ -18,6 +18,7 @@ One skill for making a golf sim look as real as the games and simulators golfers
 | Tone mapping, grade, AO, bloom, anti-aliasing, overlays | Section 6, then `references/threejs-postprocessing.md` |
 | Frame rate, draw calls, instancing, GPU memory | Section 7, then `references/threejs-performance.md` |
 | Real footage and benchmark frames for each featured course | Section 9, then `references/visual-references.md` |
+| Located real photos of the featured courses, and a capture from the same spot | Section 9, then `docs/research/course-photos/` |
 | A photo-like target image of your own frame (paintover), with free tools only | Section 12 |
 
 Each reference ends with a Common Mistakes list of outdated three.js patterns; check it before writing code.
@@ -238,6 +239,8 @@ composer.addPass(new OutputPass()); // tone mapping and exposure from the active
 ## 9. Reference photo kit
 
 Collect a small, labelled set per course before tuning, and keep it beside the renders. `references/visual-references.md` links free real footage and benchmark-game galleries for every course in `courses/featured.json`, says which games carry each course, and explains how to get frames in front of the agent.
+
+`docs/research/course-photos/photos.json` lists freely licensed photos of each featured course with where the photographer stood and which way they faced. `node tools/visual-capture/photo-suite.mjs --data-dir data --out /tmp/photo-match.json` turns them into a capture suite with the free camera at the same spots, so a sim frame and the real photo can be compared side by side.
 
 - **Per viewing band:** address view down the fairway, a mid-iron approach to the green, a low view across the green surface, a bunker from the lip, a tree line at 100 to 300 m, and an elevated or drone view of the hole.
 - **Per condition:** morning, midday and golden hour, plus overcast if you ship it. Match the course's season and grass type (links fescue, bentgrass, bermuda).
