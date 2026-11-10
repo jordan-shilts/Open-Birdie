@@ -14,6 +14,11 @@ const loader = new THREE.TextureLoader();
 // green patches), so the stripes on a fairway always run down the hole.
 export const turfMowDir = { value: new THREE.Vector2(-0.57, 0.82) };
 
+// How much more of a low sun turf catches than the level sheet the lighting model takes
+// it for (sky-presets.js lowSunLift), set by scene._applySky with each sky. One uniform
+// shared by every turf material.
+export const turfSunLift = { value: 0 };
+
 // Value-noise lattice for the turf shader (2026-11 perf pass): the shader evaluates
 // ~65 noise samples a pixel (grain, patches, rolls, rough clumps, meso relief), and
 // each procedural one cost four sin() hashes — the turf was ~10 ms of a 23 ms frame.
@@ -171,11 +176,14 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
     shader.uniforms.uExt = { value: new THREE.Vector2(extX, extY) };
     shader.uniforms.uStripeM = { value: RENDER_CONFIG.mowStripeM ?? 7.0 }; // mow-band width (m)
     shader.uniforms.uMowDir = turfMowDir;
+    shader.uniforms.uSunLift = turfSunLift;
     shader.uniforms.uCourseDry = { value: courseDry }; // P1b: 0 lush parkland .. 1 dry links
     // Clean manicured turf (2026-11): how far parkland turf drops the stacked noise,
     // straw patches, near photo tint and desaturation. Scaled by (1 - courseDry), so
     // links keep their tuned tan character. 0 = the previous look.
     shader.uniforms.uTurfClean = { value: (RENDER_CONFIG.turfClean ?? 1) * (1 - courseDry) };
+    // How much of the sun's mirror-like reflection turf keeps (config.js turfSpecular).
+    shader.uniforms.uTurfSpec = { value: new THREE.Vector2(RENDER_CONFIG.turfSpecular ?? 1, RENDER_CONFIG.greenSpecular ?? 1) };
     // P2a: crisp-edge inputs — the RAW mask + per-surface palette (linear). The shader
     // composites the surface BASE COLOUR per-fragment gated by a fwidth mask so the
     // green/tan boundary is a crisp ~1px mow line, not the soft splat/tint/collar sum.
@@ -312,6 +320,8 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
         uniform sampler2D uMask; uniform sampler2D uBunker; uniform sampler2D uSand;
         uniform sampler2D uMaskRaw; uniform vec3 uPalGreenA; uniform vec3 uSunDir3;
         uniform vec2 uExt; uniform vec2 uMowDir; uniform float uStripeM; uniform float uCourseDry; uniform float uTurfClean;
+        uniform vec2 uTurfSpec; uniform float uSunLift;
+        float gTurfGreen = 0.0;   // this pixel's share of putting green, kept from the mask read below for the sheen
         // Procedural turf grain — evaluated from world XZ so it stays crisp at ANY
         // zoom. A tiled grass photo mip-blurs to a flat average from the elevated
         // orbit camera (the "Minecraft" smoothness); world-space value noise doesn't.
@@ -389,6 +399,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           vec4 mk = texture2D(uMask, vMapUv);
           float m = mk.r;                 // mown gate — semantics unchanged
           float g = mk.g;                 // green gate — packed channel (.g = greens only)
+          gTurfGreen = g;
           // P2a: a GREEN-VICINITY membership (soft ~4 m dilation of the crisp green) used
           // ONLY to suppress the low-freq aerial tint near greens. uMacroLow is blurred
           // ~5 m, so the green oval smears a soft GREEN halo just OUTSIDE the crisp mow
@@ -720,6 +731,18 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
         #ifdef USE_MAP
         roughnessFactor = mix(roughnessFactor, 0.84, texture2D(uMask, vMapUv).g);
         #endif`)
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+        // GRASS IS NOT A POLISHED FLOOR. The lighting model treats the ground as one smooth
+        // sheet, and a sheet seen at a grazing angle with the sun in front of the camera
+        // mirrors it: looking toward a low sun the white reflection came to about three
+        // times the grass's own colour, so every sunward fairway and hillside washed out to
+        // pale cream (a real one stays green: the blades shade each other and scatter the
+        // light, they do not mirror it). Keep a fraction of it as sheen, more on a green's
+        // tight, flat cut.
+        // (no texture read here: the green's share was kept from the mask read above)
+        reflectedLight.directSpecular *= mix(uTurfSpec.x, uTurfSpec.y, gTurfGreen);
+        // ... and the blades stand up: a low sun lights their sides (sky-presets.js lowSunLift)
+        reflectedLight.directDiffuse *= 1.0 + uSunLift;`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         // Specular sheen: tilt the shading normal by a low-frequency undulation field so
         // the sun glint + sky reflection ROLL across the turf as the camera moves (the
@@ -751,7 +774,7 @@ export function makeTurfMaterial({ baseMap, mownMask, bunkerMask, bounds, anisot
           }
         }`);
   };
-  mat.customProgramCacheKey = () => `turf-grain-v44${macro ? '-macro' : ''}${hq ? '' : '-lq'}${shore ? '-shore' : ''}`; // v44: clean fairways/greens, stripes down the hole (v43: Low's lighter grain; v42: divots, crisp tee box, rough sheen; v41: distance/surface-gated taps; v40: texture value noise)
+  mat.customProgramCacheKey = () => `turf-grain-v46${macro ? '-macro' : ''}${hq ? '' : '-lq'}${shore ? '-shore' : ''}`; // v46: a low sun lights the blades' sides; v45: the sun's mirror reflection off turf cut to a sheen; v44: clean fairways/greens, stripes down the hole (v43: Low's lighter grain; v42: divots, crisp tee box, rough sheen; v41: distance/surface-gated taps; v40: texture value noise)
   // textures injected via onBeforeCompile (+ the canvas masks) aren't reachable from
   // the standard material slots, so register them for disposal on course reload.
   mat.userData.disposeTextures = [detail, sand, maskTex, bunkerMaskTex, ...(surfaceMaskRaw ? [maskRawTex] : []), ...(shore ? [shore.tex] : [])];

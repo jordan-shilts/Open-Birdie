@@ -429,6 +429,8 @@ export function buildWater(ponds, sunDir, depth, sea = null, seaCenter = null) {
     },
     waterUpdate: (t) => { shared.uTime.value = t; },
     setSun: (dir) => shared.uSunDir.value.copy(dir).normalize(),
+    // the sun's glitter on the water, as bright as the sun is: none to speak of under cloud
+    setSunGlint: (k) => shared.uSunColor.value.setRGB(1.0, 0.95, 0.84).multiplyScalar(Math.max(0, k)),
     setSky: (tex) => { shared.uSky.value = tex; },
     updateMirrors,
     setFoamDepth,

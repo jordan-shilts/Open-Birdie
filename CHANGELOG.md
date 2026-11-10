@@ -5,6 +5,16 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Overcast and sea fog** — two more skies in Menu → View → Time of day, beside Morning, Midday and Golden
+  (`render/sky-presets.js`). Both are CC0 Poly Haven sky photos fetched the first time they are picked, like
+  Morning and Golden, with Midday as the fallback when one can't be fetched. Under either the sky is the light:
+  the sun drops to a hint of direction with the softest of shadows, the fill is raised to carry the scene, and
+  the sun's glitter leaves the water (`water.js` `setSunGlint`). **Overcast** keeps the air clear with a far
+  tree line that greys out. **Sea fog** closes it in: about a tenth of a surface's colour is gone at 50 m, a
+  quarter at 100 m and nearly all of it by 300 m, so the ball and the next bunker are clear and the green fades
+  into white (Pebble Beach's marine layer, the haar at St Andrews). The light levels come from the sky photos'
+  own radiance, so a grey day is a little dimmer than a sunny one, not a different exposure. No new shader work
+  and no frame cost: they are numbers on the existing sky, sun and fog.
 - **The ball throws something up where it lands** — a splash and spreading rings on water, a burst of sand from a
   bunker, a few bits of turf and a breath of dust off a fairway or the rough, leaves from a tree crown; nothing on
   a green (a ball leaves a pitch mark there, not debris) and nothing for a putt (`render/impact-fx.js`). Each is
@@ -139,6 +149,34 @@ All notable changes to Open-Birdie are documented here.
   the map is as it was.
 
 ### Changed
+- **Turf no longer mirrors a low sun** — the lighting model treats the ground as one smooth sheet, and a sheet
+  seen at a grazing angle with the sun in front of the camera mirrors it. Looking toward midday's 24 degree sun
+  the white reflection came to about three times the grass's own colour, so every sunward fairway and hillside
+  washed out to pale cream (Hazeltine's 10th from behind the green; half of all views, since half face the sun).
+  Real turf stays green there: blades shade each other and scatter light, they do not mirror it. The ground now
+  keeps 18% of that reflection as sheen and greens 40% (`turf.js`, `config.js` `turfSpecular` /
+  `greenSpecular`); the sun's diffuse light and the sky's fill are untouched, so views away from the sun are
+  unchanged. With the mirror gone a low sun needed its real effect back: it barely grazes a level sheet (a
+  sixth of its light at 10 degrees), and a golden-hour fairway drew near black, where a real one glows because
+  the sun lights the sides of the standing blades. Half the turf is now lit as level ground and half as upright
+  blades (`sky-presets.js` `lowSunLift`): about 2.3x the sun's diffuse light at 10 degrees, fading to nothing by
+  midday's 24, so Midday is as it was tuned. Two multiplies in the turf shader and no texture read: no
+  measurable cost on any GPU.
+- **A course is itself whatever it was asked for by** — a course's turf and trees were keyed by its name, and
+  the picker's names ("Old Course at St Andrews", "Bandon Dunes") are not the names the table was written with
+  ("St Andrews Old Course", "Bandon Dunes Golf Resort"), so the two links picked from the featured list drew as
+  lush, striped parkland. Character is now looked up by the course's OpenStreetMap id first, then by name and
+  its other spellings (`course-character.js` `COURSE_IDS` / `COURSE_ALIASES`, mirrored for the ball's trees in
+  `lib/tree-obstacles.js`); a test holds every featured course to the same answer by id and by picker name.
+- **Dormant fescue, and less of it at St Andrews** — a links's mown ground can be set toward straw
+  (`COURSE_DORMANT`: Bandon Dunes 0.8 after its winter reference photos, the Old Course 0.3 for its pale
+  yellow-green; Chambers Bay keeps the olive measured from its own photos), and how much tall fescue a course's
+  open ground grows can be set apart from its dryness (`COURSE_FESCUE`): the Old Course is dry but mown short
+  almost everywhere between its gorse, and at the dryness rule's figure the 1st and 18th stood in a field of
+  straw. Greens are never touched.
+- **Hazeltine's oaks, Pebble Beach's pines** — both get their own tree mix (`COURSE_FLORA`): Hazeltine is oak
+  and maple with few conifers (the default Upper-Midwest mix stood birch and spruce on it), Pebble Beach
+  Monterey pine with coast live oak. The ball's tree obstacles follow, as tested.
 - **Bunkers are bowls** — a bunker's sand was a mesh hung from its outline: it touched the ground only along its
   edge and spanned straight across inside, so the real hollow the lidar holds was lidded over (bunkers drew flat,
   and the shader faked the dish with shading), and any rise inside the outline poked through the sand as a patch

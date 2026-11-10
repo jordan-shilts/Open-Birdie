@@ -17,11 +17,11 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GrassField } from './grass-field.js';
 import { buildWater } from './water.js';
 import { buildBuildings } from './buildings.js';
-import { SKY_PRESETS, parseSkySetting } from './sky-presets.js';
+import { SKY_PRESETS, parseSkySetting, lowSunLift } from './sky-presets.js';
 import { coursePonds, carveBeds } from './water-shore.js';
 import { findSea, carveSea, seaAt, playPoints, shoreGround, penaltyArea } from './sea.js';
 import { makeWaterDepth } from './water-depth.js';
-import { makeTurfMaterial, makeSandMaterial, turfMowDir } from './turf.js';
+import { makeTurfMaterial, makeSandMaterial, turfMowDir, turfSunLift } from './turf.js';
 import { srgbToLinear, averageLinearColor } from './macro-tint.js';
 import { densifyRing, drapeRing, conformTriangles, groundNormal } from './drape.js';
 import { buildHdTerrainLod, buildCoarseTerrainLod, updateTerrainLod } from './hd-terrain.js';
@@ -38,7 +38,7 @@ import { flightMarkers, smoothPointAt } from './flight-profile.js';
 import { ballTurn, makeBallTexture } from './ball.js';
 import { flightCameraPlan, flightCameraAt } from './flight-camera.js';
 import { resolveQuality, autoDownshiftVerdict, renderPixelRatio, DYNAMIC_RES, dynamicResolutionStep } from './quality.js';
-import { COLORS, DRY_PALETTE, courseDryFor, blendPalette, floraFor } from './course-character.js';
+import { COLORS, DRY_PALETTE, courseDryFor, blendPalette, floraFor, dormantFor, blendDormant, fescueFor } from './course-character.js';
 import { fillShapesBlurred, paintSurfaceMask, RAW_SURFACE_COLORS } from './surface-mask.js';
 import { smoothClassmapTexture } from './classmap-smoothing.js';
 import { installLoadingTracker } from './capture-readiness.js';
@@ -401,6 +401,8 @@ export class GolfScene {
       if (oldEnv && oldEnv !== envTexture) oldEnv.dispose();
       if (oldSky && oldSky !== equirect) oldSky.dispose();
       this.sunDir.copy(sunDir);
+      // a low sun lights the standing blades, not a level sheet; under cloud there is no sun to speak of
+      turfSunLift.value = preset.overcast ? 0 : lowSunLift(sunDir.y);
       this.sun.color.set(preset.sunColor);
       this.sun.intensity = preset.sunIntensity;
       this.renderer.toneMappingExposure = preset.exposure;
@@ -420,6 +422,9 @@ export class GolfScene {
       }
       this._waterSetSun?.(this.sunDir);
       this._waterSetSky?.(equirect);
+      // glitter needs a sun: full in clear weather (at any hour), a ghost of it under cloud
+      this._sunGlint = preset.overcast ? preset.sunIntensity / SKY_PRESETS.midday.sunIntensity : 1;
+      this._waterSetSunGlint?.(this._sunGlint);
       if (this.bounds) this._placeSkybox();                     // course already loaded
       if (this._activeHole) this._fitShadows(this._activeHole); // re-aim shadows to HDRI sun
       this.environmentStatus = { state: 'ready', sky: name };
@@ -539,8 +544,9 @@ export class GolfScene {
     // Course character (P1b): one manual dryness scalar (0 lush parkland .. 1 dry
     // links) picks the actual turf palette + drives the turf shader (uCourseDry).
     // Chambers -> tan links; Sawgrass -> unchanged lush green.
-    this._courseDry = courseDryFor(geo.name);
-    this._pal = blendPalette(COLORS, DRY_PALETTE, this._courseDry);
+    this._courseDry = courseDryFor(geo.name, geo.courseId);
+    this._pal = blendDormant(blendPalette(COLORS, DRY_PALETTE, this._courseDry), dormantFor(geo.name, geo.courseId));
+    this._fescue = fescueFor(geo.name, geo.courseId);   // how much tall fescue its open ground grows
     // HD bundle: a high-res terrain patch + aerial macro within its rect. Sets up the
     // unified sampler (placement) + macro (turf shader) consumed below.
     this._hdAssets = hdList;
@@ -1171,7 +1177,7 @@ export class GolfScene {
         ? { depthTexture: this.waterDepth.depthTexture, resolution: this.waterDepth.resolution, near: this.camera.near, far: this.camera.far }
         : null;
       const b = this.bounds;
-      const { meshes, waterMeshes, sea, waterUpdate, setSun, setSky, updateMirrors, setMirrorSkip, setWind } = buildWater(
+      const { meshes, waterMeshes, sea, waterUpdate, setSun, setSky, setSunGlint, updateMirrors, setMirrorSkip, setWind } = buildWater(
         this._ponds || [], this.sunDir, depth, this._sea, b ? { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 } : null);
       this._waterSetMirrorSkip = setMirrorSkip;
       setSky(this._equirect || null);
@@ -1181,6 +1187,8 @@ export class GolfScene {
       meshes.forEach((m) => group.add(m));
       if (sea) group.add(sea);
       this._waterSetWind = setWind;
+      this._waterSetSunGlint = setSunGlint;
+      setSunGlint?.(this._sunGlint ?? 1);
       if (this._wind) setWind(this._wind);
       this._waterUpdate = waterUpdate;
       this._waterSetSun = setSun;
@@ -1235,7 +1243,7 @@ export class GolfScene {
       holeLines: (geo.holes || []).map((h) => h.line).filter(Boolean),
       cap: RENDER_CONFIG.treeCap, density: RENDER_CONFIG.treeDensity ?? 1,
       courseDry: this._courseDry || 0, blocked,
-      canopy: geo.canopy || null, flora: floraFor(geo.name),
+      canopy: geo.canopy || null, flora: floraFor(geo.name, geo.courseId),
     });
     return this._placedTrees;
   }
@@ -1274,7 +1282,7 @@ export class GolfScene {
     // the invented horizon band only stands in for real surroundings; canopy data
     // already places the real trees around the course
     if (RENDER_CONFIG.horizonTrees && !(geo.canopy && geo.canopy.length)) {
-      for (const h of this._horizonSpots(geo, this.bounds)) spots.push({ ...h, species: speciesAt(h.x, h.y, this._courseDry || 0, 7, floraFor(geo.name)) });
+      for (const h of this._horizonSpots(geo, this.bounds)) spots.push({ ...h, species: speciesAt(h.x, h.y, this._courseDry || 0, 7, floraFor(geo.name, geo.courseId)) });
     }
     if (!spots.length) return;
     this._allTreeSpots = spots;   // every drawn tree (incl. the horizon band) — camera avoidance
@@ -1409,7 +1417,7 @@ export class GolfScene {
   // camera, where the static tufts are too thin to cover it. High graphics only: Low is
   // the weak-GPU setting (Auto drops a laptop GPU like the sim PC's UHD 630 to it).
   _addGrassField(group) {
-    const fescue = Math.min(1, Math.max(0, ((this._courseDry || 0) - 0.4) / 0.4));
+    const fescue = this._fescue || 0;
     const fescueOnly = !RENDER_CONFIG.grassField;
     const linksFescue = RENDER_CONFIG.linksFescue && fescue > 0 && this.quality?.level !== 'low';
     if ((fescueOnly && !linksFescue) || !this.elev || !this._turfInputs) return;
@@ -1433,7 +1441,11 @@ export class GolfScene {
     // golden-tipped fescue belongs on links; watered parkland rough is mown, so its tall
     // tufts stood alone in the rough as stray wisps (and cost ~0.1-0.6 ms): none there
     if ((this._courseDry || 0) < 0.5) return;
-    const spots = this._grassSpots(geo);
+    let spots = this._grassSpots(geo);
+    // a links that keeps its open ground short (course-character.js COURSE_FESCUE) grows
+    // only that share of the tufts: whole clumps, as they were laid down
+    const share = Math.min(1, (this._fescue || 0) / Math.max(1e-6, Math.min(1, Math.max(0, ((this._courseDry || 0) - 0.4) / 0.4))));
+    if (share < 1) spots = spots.slice(0, Math.round(spots.length * share));
     if (!spots.length) return;
     const { mesh, windUpdate, cull } = buildGrass(spots, (x, y) => this.hAt(x, y), V, { cellM: 120 });
     if (mesh) { group.add(mesh); this._grassWind = windUpdate; this._grassCull = cull; }

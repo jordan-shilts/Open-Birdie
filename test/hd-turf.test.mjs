@@ -11,7 +11,7 @@ const bounds = { minX: 0, minY: 0, maxX: 100, maxY: 100 };
 const tex = () => new THREE.Texture();
 const fakeShader = () => ({
   uniforms: {},
-  fragmentShader: '#include <common>\n#include <map_fragment>\n#include <roughnessmap_fragment>\n#include <normal_fragment_maps>',
+  fragmentShader: '#include <common>\n#include <map_fragment>\n#include <roughnessmap_fragment>\n#include <normal_fragment_maps>\n#include <lights_fragment_end>',
 });
 
 test('legacy turf material (options object): same uniforms, no macro', () => {
@@ -21,7 +21,7 @@ test('legacy turf material (options object): same uniforms, no macro', () => {
   for (const u of ['uDetail', 'uMask', 'uBunker', 'uSand', 'uExt', 'uStripeM', 'uCourseDry', 'uMaskRaw', 'uPalGreenA']) assert.ok(s.uniforms[u], `missing ${u}`);
   assert.equal(s.uniforms.uCourseDry.value, 0, 'courseDry defaults to 0 (lush)');
   assert.ok(!s.uniforms.uMacro, 'no macro uniform without macro');
-  assert.equal(mat.customProgramCacheKey(), 'turf-grain-v44');
+  assert.equal(mat.customProgramCacheKey(), 'turf-grain-v46');
   // P2a-T3: an OSM-vicinity signal (dilated raw mask) is computed for classmap reconciliation.
   assert.match(s.fragmentShader, /float osmNear = max\(/);
   // P2a: crisp edges composited from the RAW mask via fwidth AA. Green (.g) gets a full
@@ -65,7 +65,7 @@ test('macro turf material: adds aerial tint uniforms + a distinct program', () =
   assert.equal(s.uniforms.uMacroLow.value, macro.low);
   assert.equal(s.uniforms.uMacroAvg.value, macro.avg);
   assert.equal(s.uniforms.uMacroPhotoFar.value, 0.65);
-  assert.equal(mat.customProgramCacheKey(), 'turf-grain-v44-macro');
+  assert.equal(mat.customProgramCacheKey(), 'turf-grain-v46-macro');
   // P2a-T4: the classmap is thresholded (after a load-time blur) so only confident coverage
   // survives — kills the per-pixel dot-screen stipple.
   assert.match(s.fragmentShader, /cls\.r = smoothstep\(0\.45, 0\.75, cls\.r\)/);
@@ -140,7 +140,7 @@ test('raw RGB surface mask is wired in production and disposed exactly once', ()
 test('Low turf: fewer noise octaves behind TURF_HQ, its own program, and the greens-only roll skipped elsewhere', () => {
   const hi = makeTurfMaterial({ baseMap: tex(), mownMask: tex(), bunkerMask: tex(), bounds, anisotropy: 4 });
   const lo = makeTurfMaterial({ baseMap: tex(), mownMask: tex(), bunkerMask: tex(), bounds, anisotropy: 4, hq: false });
-  assert.equal(lo.customProgramCacheKey(), 'turf-grain-v44-lq');
+  assert.equal(lo.customProgramCacheKey(), 'turf-grain-v46-lq');
   const sh = fakeShader(), sl = fakeShader();
   hi.onBeforeCompile(sh); lo.onBeforeCompile(sl);
   assert.match(sh.fragmentShader, /#define TURF_HQ/);
@@ -150,4 +150,28 @@ test('Low turf: fewer noise octaves behind TURF_HQ, its own program, and the gre
   assert.match(sl.fragmentShader, /#else[\s\S]{0,260}float fine {2}= tFbm2\(/);
   // the green's roll only where there is green, at both levels
   for (const f of [sh.fragmentShader, sl.fragmentShader]) assert.match(f, /if \(gEdge > 0\.0\) \{[^}]*gRoll = tFbm/);
+});
+
+test('turf keeps only a sheen of the sun\'s mirror reflection, a little more on greens', async () => {
+  const { RENDER_CONFIG } = await import('../public/render/config.js');
+  assert.ok(RENDER_CONFIG.turfSpecular > 0 && RENDER_CONFIG.turfSpecular <= 0.3, 'turf is not a polished floor');
+  assert.ok(RENDER_CONFIG.greenSpecular > RENDER_CONFIG.turfSpecular && RENDER_CONFIG.greenSpecular < 1, 'a green\'s tight cut shines more');
+  const mat = makeTurfMaterial({ baseMap: tex(), mownMask: tex(), bunkerMask: tex(), bounds, anisotropy: 4 });
+  const s = fakeShader();
+  mat.onBeforeCompile(s);
+  assert.deepEqual(s.uniforms.uTurfSpec.value.toArray(), [RENDER_CONFIG.turfSpecular, RENDER_CONFIG.greenSpecular]);
+  // applied after every light has been summed, by the green mask where there is one
+  const at = s.fragmentShader.indexOf('#include <lights_fragment_end>');
+  const cut = s.fragmentShader.indexOf('reflectedLight.directSpecular *= mix(uTurfSpec.x, uTurfSpec.y, gTurfGreen);');
+  assert.ok(at >= 0 && cut > at, 'the cut follows the light sum');
+  // the green's share comes from the mask read the shader already makes: no extra texture tap
+  assert.match(s.fragmentShader, /float gTurfGreen = 0\.0;/);
+  assert.match(s.fragmentShader, /gTurfGreen = g;/);
+  assert.equal(s.fragmentShader.slice(at).includes('texture2D'), false, 'nothing is sampled after the light sum');
+  // the sky's fill is untouched; the sun's diffuse light only by the low-sun lift, 0 at midday
+  assert.doesNotMatch(s.fragmentShader, /indirectSpecular \*=|indirectDiffuse \*=/);
+  assert.match(s.fragmentShader, /reflectedLight\.directDiffuse \*= 1\.0 \+ uSunLift;/);
+  const { turfSunLift } = await import('../public/render/turf.js');
+  assert.equal(s.uniforms.uSunLift, turfSunLift, 'one shared uniform, set with the sky');
+  assert.equal(turfSunLift.value, 0, 'no lift until a sky says so');
 });
