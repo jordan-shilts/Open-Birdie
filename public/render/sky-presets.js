@@ -9,6 +9,14 @@
 // ships with the app; morning and golden hour are CC0 Poly Haven skies fetched
 // when first picked, so the install stays small, with midday as the fallback when
 // one can't be fetched.
+//
+// Weather is a sky too. Under cloud or in fog the sky itself is the light (`overcast`):
+// the sun is a faint hint of direction with barely a shadow, the fill carries the scene
+// and colours sit flat and even, the way a links looks on a grey day. Sea fog is the
+// same light with the air closed in: a few hundred metres of ground, then nothing
+// (Pebble Beach's marine layer, the haar at St Andrews). Light levels were set from the
+// sky photos' own radiance (a level, fully diffuse surface under each sky) so a grey day
+// is a little dimmer than a sunny one, not a different exposure.
 
 const POLY_HAVEN_4K = (id) => `https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/4k/${id}_4k.hdr`;
 
@@ -43,9 +51,31 @@ export const SKY_PRESETS = Object.freeze({
     exposure: 0.86,
     fogDensity: 0.00045,
   }),
+  overcast: Object.freeze({
+    label: 'Overcast',
+    hdri: POLY_HAVEN_4K('kloofendal_overcast_puresky'),   // an even grey ceiling
+    overcast: true,
+    sunAltitudeDeg: 40,
+    sunColor: '#f2f1ec',
+    sunIntensity: 0.6,          // a hint of where the sun is: the softest of shadows
+    environmentIntensity: 0.5,  // the cloud deck is the light
+    exposure: 0.8,
+    fogDensity: 0.0009,         // damp air: the far tree line greys out
+  }),
+  fog: Object.freeze({
+    label: 'Sea fog',
+    hdri: POLY_HAVEN_4K('kloofendal_misty_morning_puresky'),   // a bright, featureless white sky
+    overcast: true,
+    sunAltitudeDeg: 40,
+    sunColor: '#f4f3ef',
+    sunIntensity: 0.25,
+    environmentIntensity: 0.5,
+    exposure: 0.82,
+    fogDensity: 0.0042,         // about a tenth gone at 50 m, a quarter at 100 m, nearly all by 300 m
+  }),
 });
 
-export const SKY_ORDER = Object.freeze(['morning', 'midday', 'golden']);
+export const SKY_ORDER = Object.freeze(['morning', 'midday', 'golden', 'overcast', 'fog']);
 export const DEFAULT_SKY = 'midday';
 
 export function parseSkySetting(value) {

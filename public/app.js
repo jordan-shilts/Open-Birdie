@@ -83,7 +83,7 @@ segmented($('seg-shotcam'), [['follow', 'Follow the ball'], ['tv', 'TV']], shotC
   scene.setShotCam(shotCam);
   markSeg($('seg-shotcam'), shotCam);
 });
-segmented($('seg-sky'), SKY_ORDER.map((k) => [k, k === 'golden' ? 'Golden' : SKY_PRESETS[k].label]), skySetting, (v) => {
+segmented($('seg-sky'), SKY_ORDER.map((k) => [k, k === 'golden' ? 'Golden' : k === 'fog' ? 'Fog' : SKY_PRESETS[k].label]), skySetting, (v) => {
   skySetting = parseSkySetting(v);
   try { localStorage.setItem(SKY_KEY, skySetting); } catch { /* private mode */ }
   markSeg($('seg-sky'), skySetting);

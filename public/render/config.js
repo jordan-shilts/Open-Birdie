@@ -85,6 +85,11 @@ export const RENDER_CONFIG = {
   foregroundGrassFadeFar: 22,   // m from camera: collapsed to nothing past this
   terrainShadeSmoothM: 2.5, // shade the terrain from heights smoothed this much (m); 0 = raw lidar normals (noisy blotches on mown turf)
   mowStripeM: 4.5, // fairway mow-band width (m): a fairway triplex cuts ~2.5-3 m passes, read as ~4-5 m light/dark bands
+  // The share of the sun's mirror-like reflection the ground keeps (turf.js). 1 = the
+  // lighting model's smooth sheet, which looking toward a low sun washed the turf out to
+  // cream; real grass keeps a soft sheen, a little more on a green's tight cut.
+  turfSpecular: 0.18,
+  greenSpecular: 0.4,
   turfClean: 1.0, // 0..1: clean manicured parkland turf (less stacked noise/straw/near photo tint); links scale it out via courseDry
   gtao: true, // contact AO (grounding). If the turf goes black, GTAO's normal pass recompiled the onBeforeCompile shader without vMapUv — fall back to SSAO via a material-override prepass.
   colorGrade: true, // cinematic grade + vignette (at the end of the OutputPass)
