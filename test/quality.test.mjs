@@ -7,11 +7,12 @@ import {
   DYNAMIC_RES, dynamicResolutionStep,
 } from '../public/render/quality.js';
 
-test('parseQualitySetting accepts the three settings and defaults to auto', () => {
+test('parseQualitySetting accepts the four settings and defaults to auto', () => {
   assert.equal(parseQualitySetting('High'), 'high');
   assert.equal(parseQualitySetting(' low '), 'low');
   assert.equal(parseQualitySetting('auto'), 'auto');
-  assert.equal(parseQualitySetting('ultra'), 'auto');
+  assert.equal(parseQualitySetting('Ultra'), 'ultra');
+  assert.equal(parseQualitySetting('extreme'), 'auto');
   assert.equal(parseQualitySetting(null), 'auto');
 });
 
@@ -70,10 +71,33 @@ test('Low preset is strictly cheaper than High on every budget', () => {
 test('HUD label and cycle order', () => {
   assert.equal(qualityLabel('auto', 'high'), 'Auto · High');
   assert.equal(qualityLabel('low', 'low'), 'Low');
-  assert.equal(nextQualitySetting('auto'), 'high');
+  assert.equal(qualityLabel('ultra', 'ultra'), 'Ultra');
+  assert.equal(nextQualitySetting('auto'), 'ultra');
+  assert.equal(nextQualitySetting('ultra'), 'high');
   assert.equal(nextQualitySetting('high'), 'low');
   assert.equal(nextQualitySetting('low'), 'auto');
-  assert.equal(nextQualitySetting('bogus'), 'high');
+  assert.equal(nextQualitySetting('bogus'), 'ultra');
+});
+
+test('Ultra is picked by hand only, and never costs less than High on any budget', () => {
+  const U = QUALITY_PRESETS.ultra, H = QUALITY_PRESETS.high;
+  const strong = { gpuRenderer: 'ANGLE (NVIDIA GeForce RTX 5090)' };
+  assert.equal(resolveQuality('ultra', strong).level, 'ultra');
+  assert.equal(resolveQuality('ultra', strong).preset, U);
+  assert.equal(resolveQuality('ultra', { gpuRenderer: 'Google SwiftShader' }).level, 'ultra', 'a hand pick wins on any GPU');
+  assert.equal(resolveQuality('auto', strong).level, 'high', 'Auto tops out at High');
+  // nothing steps Ultra down but dynamic resolution: the auto monitor leaves it alone
+  const slow = Array.from({ length: 200 }, () => 40);
+  assert.equal(autoDownshiftVerdict({ setting: 'ultra', level: 'ultra', intervalsMs: slow }).downshift, false);
+  // every knob High has, Ultra has, at least as far out / as fine
+  assert.deepEqual(Object.keys(U).sort(), Object.keys(H).sort());
+  for (const k of ['pixelRatioCap', 'maxPixels', 'aoScale', 'shadowMapSize', 'treeDensity', 'treeCap', 'treeNearM', 'treeMidM', 'terrainLodScale', 'grassScale', 'grassDrawM']) {
+    assert.ok(U[k] >= H[k], `${k}: ${U[k]} >= ${H[k]}`);
+  }
+  assert.ok(U.patchDetailM <= H.patchDetailM, 'finer bunker meshes');
+  assert.ok(U.treeMidM > U.treeNearM);
+  for (const k of ['gtao', 'bloom', 'waterReflect', 'waterFoam', 'flowers', 'aa', 'foregroundGrass']) assert.equal(U[k], H[k], k);
+  assert.ok(Object.isFrozen(U));
 });
 
 test('render pixel ratio honours the device, the cap, and the pixel budget', () => {

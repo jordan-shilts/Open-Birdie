@@ -99,3 +99,33 @@ test('a shot with no flight is not saved', () => {
   assert.equal(fs.existsSync(path.join(dataDir, 'saved-shots.json')), false);
   assert.deepEqual(packPoints([{ t: 0, x: 1, y: 2, z: NaN }, null, { t: 1, x: 1, y: 2, z: 3 }]), [[1, 1, 2, 3]]);
 });
+
+test('a saved shot keeps what the ball hit, so its replay shows the same splash or sand', () => {
+  const saved = createSavedShots({ dataDir: tmpDir(), log: quiet });
+  const s = shot();
+  s.sim.events = [
+    { type: 'tree', t: 2.34567, x: 10.123, y: 20.456, z: 9.87654, part: 'crown' },
+    { type: 'bounce', x: 30.111, y: 40.999, surface: 'bunker' },
+    { type: 'water', x: 50, y: 60 },
+    { type: 'made-up', x: 1, y: 2 },                 // unknown kinds are dropped
+    { type: 'bounce', x: NaN, y: 2, surface: 'green' },   // and anything without a place
+    null,
+  ];
+  const summary = saved.add(s, context(9), 6000);
+  assert.equal(summary.events, undefined, 'summaries leave the events out, like the flight');
+  assert.deepEqual(saved.get(summary.id).events, [
+    { type: 'tree', x: 10.12, y: 20.46, z: 9.88, t: 2.346, part: 'crown' },
+    { type: 'bounce', x: 30.11, y: 41, surface: 'bunker' },
+    { type: 'water', x: 50, y: 60 },
+  ]);
+});
+
+test('a shot with no events, or far too many, still saves', () => {
+  const saved = createSavedShots({ dataDir: tmpDir(), log: quiet });
+  const none = saved.add(shot(), context(1), 7000);
+  assert.deepEqual(saved.get(none.id).events, []);
+  const s = shot(1);
+  s.sim.events = Array.from({ length: 200 }, (_, i) => ({ type: 'bounce', x: i, y: i, surface: 'fairway' }));
+  const many = saved.add(s, context(2, 2000), 8000);
+  assert.equal(saved.get(many.id).events.length, 24);
+});

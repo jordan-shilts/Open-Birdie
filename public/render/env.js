@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { GroundedSkybox } from 'three/addons/objects/GroundedSkybox.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { sunSphericalFromEquirect, sunDirectionVec, horizonColorFromEquirect, horizonLinearFromEquirect } from './hdri-analyze.js';
+import { sunSphericalFromEquirect, sunDirectionVec, horizonColorFromEquirect, horizonLinearFromEquirect, clampEquirectRadiance } from './hdri-analyze.js';
 import { RENDER_CONFIG } from './config.js';
 import { ASSETS } from './assets.js';
 
@@ -22,17 +22,20 @@ export async function loadHDRIEnvironment(renderer, {
 } = {}) {
   const equirect = await new HDRLoader().setDataType(THREE.FloatType).loadAsync(url);
   equirect.mapping = THREE.EquirectangularReflectionMapping;
+  const { data, width, height } = equirect.image;
+  // sun direction: each config override (D2) wins on its own axis, else the HDRI's
+  // estimate — so the altitude can be set (long, crisp shadows) while the azimuth
+  // still follows the sky's bright side. Read from the photo as shot, before the clamp
+  // below levels the sun disc's brightest texels.
+  const ovAz = sunAzimuthDeg, ovAlt = sunAltitudeDeg;
+  const est = (ovAz != null && ovAlt != null) ? null : sunSphericalFromEquirect(data, width, height);
+  // keep the sun disc inside half-float range before the GPU sees it (hdri-analyze.js)
+  if (clampEquirectRadiance(data)) equirect.needsUpdate = true;
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envTexture = pmrem.fromEquirectangular(equirect).texture;
   pmrem.dispose();
 
-  const { data, width, height } = equirect.image;
-  // sun direction: each config override (D2) wins on its own axis, else the HDRI's
-  // estimate — so the altitude can be set (long, crisp shadows) while the azimuth
-  // still follows the sky's bright side
-  const ovAz = sunAzimuthDeg, ovAlt = sunAltitudeDeg;
-  const est = (ovAz != null && ovAlt != null) ? null : sunSphericalFromEquirect(data, width, height);
   const sph = {
     azimuth: ovAz != null ? THREE.MathUtils.degToRad(ovAz) : est.azimuth,
     altitude: ovAlt != null ? THREE.MathUtils.degToRad(ovAlt) : est.altitude,

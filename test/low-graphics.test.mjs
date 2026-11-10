@@ -61,6 +61,8 @@ test('Low leaves out bloom and draws trees, ground detail and tufts less far', (
   assert.equal(H.terrainLodScale, 1);
   assert.ok(L.terrainLodScale > 0 && L.terrainLodScale < 1);
   assert.ok(L.grassDrawM < H.grassDrawM);
+  // bunker meshes follow the ground more coarsely at Low (fewer triangles)
+  assert.ok(H.patchDetailM > 0 && L.patchDetailM > H.patchDetailM);
 });
 
 test('fescue tufts in cells: the same blades, culled by distance', () => {
