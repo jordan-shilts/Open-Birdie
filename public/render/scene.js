@@ -29,7 +29,7 @@ import { makeTerrainSampler, smoothGridNormals } from './terrain-grid.js';
 import { repairGridEdges } from './grid-repair.js';
 import { RENDER_CONFIG } from './config.js';
 import { isPlayFraming, ballReadScale, pinReadScale } from './framing.js';
-import { ShotTracer, makeGlow, makeLandingRing, makeBallShadow, makeDropLine } from './shot-fx.js';
+import { ShotTracer, makeGlow, makeLandingRing, makeBallShadow, makeDropLine, landingRingAlpha } from './shot-fx.js';
 import { LineupFx } from './lineup-fx.js';
 import { ImpactFx, impactSchedule } from './impact-fx.js';
 import { isNearGreen } from '../map-frame.mjs';
@@ -174,7 +174,7 @@ export class GolfScene {
     // shot presentation (shot-fx.js): soft ball contact shadow, in-flight head glow,
     // apex dot + drop line, landing ring. The tracer ribbon is built per shot.
     this.ballShadow = makeBallShadow();
-    this.headGlow = makeGlow({ color: 0xffe7a3, px: 20 });
+    this.headGlow = makeGlow({ color: 0xffe7a3, px: 13 });   // marks the ball in the air without hiding it
     this.apexGlow = makeGlow({ color: 0xffc94a, px: 12 });
     this.dropLine = makeDropLine();
     this.landRing = makeLandingRing();
@@ -2100,7 +2100,7 @@ export class GolfScene {
     let alpha = 1, head = a ? a.t : Infinity;
     if (fx && fx.lingerStart != null) {
       const age = frameTime - fx.lingerStart;
-      alpha = 1 - THREE.MathUtils.smoothstep(age, 4.5, 6.5);   // hold ~4.5 s, fade 2 s
+      alpha = 1 - THREE.MathUtils.smoothstep(age, 3.0, 4.5);   // hold ~3 s, fade 1.5 s
       if (alpha <= 0) { this._clearTrail(); return this._updateBallShadow(); }
     }
     if (this.tracer) this.tracer.update(this.camera, viewH, head, alpha);
@@ -2125,10 +2125,11 @@ export class GolfScene {
       this.landRing.visible = landOn;
       if (landOn) {
         const d = this.camera.position.distanceTo(fx.land.p);
-        const r = Math.max(1.6, d * 0.022);
+        const r = Math.max(1.1, d * 0.016);
         this.landRing.scale.set(r * 2, 1, r * 2);
         this.landRing.userData.uniforms.uTime.value = frameTime;
-        this.landRing.userData.uniforms.uAlpha.value = alpha * 0.9;
+        // bright as the ball comes down, then out of the way of the bounce and the roll
+        this.landRing.userData.uniforms.uAlpha.value = alpha * 0.9 * landingRingAlpha(a ? a.t - fx.land.t : Infinity);
       }
       this._placeLabel(this.shotLabels.apex, apexOn ? fx.apex.p : null, calloutA, -18);
       this._placeLabel(this.shotLabels.land, landOn ? fx.land.p : null, calloutA, -14);
