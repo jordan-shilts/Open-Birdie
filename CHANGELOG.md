@@ -149,6 +149,18 @@ All notable changes to Open-Birdie are documented here.
   the map is as it was.
 
 ### Changed
+- **The ball's flight is easier to watch** — the tracer no longer covers the shot. It was a wide glowing band
+  drawn at full strength from the tee to the ball; with the camera riding behind the ball that put a bright bar
+  up the middle of the frame, over the ball and the ground it was coming down on. Now it is a comet: bright and
+  6 px wide for the last 0.8 s of flight, a faint line half that width further back, and it fades out within 9 m
+  of the camera (`render/shot-fx.js`). The glow that marks the ball in the air is a third smaller, the landing
+  ring is thinner, has no blob over its middle and dims once the ball is down, and the trail clears 4.5 s after
+  the shot instead of 6.5 s.
+- **The follow camera shows the approach** — as the ball comes down steeply the camera leaves its flight path and
+  drops in level behind it, looking ahead along the ground (`render/flight-camera.js`). Riding the path behind a
+  wedge had it 45 degrees nose-down over a frame full of turf; now it looks about 22 degrees down, with the
+  green, the pin and the horizon in view while the ball drops down the frame. The climb and the TV camera are
+  unchanged, and a drive's flatter descent changes little.
 - **Turf no longer mirrors a low sun** — the lighting model treats the ground as one smooth sheet, and a sheet
   seen at a grazing angle with the sun in front of the camera mirrors it. Looking toward midday's 24 degree sun
   the white reflection came to about three times the grass's own colour, so every sunward fairway and hillside

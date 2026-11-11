@@ -4,8 +4,9 @@
 //
 // 'follow' (the default in the game): the camera flies with the ball. The ball gets away
 // at impact, the camera chases it along its own flight, catches it up and rides with it,
-// looking where it is going, then eases off behind it for the bounce and the roll and
-// comes to rest there (followCamera below).
+// looking where it is going; as the ball comes down it drops in level behind it, so the
+// landing area and the horizon stay in view (the approach); then it eases off behind it
+// for the bounce and the roll and comes to rest there (followCamera below).
 //
 // 'tv': broadcast-style coverage, framed so the ball's height reads.
 //
@@ -52,6 +53,11 @@ const FOLLOW_LOOK_IN_S = 0.45;        // the look leaves the address framing ove
 const FOLLOW_SETTLE_S = 0.9;          // once the ball is down, what it chases moves behind it over this
 export const SETTLE_BACK_M = 11;      // the spot it settles on: behind the ball...
 const SETTLE_UP_M = 3.2;              // ...and above the ground under it
+// the approach: as the ball comes down steeply the camera stops riding its flight path
+// (which has it looking straight down at the turf) and drops in level behind it instead
+export const APPROACH_SIN = Object.freeze([0.22, 0.6]);   // sine of the descent angle: starts at the first, complete at the second
+export const APPROACH_UP_M = 1.2;     // then it sits this much higher above the ball than FOLLOW_UP_M
+export const APPROACH_LOOK_DROP = 0.15;   // ...and looks ahead of it along the ground, this far down per metre
 
 // points: sim trajectory; startCam / startLook: the address camera and its look target
 // now (sim frame); groundAt(x,y) -> terrain height; treeTopAt(x,y) -> the height the
@@ -229,6 +235,7 @@ function followCamera(points, plan) {
   // what the camera chases (on the flight behind the ball, then the spot behind it on the
   // ground) and where it looks, sample by sample
   const goal = [], aim = [], downs = [];
+  let approach = 0;
   for (let i = 0; i <= n; i++) {
     const t = T[i], b = P[i];
     const d = dirAt(i);
@@ -238,14 +245,31 @@ function followCamera(points, plan) {
     const back = lerp(startBack, FOLLOW_BACK_M, smoother(0, FOLLOW_CATCH_UP_S, t));
     const a = onFlight(S[i] - back);
     const down = smoother(ft, ft + FOLLOW_SETTLE_S, t);
+    // The approach. Riding the flight path behind a ball that is coming down at 45 degrees
+    // puts the camera high over it, looking down its own trail at a frame full of turf.
+    // So the steeper the ball falls, the more the camera leaves the path for a spot level
+    // behind it (the way it goes over the ground), a little above it, looking ahead along
+    // the ground: the ball drops down the frame with the green, the pin and the horizon in
+    // view. Held from just before touchdown (the bounce turns the ball's direction over
+    // in one step; the settle below takes it from there).
+    if (t < ft - 0.06) approach = smoother(APPROACH_SIN[0], APPROACH_SIN[1], -dir[2]);
+    const air = {
+      x: lerp(a.x, b.x - flat[0] * back, approach),
+      y: lerp(a.y, b.y - flat[1] * back, approach),
+      z: lerp(a.z, b.z + APPROACH_UP_M, approach) + FOLLOW_UP_M,
+    };
     goal.push({
-      x: lerp(a.x, b.x - flat[0] * SETTLE_BACK_M, down),
-      y: lerp(a.y, b.y - flat[1] * SETTLE_BACK_M, down),
-      z: lerp(a.z + FOLLOW_UP_M, b.z + SETTLE_UP_M, down),
+      x: lerp(air.x, b.x - flat[0] * SETTLE_BACK_M, down),
+      y: lerp(air.y, b.y - flat[1] * SETTLE_BACK_M, down),
+      z: lerp(air.z, b.z + SETTLE_UP_M, down),
     });
     downs.push(down);
     const lead = FOLLOW_LOOK_AHEAD_M * (1 - down);
-    aim.push({ x: b.x + dir[0] * lead, y: b.y + dir[1] * lead, z: b.z + dir[2] * lead + 0.3 * down });
+    aim.push({
+      x: b.x + lerp(dir[0], flat[0], approach) * lead,
+      y: b.y + lerp(dir[1], flat[1], approach) * lead,
+      z: b.z + lerp(dir[2], -APPROACH_LOOK_DROP, approach) * lead + 0.3 * down,
+    });
   }
   // its speed, steadied (the jolt of the ball meeting the ground taken out), matched in
   // part outright through the flight and let go as the ball comes down

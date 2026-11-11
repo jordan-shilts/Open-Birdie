@@ -1,18 +1,43 @@
-// Shot presentation in 3D: a glowing broadcast-style tracer ribbon that grows with
-// the ball and lingers a few seconds after the shot, apex + landing markers, and a
-// soft contact shadow under the ball. All unlit/additive, no textures, no shadows —
-// a handful of draw calls on top of the scene.
+// Shot presentation in 3D: a broadcast-style tracer that grows with the ball and lingers
+// a few seconds after the shot, apex + landing markers, and a soft contact shadow under
+// the ball. All unlit/additive, no textures, no shadows — a handful of draw calls on top
+// of the scene.
+//
+// The tracer is there to show the shot's shape, never to cover the shot: it is bright
+// and full width only just behind the ball (a comet), thins to a faint line further
+// back, and fades out toward the camera, so a camera riding behind the ball looks past
+// it at the ball and the ground it is coming down on.
 import * as THREE from 'three';
+
+export const TRACER_WIDTH_PX = 6;      // the ribbon's width just behind the ball
+export const TRACER_THIN = 0.5;        // ...and the share of it the older trail keeps
+export const TRACER_FRESH_S = 0.8;     // the comet: this much flight behind the ball is at full strength
+export const TRACER_TAIL = 0.3;        // how much of the older trail's strength is left
+export const TRACER_NEAR_M = Object.freeze([3, 9]);   // gone at the first distance from the camera, whole from the second
+
+const smooth01 = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+// How strongly the trail is drawn (0..1) and how wide (share of TRACER_WIDTH_PX) at a
+// point the ball passed ageS ago, distM from the camera. The shader below does the same
+// sums; this is the copy the tests check (test/shot-fx.test.mjs).
+export function tracerVisibility(ageS, distM) {
+  const fresh = 1 - smooth01(0, TRACER_FRESH_S, Math.max(0, ageS));
+  const near = smooth01(TRACER_NEAR_M[0], TRACER_NEAR_M[1], distM);
+  return { strength: (TRACER_TAIL + (1 - TRACER_TAIL) * fresh) * near, width: TRACER_THIN + (1 - TRACER_THIN) * fresh };
+}
 
 const TRACER_VERT = /* glsl */`
   uniform float uPxWorld;   // world metres per pixel at 1 m depth (2 tan(fov/2) / viewport h)
   uniform float uPx;        // ribbon width in pixels
   uniform float uMinW;      // minimum world width (m)
+  uniform float uHead;      // sim time of the ball
+  uniform float uFreshS;    // the comet's length (s of flight)
+  uniform float uThin;      // the older trail's share of the width
   attribute vec3 aDir;
   attribute float aSide;
   attribute float aT;
   varying float vSide;
   varying float vT;
+  varying float vDist;
   void main() {
     vec4 wp = modelMatrix * vec4(position, 1.0);
     vec3 toCam = cameraPosition - wp.xyz;
@@ -20,10 +45,12 @@ const TRACER_VERT = /* glsl */`
     vec3 side = cross(aDir, toCam / max(dist, 1e-4));
     float sl = length(side);
     side = sl > 1e-4 ? side / sl : vec3(1.0, 0.0, 0.0);
-    float w = max(uMinW, dist * uPxWorld * uPx);
+    float fresh = 1.0 - smoothstep(0.0, uFreshS, max(0.0, uHead - aT));
+    float w = max(uMinW, dist * uPxWorld * uPx) * mix(uThin, 1.0, fresh);
     wp.xyz += side * aSide * w * 0.5;
     vSide = aSide;
     vT = aT;
+    vDist = dist;
     gl_Position = projectionMatrix * viewMatrix * wp;
   }`;
 
@@ -32,23 +59,30 @@ const TRACER_FRAG = /* glsl */`
   uniform float uAlpha;     // overall fade (linger -> gone)
   uniform vec3 uColor;      // glow colour
   uniform vec3 uCore;       // hot core colour
+  uniform float uFreshS;    // the comet's length (s of flight)
+  uniform float uTail;      // what is left of the older trail's strength
+  uniform vec2 uNear;       // fades out toward the camera between these distances (m)
   varying float vSide;
   varying float vT;
+  varying float vDist;
   void main() {
     if (vT > uHead) discard;
     float e = 1.0 - abs(vSide);               // 0 at the ribbon edge, 1 on its spine
     float core = smoothstep(0.62, 1.0, e);
     float glow = e * e * e;
-    float fresh = 1.0 - clamp((uHead - vT) / 3.0, 0.0, 1.0);   // brighter near the ball
-    vec3 col = mix(uColor, uCore, core) * (1.6 + 2.6 * core + 1.2 * fresh);
-    float a = clamp(glow * 0.75 + core * 0.9, 0.0, 1.0) * uAlpha;
+    float fresh = 1.0 - smoothstep(0.0, uFreshS, uHead - vT);   // the comet just behind the ball
+    // only the comet is bright enough to bloom; the older trail is a plain thin line
+    vec3 col = mix(uColor, uCore, core) * (1.0 + 1.2 * core + (0.8 + 1.6 * core) * fresh);
+    float a = clamp(glow * 0.75 + core * 0.9, 0.0, 1.0) * uAlpha
+      * mix(uTail, 1.0, fresh) * smoothstep(uNear.x, uNear.y, vDist);
+    if (a < 0.003) discard;
     gl_FragColor = vec4(col * a, a);
   }`;
 
 // One trajectory -> a camera-facing ribbon (two verts per sample, expanded in the
 // vertex shader so it stays ~uPx pixels wide at any distance). Air phase only.
 export class ShotTracer {
-  constructor(points3, times, { color = 0xffb21e, core = 0xfff3c4, widthPx = 9 } = {}) {
+  constructor(points3, times, { color = 0xffb21e, core = 0xfff3c4, widthPx = TRACER_WIDTH_PX } = {}) {
     const n = points3.length;
     const pos = new Float32Array(n * 2 * 3);
     const dir = new Float32Array(n * 2 * 3);
@@ -86,6 +120,10 @@ export class ShotTracer {
       uMinW: { value: 0.05 },
       uHead: { value: -1 },
       uAlpha: { value: 1 },
+      uFreshS: { value: TRACER_FRESH_S },
+      uThin: { value: TRACER_THIN },
+      uTail: { value: TRACER_TAIL },
+      uNear: { value: new THREE.Vector2(TRACER_NEAR_M[0], TRACER_NEAR_M[1]) },
       uColor: { value: new THREE.Color(color) },
       uCore: { value: new THREE.Color(core) },
     };
@@ -152,17 +190,24 @@ export function makeGlow({ color = 0xffe08a, px = 22 } = {}) {
   return m;
 }
 
-// Expanding target ring on the ground at the landing spot (constant-ish screen size).
+// Target ring on the ground at the landing spot (constant-ish screen size), with an
+// expanding pulse. The scene dims it once the ball is down (landingRingAlpha).
+export const LAND_RING_SETTLE_S = Object.freeze([0.8, 2.4]);   // full until the first, dimmed by the second (s after touchdown)
+export const LAND_RING_REST = 0.35;                            // what is left of it then
+export function landingRingAlpha(sinceLandingS) {
+  return 1 - (1 - LAND_RING_REST) * smooth01(LAND_RING_SETTLE_S[0], LAND_RING_SETTLE_S[1], sinceLandingS);
+}
+
 const RING_FRAG = /* glsl */`
   uniform float uTime; uniform float uAlpha; uniform vec3 uColor;
   varying vec2 vUv;
   void main() {
     float r = length(vUv - 0.5) * 2.0;
-    float ring = smoothstep(0.80, 0.86, r) * (1.0 - smoothstep(0.93, 1.0, r));
+    // a thin ring and its pulse: nothing drawn over the middle, where the ball is
+    float ring = smoothstep(0.86, 0.90, r) * (1.0 - smoothstep(0.95, 1.0, r));
     float pulseR = fract(uTime * 0.7);
-    float pulse = (1.0 - smoothstep(0.0, 0.06, abs(r - pulseR))) * (1.0 - pulseR) * 0.8;
-    float dot_ = 1.0 - smoothstep(0.10, 0.16, r);
-    float a = clamp(ring + pulse + dot_, 0.0, 1.0) * uAlpha;
+    float pulse = (1.0 - smoothstep(0.0, 0.05, abs(r - pulseR))) * (1.0 - pulseR) * 0.5 * smoothstep(0.2, 0.4, r);
+    float a = clamp(ring + pulse, 0.0, 1.0) * uAlpha;
     gl_FragColor = vec4(uColor * a * 1.8, a);
   }`;
 

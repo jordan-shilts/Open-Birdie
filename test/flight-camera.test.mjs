@@ -352,3 +352,33 @@ test('follow: putts and short chips keep the address camera', () => {
   const chip = [{ t: 0, x: 0, y: 0, z: 0 }, { t: 1, x: 0, y: 15, z: 5 }, { t: 2, x: 0, y: 30, z: 0 }];
   assert.equal(follow(chip, { flightTime: 2 }).moves, false);
 });
+
+// The approach: a wedge comes down at about 45 degrees. A camera riding its flight path
+// looks down its trail at a frame full of turf; this one drops in level behind the ball.
+test('follow: as the ball comes down the horizon and the landing spot stay in the frame', () => {
+  const half = 29;   // half the 58 degree lens
+  for (const [pts, ft] of [[wedgeChecks(), 5], [driveStops(), 4]]) {
+    const plan = follow(pts, { flightTime: ft });
+    const land = pointAt(pts, ft);
+    for (let t = ft * 0.6; t <= ft; t += 1 / 30) {
+      const c = flightCameraAt(plan, t, pts);
+      const pitch = Math.atan2(c.look.z - c.pos.z, Math.hypot(c.look.x - c.pos.x, c.look.y - c.pos.y)) * 180 / Math.PI;
+      assert.ok(pitch > -(half - 3), `t=${t.toFixed(2)}: looking ${(-pitch).toFixed(0)} deg down, the horizon is out of the frame`);
+    }
+    // over the last second and a half of the flight the landing spot is in the picture, ahead of the ball
+    for (let t = ft - 1.5; t <= ft; t += 1 / 30) {
+      const c = flightCameraAt(plan, t, pts);
+      const p = ndc(c, land);
+      assert.ok(p.depth > 0 && Math.abs(p.x) < 0.9 && Math.abs(p.y) < 0.95, `t=${t.toFixed(2)}: landing spot at ndc (${p.x.toFixed(2)}, ${p.y.toFixed(2)})`);
+    }
+  }
+});
+
+test('follow: on the way up nothing changes, the camera still rides the flight path', () => {
+  const pts = wedgeChecks();
+  const plan = follow(pts, { flightTime: 5 });
+  // 2 s in (climbing at ~14 degrees and more): the camera is below the ball, looking up at it
+  const c = flightCameraAt(plan, 1.5, pts), b = pointAt(pts, 1.5);
+  assert.ok(c.pos.z < b.z, 'behind and below a climbing ball');
+  assert.ok(c.look.z > c.pos.z, 'looking up');
+});
