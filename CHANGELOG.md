@@ -5,6 +5,14 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **A club changed on OpenFlight is the club its shots are filed under** — OpenFlight now names the club each
+  shot was hit with (`ClubName`, as the Open Connect code this server sends it: `DR`, `I7`, `PW`), and only to a
+  simulator that names itself Open-Birdie. Nothing changed here to read it: `lib/openconnect.js` already passed a
+  monitor's `ClubName` through, the monitor's club already won over the one picked in the game
+  (`shotClubKey`), and the club dock already followed it. Before, a club changed on the launch monitor's own
+  screen never reached the game, so the bag learned a 7-iron's distances under whatever was selected here, or
+  dropped the shot as "unknown-club" when nothing was. `test/club-code.test.js` pins the codes OpenFlight can
+  send to clubs in the bag (a 5-wood goes to the 3-hybrid, a gap wedge to the pitching wedge, as before).
 - **`npm run bench:shot`** — times what a shot costs the server on the computer it is run on
   (`tools/bench-shot.js`): the flight, bounce and roll of a drive, an iron, a wedge, a chip and a putt, and the
   lineup's predictions, on the first cached course or, with `--synthetic`, on a built-in 18 holes so two
