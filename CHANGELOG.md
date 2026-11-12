@@ -5,6 +5,12 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **Every sky kept for offline play** — once the game is online, it downloads Morning, Golden hour, Overcast
+  and Sea fog in the background (15 s after startup, one at a time, about 62 MB once) and keeps them in
+  `data/sky-cache`, so all five skies work with no internet, not only the ones picked before
+  (`lib/sky-cache.js` `keepAll`). Offline, it tries again every 10 minutes and says so once. The list comes from
+  `render/sky-presets.js`. Off with the other background downloads (`BIRDIE_ENRICH=0`) or on its own with
+  `BIRDIE_SKY_PREFETCH=0`.
 - **Overcast and sea fog** — two more skies in Menu → View → Time of day, beside Morning, Midday and Golden
   (`render/sky-presets.js`). Both are CC0 Poly Haven sky photos fetched the first time they are picked, like
   Morning and Golden, with Midday as the fallback when one can't be fetched. Under either the sky is the light:

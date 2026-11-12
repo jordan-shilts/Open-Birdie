@@ -39,7 +39,7 @@ const { PredictError, predictCarries, predictShot } = require('./lib/predict');
 const { serveHdAsset, publicHdMetadata, pickDescriptor } = require('./lib/hd-http');
 const { makeNonce, verifyReadinessAck } = require('./lib/hd-readiness');
 const { googleTilesConfig } = require('./lib/google-tiles-config');
-const { createSkyCache } = require('./lib/sky-cache');
+const { createSkyCache, webSkyFiles } = require('./lib/sky-cache');
 
 const HTTP_PORT = +(process.env.BIRDIE_PORT || 8222);
 const OC_PORT = +(process.env.BIRDIE_OC_PORT || 921);
@@ -61,6 +61,7 @@ const SCENERY_ENABLED = process.env.BIRDIE_ENRICH !== '0';
 // played courses are deleted past the cap, never the active one.
 const courseCache = createCourseCache({ dataDir: DATA_DIR });
 const skyCache = createSkyCache({ dataDir: DATA_DIR });
+let skyKeeper = null; // the background sky download (started once the server listens)
 // the course picker's list: every downloaded course and the featured ones (lib/course-library.js)
 const courseLibrary = createCourseLibrary();
 // Cloud course service (BIRDIE_CLOUD_URL): courses and their scenery are downloaded
@@ -895,6 +896,13 @@ async function bootstrap() {
       resolve({ httpPort: actualPort });
       // read the downloaded courses once now, so the course picker opens at once
       setImmediate(() => { try { courseLibrary.list(); } catch (_) { /* listed on demand */ } });
+      // every web sky on disk while there is internet, so all of them work offline too
+      // (lib/sky-cache.js). Off with the other background downloads (BIRDIE_ENRICH=0)
+      // or on its own with BIRDIE_SKY_PREFETCH=0.
+      if (SCENERY_ENABLED && process.env.BIRDIE_SKY_PREFETCH !== '0') {
+        try { skyKeeper = skyCache.keepAll(webSkyFiles(path.join(__dirname, 'public', 'render', 'sky-presets.js'))); }
+        catch (error) { console.warn(`[sky] background download not started: ${error.message}`); }
+      }
     });
   });
 }
@@ -908,6 +916,7 @@ function close() {
     readyTimer = null;
   }
   if (sceneryEnricher) sceneryEnricher.cancelAll();
+  if (skyKeeper) { skyKeeper.stop(); skyKeeper = null; }
   for (const res of sseClients) { try { res.end(); } catch (_) { /* gone */ } }
   sseClients.clear();
   try { server.close(); } catch (_) { /* already closed */ }
