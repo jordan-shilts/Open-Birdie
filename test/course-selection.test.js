@@ -29,9 +29,14 @@ function response(body, status = 200) {
 }
 
 // A mirror that accepts the request and never answers (until its signal aborts).
+// A real request keeps the process alive through its socket. This stub has none, and
+// the timer behind AbortSignal.timeout is unref'd, so the stub holds a timer of its own
+// until it is aborted: without it Node finds an empty event loop, ends the run, and
+// reports this test and every one after it as cancelled (seen on Linux, Node 22).
 function hang(_url, { signal }) {
   return new Promise((_, reject) => {
-    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    const pending = setInterval(() => {}, 2 ** 30);
+    signal.addEventListener('abort', () => { clearInterval(pending); reject(signal.reason); }, { once: true });
   });
 }
 
