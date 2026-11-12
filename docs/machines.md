@@ -75,6 +75,40 @@ A copy lands on the game computer in `data/perf-reports/<time>.json`, with the G
 machines can sit side by side. Run it on the same hole and level on `main` and on a branch to measure a change on
 the sim PC itself.
 
+## What a shot costs the server (not the GPU)
+
+Everything above is about drawing frames. The other half is the Node server: a launch monitor's message
+arrives on Open Connect, `lib/game.js` flies, bounces and rolls the ball over the course, and the shot is
+broadcast. `node tools/bench-shot.js` (or `npm run bench:shot`) times that on whatever computer it is run
+on, on the first cached course in `BIRDIE_DATA_DIR`, or with `--synthetic` on a built-in 18 holes (204
+surface polygons, 5,376 vertices, 3,060 trees) so two computers can be compared on the same course.
+
+Measured 2026-11-12 on **a cloud Linux VM** (Intel Xeon at 2.1 GHz, 4 threads, Node 22.23), on the synthetic
+course. **Not the dev Mac and not the sim PC**: neither has been measured this way yet.
+
+| | median | 95th percentile |
+|---|---|---|
+| Drive from the tee | 11 ms | 16 ms |
+| 7-iron from the tee | 6 ms | 7 ms |
+| Wedge from the tee | 4 ms | 5 ms |
+| 20 ft putt | 26 ms | 29 ms |
+| Lineup: predict one club (`/api/predict`) | 51 ms | 73 ms |
+| Lineup: carries for the bag (`/api/carries`) | 22 ms | 33 ms |
+
+- **The server is not what a player waits on.** A drive is ready to broadcast about a hundredth of a second
+  after its message arrives; the ball then flies for six seconds.
+- **About half of a shot is the surface lookup** (`lib/course.js` `makeSurfaceLookup`, ~23 us a call here):
+  the roll asks what is under the ball every 2 ms of ball time, which is why a putt costs more than a drive.
+  The lineup already uses an exact, gridded lookup for the same question (`lib/predict.js`
+  `cellSurfaceLookup`); real shots do not. Worth taking only if a shot's 5-25 ms ever matters.
+- A drive's `shot` event is ~43 KB of JSON (about 470 path points).
+
+With OpenFlight on the same VM, sending through its own connector (`scripts/analysis/bench_sim_link.py` in
+the OpenFlight repo, which can be pointed at the sim PC from the Pi): a shot was acknowledged in ~1 ms and
+broadcast to the game 10-17 ms after it was sent, all of it the physics above; a club picked in the game
+reached OpenFlight in ~1 ms; a shot sent twice was played once. That is the two programs alone: it leaves
+out the network between the Pi and the sim PC, which that script measures when run on the Pi.
+
 ## Rendering on the MX130 instead
 
 Windows Settings → System → Display → Graphics → add the app (`node_modules\electron\dist\electron.exe`

@@ -5,6 +5,12 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **`npm run bench:shot`** — times what a shot costs the server on the computer it is run on
+  (`tools/bench-shot.js`): the flight, bounce and roll of a drive, an iron, a wedge, a chip and a putt, and the
+  lineup's predictions, on the first cached course or, with `--synthetic`, on a built-in 18 holes so two
+  computers can be compared. It reads the course and plays nothing in a running game. First numbers, from a
+  cloud Linux VM, are in `docs/machines.md`: a drive is ready to broadcast in about 11 ms, a 20 ft putt in 26 ms.
+  Not yet run on the sim PC or the dev Mac.
 - **Overcast and sea fog** — two more skies in Menu → View → Time of day, beside Morning, Midday and Golden
   (`render/sky-presets.js`). Both are CC0 Poly Haven sky photos fetched the first time they are picked, like
   Morning and Golden, with Midday as the fallback when one can't be fetched. Under either the sky is the light:
@@ -353,6 +359,13 @@ All notable changes to Open-Birdie are documented here.
   `public/leagues-ui.js`, `/api/players*`, `/api/leagues*`).
 
 ### Fixed
+- **`npm test` on Linux ran 19 fewer tests than it reported** — `test/course-selection.test.js` stubs a mirror
+  that never answers, and the stub held nothing open while it waited: the only thing due to fire was the timer
+  behind `AbortSignal.timeout`, which Node does not keep the process alive for. On Linux (Node 22) the event
+  loop emptied, the run ended there, and that test and the 18 after it (the Overpass timeout and backoff, the
+  starter-hut refusal, the search fallbacks) were marked cancelled and the run failed. The stub now holds a
+  timer until it is aborted, as a real request holds its socket. Test-only: `lib/abort.js` is unchanged, and the
+  server always has its listening sockets to keep it alive.
 - **A black course on a GPU that does not saturate half-floats** — the bundled sky photo's sun disc is brighter
   (up to 75,559 in 17 texels) than a half-float can hold (65,504), and the renderer prefilters the sky into
   half-float targets. A GPU that stores such a value as infinity instead of clamping it turns the blurred sky

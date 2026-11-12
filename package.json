@@ -11,6 +11,7 @@
     "start:server": "npm run prepare:course-art && node server.js",
     "calibrate": "node tools/calibrate.js",
     "shot": "node tools/test-shot.js",
+    "bench:shot": "node tools/bench-shot.js",
     "watch": "node tools/uneekor-watch.js --speed-scale 2.23694",
     "make-icon": "node tools/make-icon.js",
     "discover:hd-hole": "node tools/hd-course/cli.mjs discover",
