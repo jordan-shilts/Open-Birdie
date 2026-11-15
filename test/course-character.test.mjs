@@ -119,3 +119,18 @@ test('tall fescue follows dryness, except where the course says otherwise', () =
   assert.ok(fescueFor('', 'osm:way:1019045811') < 0.2);
   assert.equal(fescueFor('Nowhere'), 0);
 });
+
+// Measured 2026-11-15 against located real photos: sunlit turf has red at 84-94% of green
+// (sRGB). The warm sun and the grade add about a tenth on top of the palette, so the
+// palette's grass zones sit at 70-80%: yellow-green, not the kelly green of a red near 60%.
+test('lush palette: every grass zone is a yellow-green, red at 70-80% of green', async () => {
+  const { COLORS } = await import('../public/render/course-character.js');
+  const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  for (const key of ['base', 'rough', 'range', 'fairwayA', 'fairwayB', 'greenA', 'greenB', 'tee']) {
+    const [r, g, b] = rgb(COLORS[key]);
+    assert.ok(r / g >= 0.70 && r / g <= 0.80, `${key} ${COLORS[key]}: red is ${(100 * r / g).toFixed(0)}% of green`);
+    assert.ok(g > r && g > b, `${key} is still green`);
+  }
+  // the value ladder is as it was: rough under fairway
+  assert.ok(rgb(COLORS.rough)[1] < rgb(COLORS.fairwayB)[1]);
+});

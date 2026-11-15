@@ -1,5 +1,39 @@
 # Open-Birdie — TODO
 
+## Benchmark gaps (2026-11-15)
+
+Measured against four frames of a current photoreal golf game (tee, fairway, greenside bunker, green: a
+quality bar only, nothing of its look or interface is copied) and against the located real photos in
+`docs/research/course-photos/`. Sunlit and shaded turf were sampled in each image (the brightest and darkest
+third of the green-dominant pixels in the lower 60% of the frame; sRGB, relative luminance Y).
+
+Fixed in that pass, by measurement: sunlit turf was about a third darker than the same spots in real photos
+and a purer green (red at 77% of green against 84-94% real). Midday and Morning exposure and sun strength,
+and the lush palette's red, were moved until Hazeltine 10 read Y 0.37 with red at 91% of green (real photo:
+0.37, 94%) and Pebble Beach 7 read 0.18 at 85% (real: 0.21, 86%). The benchmark game sits at 0.22-0.27 and
+91-93%. Golden hour, Overcast, Fog and the links palettes were not touched.
+
+Still open, biggest first (four fixed cameras on Hazeltine 2 and 17, Morning sky, High, software renderer,
+courses downloaded without 1 m HD holes):
+
+1. **Trees and woods.** The real Hazeltine 10 photo is framed by 20 m oaks with broad crowns and an
+   understory; the sim has a scatter of smaller trees and open ground, and beyond about 80 m crowns read as
+   round lumps. Needs real heights and crown widths per tree (the canopy data has them), woods filled to the
+   edge of play, an understory band, and a far level of detail that keeps limbs and gaps.
+2. **Grass at the edges.** No tall native grass bands, no reeds round ponds, no blades standing at a bunker
+   lip or a green's collar (`foregroundGrass` is off: it read as fuzz). The benchmark and the real photos
+   both have them in almost every frame.
+3. **Bunkers.** Flat pale discs where a hole has no 1 m lidar: no dished floor, no lip, no grass overhang,
+   no rake lines. HD holes have the relief; the lip, overhang and rake detail are missing everywhere.
+4. **Greens from putting height.** At 0.7 m the 2 m grass tile is magnified into blotches; a green should be
+   a tight, even surface with fine grain. Needs a finer detail scale near the camera on greens.
+5. **Morning light on fairways.** Fairway turf in the low Morning sun still reads Y 0.08-0.16 (real morning
+   photo: 0.16) and the zenith is a deeper blue than a real morning's. Needs a brighter, paler morning sky
+   or a later-morning sun.
+6. **Backdrop.** A flat horizon with no hills or layered haze behind the tree line.
+7. **Near trees drawn see-through.** A tree in front of the shot is drawn as a 7% ghost; in a still it reads
+   as dark specks in the sky. A cleaner fade (dither or outline) would hide it.
+
 ## Photo-match gaps (2026-11-10)
 
 From the first same-spot comparison of the sim against the located course photos

@@ -10,9 +10,9 @@ export const RENDER_CONFIG = {
   // 2.0), which flattened the course into soft, shadowless haze and turned every
   // undulation into a blotch. A real clear day is lit by the sun: crisp tree shadows,
   // bright even turf. Sky stays as fill.
-  toneMappingExposure: 0.8,
+  toneMappingExposure: 0.92,   // the Midday preset's (sky-presets.js), which replaces it once the sky is up
   environmentIntensity: 0.32,
-  sunIntensity: 5.2,
+  sunIntensity: 6.2,
   fogDensity: 0.00042, // aerial-perspective fog (atmosphere.js curve: linear + quadratic) to the HDRI horizon; each time-of-day preset sets its own (sky-presets.js)
   groundApron: true,   // countryside ring past the course edge + horizon haze band (horizon.js)
   // Google Photorealistic 3D Tiles around the course (google-tiles.js). Only ever loads when

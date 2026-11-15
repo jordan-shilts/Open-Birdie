@@ -29,9 +29,12 @@ export const SKY_PRESETS = Object.freeze({
     hdri: POLY_HAVEN_4K('rustig_koppie_puresky'),   // clear, crisp, low-ish sun
     sunAltitudeDeg: null,
     sunColor: '#ffe9cf',
-    sunIntensity: 4.6,
+    // 2026-11 measured pass (see Midday): sunlit fairway turf stood at 0.05-0.11 relative
+    // luminance, a third of a real morning photo's 0.16. Exposure 0.72 -> 0.86 and sun
+    // 4.6 -> 5.2 put it near 0.15: still a little under Midday, as a morning is.
+    sunIntensity: 5.2,
     environmentIntensity: 0.42,
-    exposure: 0.72,
+    exposure: 0.86,
     fogDensity: 0.00052,   // a little morning haze in the low ground
   }),
   midday: Object.freeze({
@@ -39,9 +42,13 @@ export const SKY_PRESETS = Object.freeze({
     hdri: null,            // the bundled sky (RENDER_CONFIG.hdriFile)
     sunAltitudeDeg: 24,
     sunColor: '#ffe9cc',
-    sunIntensity: 5.2,
+    // 2026-11 measured pass: sunlit turf sat about a third under the same spots in real
+    // photos (Hazeltine 10: 0.28 against 0.37 relative luminance; Pebble Beach 7: 0.12
+    // against 0.21). Exposure 0.8 -> 0.92 and sun 5.2 -> 6.2 bring Hazeltine to 0.36 with
+    // no sky pixel clipped; shade rises less than sun, so tree shadows read stronger.
+    sunIntensity: 6.2,
     environmentIntensity: 0.4,   // sky fill: shade sides of mounds and swales read (0.32 crushed tree shade to near-black)
-    exposure: 0.8,
+    exposure: 0.92,
     fogDensity: 0.00042,
   }),
   golden: Object.freeze({

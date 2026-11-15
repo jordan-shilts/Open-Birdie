@@ -17,16 +17,21 @@
 // red in linear light, not four times), so the old kelly/lime values read as astroturf
 // and made the tee boxes glow. Same value ladder, pulled toward olive; tees are cut
 // fairway grass, so they now sit in the fairway family instead of above it.
+// 2026-11 measured pass: sunlit turf in 8 located photos of the parkland and coastal
+// courses (docs/research/course-photos) has red at 84-94% of green (sRGB, median 88%);
+// the sim's stood at 77% from a palette at 64%. Red is raised in every grass zone so the
+// palette sits near 74% and the lit frame near 85%: yellow-green, not kelly. Green and
+// blue, and so the value ladder (rough < fairway < green), are as they were.
 export const COLORS = {
-  base: '#3e5f2d',  // lusher corridor/base (much of the visible play ground is unlabeled base)
-  rough: '#476d31', // lush green rough (Augusta second cut) — deeper than the fairway
+  base: '#465f2d',  // lusher corridor/base (much of the visible play ground is unlabeled base)
+  rough: '#516d31', // lush green rough (Augusta second cut) — deeper than the fairway
   wood: '#2b4124',
-  range: '#4f7c37',
-  fairwayA: '#5a8c3b', fairwayB: '#518236', // lush fairway (mow stripes added in shader)
+  range: '#5c7c37',
+  fairwayA: '#688c3b', fairwayB: '#608236', // lush fairway (mow stripes added in shader)
   // Greens: muted since material-first (v25) — the splat is the ACTUAL albedo, not a
   // 10% residue under the photo drape. The color stays in the fairway family.
-  greenA: '#4f8a3c', greenB: '#477f36',
-  tee: '#558539',
+  greenA: '#628a3c', greenB: '#5a7f36',
+  tee: '#638539',
   bunker: '#cbb583',
   water: '#2f6d97',
 };

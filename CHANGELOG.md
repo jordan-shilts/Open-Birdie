@@ -164,6 +164,16 @@ All notable changes to Open-Birdie are documented here.
   the map is as it was.
 
 ### Changed
+- **Sunlit turf measured against real photos, and corrected** — sampled in pairs of a located real photo and
+  the sim from the same spot (8 pairs on the parkland and coastal courses), sunlit turf was about a third
+  darker than the real thing and a purer green: red stood at 77% of green where the photos have 84-94%. Midday is now
+  exposure 0.92 (was 0.8) with the sun at 6.2 (was 5.2), Morning 0.86 (was 0.72) with the sun at 5.2 (was 4.6),
+  and every grass zone of the lush palette has more red (`render/sky-presets.js`, `render/course-character.js`).
+  Hazeltine 10 at Midday went from relative luminance 0.28 with red at 81% of green to 0.37 at 91% (the real
+  photo: 0.37 at 94%); Pebble Beach 7 from 0.12 at 76% to 0.18 at 85% (real: 0.21 at 86%). No sky pixel clips.
+  Shade rises less than sun, so tree shadows read a little stronger. Golden hour, Overcast, Fog and the links
+  palettes are unchanged. What still separates the picture from a current photoreal golf game is listed,
+  biggest first, in `docs/TODO.md` (Benchmark gaps).
 - **Pond reflections keep up with the picture** — a pond's live mirror was a fixed 512 px texture stretched over
   the pond on screen: a quarter of a 1080p picture's width, an eighth of a 4K one's, where the reflected tree
   line came out in visible steps. It now follows the drawing buffer (`quality.js` `waterMirrorSize`): a quarter
