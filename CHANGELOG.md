@@ -5,6 +5,15 @@ All notable changes to Open-Birdie are documented here.
 ## [Unreleased]
 
 ### Added
+- **A Resolution setting: hold 4K (or 1440p, or 1080p)** — Menu → View → Resolution, beside Graphics
+  (`render/quality.js`, `?res=` on the address line). **Auto** is what the game always did: on a big screen it
+  starts near 1080p and climbs toward the screen's full resolution only while every frame is on time, dropping
+  again when frames run slow, so on a 4K screen the picture was 4K only on a GPU with a lot to spare. **4K**,
+  **1440p** and **1080p** hold that many lines instead: no dynamic resolution, and the graphics level's pixel
+  budget does not apply (a player who picks 4K on Low gets 4K). A held resolution is never more than the screen
+  has, and the line under the setting says what is really being drawn ("Rendering 3840 × 2160, held", or that
+  this screen has 1080 lines so that is all 4K can draw here). Under Auto the same line shows the resolution of
+  the moment. Graphics on Auto can still step High down to Low when the frame rate is poor at a held resolution.
 - **Every sky kept for offline play** — once the game is online, it downloads Morning, Golden hour, Overcast
   and Sea fog in the background (15 s after startup, one at a time, about 62 MB once) and keeps them in
   `data/sky-cache`, so all five skies work with no internet, not only the ones picked before
@@ -155,6 +164,17 @@ All notable changes to Open-Birdie are documented here.
   the map is as it was.
 
 ### Changed
+- **Pond reflections keep up with the picture** — a pond's live mirror was a fixed 512 px texture stretched over
+  the pond on screen: a quarter of a 1080p picture's width, an eighth of a 4K one's, where the reflected tree
+  line came out in visible steps. It now follows the drawing buffer (`quality.js` `waterMirrorSize`): a quarter
+  of it each way at High and half at Ultra, never under 512 px and never over 2048 × 1152. At 1080p on High it
+  is the same 512 px mirror as before, so nothing changes there; at 4K it is 960 × 540 at High (twice the
+  pixels) and 1920 × 1080 at Ultra. Cost at 4K is unmeasured (no GPU here): the mirror redraws the course
+  without ground cover every other frame, into 0.5 MP at High where it was 0.26 MP.
+- **The HUD keeps its size on a 4K screen at 100% scaling** — the HUD's zoom stopped at 1.45, so on a
+  3840 × 2160 window at device scale 1 (a 4K projector or TV) it was about two thirds of the share of the screen
+  it has at 1080p. The limit is now 2.3 (`app.js` `fitHud`), which makes the two the same. Screens up to 1440p,
+  and 4K screens at 200% scaling, are unchanged.
 - **The ball's flight is easier to watch** — the tracer no longer covers the shot. It was a wide glowing band
   drawn at full strength from the tee to the ball; with the camera riding behind the ball that put a bright bar
   up the middle of the frame, over the ball and the ground it was coming down on. Now it is a comet: bright and

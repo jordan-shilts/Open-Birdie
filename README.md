@@ -67,6 +67,7 @@ Everything runs on this PC; no firewall changes needed. (If GSPconnect ever runs
 | Hole pills / HOLE | tap a played hole to review it on the scorecard |
 | Scorecard | scores, round-complete summary, restart / new round |
 | Graphics | Auto / Ultra / High / Low (High: live pond mirrors, grass blades, full tree detail; Ultra: High held further from the camera, for a desktop GPU, picked by hand) |
+| Resolution | Auto / 1080p / 1440p / 4K. Auto trades sharpness for frame rate as it plays; the others hold that many lines (never more than the screen has). The menu shows the picture really being drawn |
 | Sky | cycle Morning / Midday / Golden hour (sky photo + matching sun and haze) |
 | Flyover / F | fly over the current hole, tee to green; any key or click skips back to the shot |
 | F11 | toggle fullscreen |

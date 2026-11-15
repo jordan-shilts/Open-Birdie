@@ -37,7 +37,10 @@ import { makePin, makeTeeMarkers } from './pin-flag.js';
 import { flightMarkers, smoothPointAt } from './flight-profile.js';
 import { ballTurn, makeBallTexture } from './ball.js';
 import { flightCameraPlan, flightCameraAt } from './flight-camera.js';
-import { resolveQuality, autoDownshiftVerdict, renderPixelRatio, DYNAMIC_RES, dynamicResolutionStep } from './quality.js';
+import {
+  resolveQuality, autoDownshiftVerdict, renderPixelRatio, DYNAMIC_RES, dynamicResolutionStep,
+  parseResolutionSetting, heldPixelRatio, waterMirrorSize,
+} from './quality.js';
 import { COLORS, DRY_PALETTE, courseDryFor, blendPalette, floraFor, dormantFor, blendDormant, fescueFor } from './course-character.js';
 import { fillShapesBlurred, paintSurfaceMask, RAW_SURFACE_COLORS } from './surface-mask.js';
 import { smoothClassmapTexture } from './classmap-smoothing.js';
@@ -113,7 +116,7 @@ function hexToLinearRGB(hex) {
 // palette (this._pal) at load — see below.
 
 export class GolfScene {
-  constructor(container, { quality = 'auto', autoQuality = true, sky = 'midday', shotCam = 'follow' } = {}) {
+  constructor(container, { quality = 'auto', autoQuality = true, sky = 'midday', shotCam = 'follow', resolution = 'auto' } = {}) {
     this.container = container;
     this.shotCam = shotCam === 'tv' ? 'tv' : 'follow';   // the replay camera (flight-camera.js)
     this.skySetting = parseSkySetting(sky);
@@ -239,6 +242,8 @@ export class GolfScene {
     this._resScale = 1;          // dynamic resolution (quality.js DYNAMIC_RES)
     this._resIntervals = [];
     this._resCalm = 0;
+    this.resolution = parseResolutionSetting(resolution);   // 'auto', or a held '1080p' | '1440p' | '4k'
+    this.onRenderSize = null;    // (info) => {}: the drawing buffer changed size (the menu's read-out)
     this.setQuality(quality, { rebuild: false });
     this.flyover = new HoleFlyover(this); // hole flyover camera (flyover.js)
     this.googleTiles = new GoogleTiles(this); // optional Google 3D tiles around the course (google-tiles.js; inert without a key)
@@ -313,7 +318,7 @@ export class GolfScene {
     // dynamic resolution first, at every level: it trades pixels for frame rate long
     // before Auto gives up on High
     const ri = this._resIntervals;
-    ri.push(dtMs);
+    if (this.resolution === 'auto') ri.push(dtMs);   // a held resolution is not traded for frame rate
     if (ri.length >= DYNAMIC_RES.windowFrames) {
       const r = dynamicResolutionStep({ scale: this._resScale, intervalsMs: ri, calmWindows: this._resCalm });
       ri.length = 0;
@@ -326,7 +331,8 @@ export class GolfScene {
       }
     }
     if (!this._autoQuality || !this.quality || this.quality.setting !== 'auto' || this.quality.level !== 'high') return;
-    if (this._resScale > DYNAMIC_RES.min || this._resPending != null) return;   // Auto drops to Low only once the scale is spent
+    // Auto drops to Low only once the scale is spent (there is none to spend at a held resolution)
+    if (this.resolution === 'auto' && (this._resScale > DYNAMIC_RES.min || this._resPending != null)) return;
     const xs = this._frameIntervals;
     xs.push(dtMs);
     if (xs.length > 240) xs.shift();
@@ -343,14 +349,17 @@ export class GolfScene {
     const w = this.container.clientWidth, h = this.container.clientHeight;
     const p = this.quality?.preset;
     if (p) {
+      // a resolution the player picked is held as it is; Auto runs the level's pixel
+      // budget under dynamic resolution
+      const held = heldPixelRatio({ setting: this.resolution, dpr: window.devicePixelRatio || 1, width: w, height: h });
       const full = renderPixelRatio({ dpr: window.devicePixelRatio || 1, width: w, height: h, cap: p.pixelRatioCap, maxPixels: p.maxPixels });
       // a big screen starts near ~1080p worth of pixels; dynamic resolution climbs from
       // there if the GPU has room (starting at native 4K made the first seconds crawl)
-      if (!this._resScaleSet && w * h > 0) {
+      if (held == null && !this._resScaleSet && w * h > 0) {
         this._resScaleSet = true;
         this._resScale = Math.min(1, Math.max(DYNAMIC_RES.min, Math.sqrt(2.4e6 / (w * h * full * full))));
       }
-      const pr = Math.max(0.5, Math.round(full * (this._resScale ?? 1) * 100) / 100);
+      const pr = held ?? Math.max(0.5, Math.round(full * (this._resScale ?? 1) * 100) / 100);
       if (pr !== this.renderer.getPixelRatio()) this.renderer.setPixelRatio(pr);
       // sharpen in proportion to how far the frame is upscaled to the display
       this.postfx?.setSharpness(Math.min(0.6, Math.max(0.15, 1 - pr / (window.devicePixelRatio || 1))));
@@ -360,6 +369,44 @@ export class GolfScene {
     this.renderer.setSize(w, h);
     this.postfx?.setSize(w, h);
     this.waterDepth?.setSize(w, h);
+    this._sizeWaterMirrors();
+    const info = this.renderSize();
+    const key = `${info.setting}:${info.bufferW}x${info.bufferH}`;
+    if (key !== this._renderSizeKey) { this._renderSizeKey = key; this.onRenderSize?.(info); }
+  }
+
+  // The ponds' mirrors follow the picture's size (quality.js waterMirrorSize).
+  _sizeWaterMirrors() {
+    if (!this._waterSetMirrorSize) return;
+    const c = this.renderer.domElement;
+    const { width, height } = waterMirrorSize({ bufferW: c.width, bufferH: c.height, share: this.quality?.preset?.mirrorShare });
+    this._waterSetMirrorSize(width, height);
+  }
+
+  // The picture being drawn: the resolution setting and the drawing buffer's real size.
+  renderSize() {
+    const pr = this.renderer.getPixelRatio();
+    const w = this.container.clientWidth, h = this.container.clientHeight;
+    return {
+      setting: this.resolution, held: this.resolution !== 'auto',
+      bufferW: Math.floor(w * pr), bufferH: Math.floor(h * pr),
+      dpr: window.devicePixelRatio || 1, width: w, height: h,
+    };
+  }
+
+  // Hold a resolution ('1080p' | '1440p' | '4k') or go back to Auto's dynamic resolution.
+  setResolution(setting) {
+    const next = parseResolutionSetting(setting);
+    if (next === this.resolution) return this.renderSize();
+    this.resolution = next;
+    this._resPending = null;
+    this._resIntervals.length = 0;
+    this._resCalm = 0;
+    this._resScaleSet = false;        // Auto starts over from its ~1080p seed
+    this._frameIntervals.length = 0;
+    this._qualityHoldUntil = performance.now() + 2500;   // every full-screen target was just rebuilt
+    if (this.container) this.resize();
+    return this.renderSize();
   }
 
   _setupSkyAndLights() {
@@ -510,7 +557,7 @@ export class GolfScene {
       revision: this._visualCaptureCourseRevision,
     };
     this._treeWind = this._grassWind = this._grassCull = this._waterUpdate = this._waterMeshList = this._terrain = null; // drop stale per-course refs
-    this._waterMirrors = this._waterSetSky = this._waterSetSun = this._waterSetWind = null;
+    this._waterMirrors = this._waterSetSky = this._waterSetSun = this._waterSetWind = this._waterSetMirrorSize = null;
     this._foamOn = false;
     this._treeField = null; this._placedTrees = null; this._allTreeSpots = null; this._grassField = null;
     this._fairwayGrassMesh = this._fairwayGrassWind = this._fairwayGrassCenter = this._fgGeo = this._fgGroup = this._fairwayZoneColorFn = null;
@@ -1177,9 +1224,11 @@ export class GolfScene {
         ? { depthTexture: this.waterDepth.depthTexture, resolution: this.waterDepth.resolution, near: this.camera.near, far: this.camera.far }
         : null;
       const b = this.bounds;
-      const { meshes, waterMeshes, sea, waterUpdate, setSun, setSky, setSunGlint, updateMirrors, setMirrorSkip, setWind } = buildWater(
+      const { meshes, waterMeshes, sea, waterUpdate, setSun, setSky, setSunGlint, updateMirrors, setMirrorSkip, setMirrorSize, setWind } = buildWater(
         this._ponds || [], this.sunDir, depth, this._sea, b ? { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 } : null);
       this._waterSetMirrorSkip = setMirrorSkip;
+      this._waterSetMirrorSize = setMirrorSize;
+      this._sizeWaterMirrors();
       setSky(this._equirect || null);
       this._waterSetSky = setSky;
       this._waterMirrors = updateMirrors;
@@ -1194,7 +1243,7 @@ export class GolfScene {
       this._waterSetSun = setSun;
       this._waterMeshList = waterMeshes;
     } else {
-      this._waterSetMirrorSkip = null;
+      this._waterSetMirrorSkip = this._waterSetMirrorSize = null;
       this._waterMeshes(geo).forEach((m) => group.add(m));
     }
   }
@@ -2369,6 +2418,7 @@ export class GolfScene {
       this.renderer.setSize(width, height, false);
       this.postfx.setSize(width, height);
       this.waterDepth?.setSize(width, height);
+      this._sizeWaterMirrors();
     }
 
     // Capture URLs own their render loop. Normal URLs never call this method and

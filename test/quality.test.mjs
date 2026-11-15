@@ -5,6 +5,8 @@ import {
   QUALITY_PRESETS, parseQualitySetting, initialAutoLevel, resolveQuality,
   autoDownshiftVerdict, qualityLabel, nextQualitySetting, renderPixelRatio,
   DYNAMIC_RES, dynamicResolutionStep,
+  RESOLUTION_SETTINGS, RESOLUTION_LINES, parseResolutionSetting, heldPixelRatio, resolutionNote,
+  waterMirrorSize, MIRROR_MIN_PX, MIRROR_MAX_PX,
 } from '../public/render/quality.js';
 
 test('parseQualitySetting accepts the four settings and defaults to auto', () => {
@@ -141,4 +143,91 @@ test('dynamic resolution steps down on slow frames and creeps back up when calm'
   // a few slow frames under the share neither drop nor build calm
   const mixed = [...Array(D.windowFrames - 2).fill(12), 30, 30];
   assert.deepEqual(dynamicResolutionStep({ scale: 0.8, intervalsMs: mixed, calmWindows: 2 }), { scale: 0.8, calmWindows: 0, changed: false });
+});
+
+// ---- a held resolution (Menu -> View -> Resolution) ----
+test('resolution setting: Auto by default, 4K by its other names', () => {
+  assert.deepEqual([...RESOLUTION_SETTINGS], ['auto', '1080p', '1440p', '4k']);
+  assert.equal(parseResolutionSetting(undefined), 'auto');
+  assert.equal(parseResolutionSetting('nonsense'), 'auto');
+  assert.equal(parseResolutionSetting(' 4K '), '4k');
+  assert.equal(parseResolutionSetting('2160p'), '4k');
+  assert.equal(parseResolutionSetting('UHD'), '4k');
+  assert.equal(parseResolutionSetting('1440P'), '1440p');
+  assert.equal(RESOLUTION_LINES['4k'], 2160);
+});
+
+test('held resolution: Auto holds nothing', () => {
+  assert.equal(heldPixelRatio({ setting: 'auto', dpr: 2, width: 1920, height: 1080 }), null);
+  assert.equal(heldPixelRatio({ setting: '4k', dpr: 1, width: 0, height: 0 }), null);   // no window yet
+});
+
+test('held resolution: 4K is the whole of a 4K screen, at device scale 1 or 2', () => {
+  // a 4K projector or TV at 100% scaling
+  assert.equal(heldPixelRatio({ setting: '4k', dpr: 1, width: 3840, height: 2160 }), 1);
+  // the same panel at 200% scaling (a Mac's "looks like 1920 x 1080")
+  assert.equal(heldPixelRatio({ setting: '4k', dpr: 2, width: 1920, height: 1080 }), 2);
+  // ...and at 150%
+  const pr = heldPixelRatio({ setting: '4k', dpr: 1.5, width: 2560, height: 1440 });
+  assert.equal(pr, 1.5);
+  assert.equal(Math.round(1440 * pr), 2160);
+});
+
+test('held resolution: never more than the screen has', () => {
+  // 4K asked for on a 1080p panel: 1080p is all there is
+  assert.equal(heldPixelRatio({ setting: '4k', dpr: 1, width: 1920, height: 1080 }), 1);
+  assert.equal(heldPixelRatio({ setting: '1440p', dpr: 1, width: 1920, height: 1080 }), 1);
+});
+
+test('held resolution: fewer lines than the screen are upscaled from that many', () => {
+  // 1080p and 1440p held on a 4K screen
+  assert.equal(heldPixelRatio({ setting: '1080p', dpr: 1, width: 3840, height: 2160 }), 0.5);
+  assert.equal(heldPixelRatio({ setting: '1440p', dpr: 1, width: 3840, height: 2160 }), 0.67);
+  assert.equal(heldPixelRatio({ setting: '1440p', dpr: 2, width: 1920, height: 1080 }), 1.33);
+  // an ultrawide window gets the same pixel count as 16:9, not more
+  const pr = heldPixelRatio({ setting: '4k', dpr: 1, width: 5120, height: 2160 });
+  assert.ok(5120 * 2160 * pr * pr <= 3840 * 2160 * 1.02, `${(5120 * 2160 * pr * pr / 1e6).toFixed(2)} MP`);
+});
+
+test('held resolution: it overrides the graphics level, which Auto still obeys', () => {
+  // Low's budget is ~1.3 MP; a player who picks 4K on Low gets 4K
+  const L = QUALITY_PRESETS.low;
+  const auto = renderPixelRatio({ dpr: 1, width: 3840, height: 2160, cap: L.pixelRatioCap, maxPixels: L.maxPixels });
+  assert.ok(auto < 0.5 + 1e-9);
+  assert.equal(heldPixelRatio({ setting: '4k', dpr: 1, width: 3840, height: 2160 }), 1);
+});
+
+test('resolution note: says what is drawn, and when the screen is the limit', () => {
+  assert.match(resolutionNote({ setting: '4k', bufferW: 3840, bufferH: 2160, dpr: 1, height: 2160 }), /^Rendering 3840 × 2160, held\.$/);
+  const small = resolutionNote({ setting: '4k', bufferW: 1920, bufferH: 1080, dpr: 1, height: 1080 });
+  assert.match(small, /1920 × 1080/);
+  assert.match(small, /this screen has 1080 lines/);
+  assert.match(resolutionNote({ setting: 'auto', bufferW: 2112, bufferH: 1188, dpr: 1, height: 2160 }), /Rendering 2112 × 1188 now/);
+});
+
+// ---- pond mirrors follow the picture ----
+test('water mirror: at 1080p on High it is the 512 px mirror it always was', () => {
+  const H = QUALITY_PRESETS.high;
+  assert.deepEqual(waterMirrorSize({ bufferW: 1920, bufferH: 1080, share: H.mirrorShare }), { width: 512, height: 512 });
+  // ...and at the visual-capture baseline's 1280 x 720, so its frames do not move
+  assert.deepEqual(waterMirrorSize({ bufferW: 1280, bufferH: 720, share: H.mirrorShare }), { width: 512, height: 512 });
+  assert.equal(MIRROR_MIN_PX, 512);
+});
+
+test('water mirror: at 4K it grows with the picture', () => {
+  const H = QUALITY_PRESETS.high, U = QUALITY_PRESETS.ultra;
+  assert.deepEqual(waterMirrorSize({ bufferW: 3840, bufferH: 2160, share: H.mirrorShare }), { width: 960, height: 540 });
+  assert.deepEqual(waterMirrorSize({ bufferW: 3840, bufferH: 2160, share: U.mirrorShare }), { width: 1920, height: 1080 });
+  assert.deepEqual(waterMirrorSize({ bufferW: 1920, bufferH: 1080, share: U.mirrorShare }), { width: 960, height: 540 });
+});
+
+test('water mirror: bounded, even, and safe with no size or share yet', () => {
+  assert.deepEqual(waterMirrorSize({ bufferW: 7680, bufferH: 4320, share: 0.5 }), { width: MIRROR_MAX_PX[0], height: MIRROR_MAX_PX[1] });
+  assert.deepEqual(waterMirrorSize({}), { width: 512, height: 512 });
+  assert.deepEqual(waterMirrorSize({ bufferW: 3840, bufferH: 2160, share: undefined }), { width: 960, height: 540 });
+  for (const [w, h] of [[2731, 1537], [3001, 1689], [2222, 1250]]) {
+    const m = waterMirrorSize({ bufferW: w, bufferH: h, share: 0.5 });
+    assert.equal(m.width % 2, 0); assert.equal(m.height % 2, 0);
+  }
+  assert.equal(QUALITY_PRESETS.low.waterReflect, false);   // Low has no live mirror to size
 });

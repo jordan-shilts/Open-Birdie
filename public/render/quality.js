@@ -32,6 +32,7 @@ export const QUALITY_PRESETS = Object.freeze({
     bloom: true,
     aa: 'smaa',
     waterReflect: true,
+    mirrorShare: 0.5,       // a pond's mirror at half the picture's width and height (waterMirrorSize)
     waterFoam: true,
     treeDensity: 1.0,       // the woods as dense as High's: the forest is the same forest
     treeCap: 14000,         // ... but a big course keeps more of its trees
@@ -55,6 +56,8 @@ export const QUALITY_PRESETS = Object.freeze({
     bloom: true,
     aa: 'smaa',             // the antialiasing pass (postfx.js): SMAA, or FXAA at Low
     waterReflect: true,
+    mirrorShare: 0.25,      // a pond's mirror at a quarter of the picture each way, never under 512 px:
+                            // what it always was at 1080p, twice the pixels at 4K (waterMirrorSize)
     waterFoam: true,
     treeDensity: 1.0,       // woods fill spacing multiplier (1 = dense)
     treeCap: 9000,          // instanced trees across the course
@@ -171,6 +174,64 @@ export function renderPixelRatio({ dpr = 1, width = 0, height = 0, cap = 2, maxP
   const px = width * height;
   if (px > 0 && Number.isFinite(maxPixels) && maxPixels > 0) pr = Math.min(pr, Math.sqrt(maxPixels / px));
   return Math.max(0.5, Math.round(pr * 100) / 100);
+}
+
+// A pond's live mirror is the course drawn again from under the water, into a texture
+// that is then stretched over the pond on screen. At a fixed 512 px that texture was a
+// quarter of a 1080p picture's width and an eighth of a 4K one's: at 4K the reflected
+// tree line came out in visible steps. So it follows the picture: `share` of the drawing
+// buffer each way, never under 512 px (the 1080p mirror, unchanged) and never over
+// 2048 x 1152 (half of 4K). Even sizes, since the target is halved for its mips.
+export const MIRROR_MIN_PX = 512;
+export const MIRROR_MAX_PX = Object.freeze([2048, 1152]);
+export function waterMirrorSize({ bufferW = 0, bufferH = 0, share = 0.25 } = {}) {
+  const fit = (px, max) => {
+    const v = Math.round((Number(px) || 0) * (Number.isFinite(share) && share > 0 ? share : 0.25) / 2) * 2;
+    return Math.min(max, Math.max(MIRROR_MIN_PX, v));
+  };
+  return { width: fit(bufferW, MIRROR_MAX_PX[0]), height: fit(bufferH, MIRROR_MAX_PX[1]) };
+}
+
+// Render resolution: a second setting beside the graphics level, for a player who would
+// rather choose the picture's sharpness than have it chosen frame by frame.
+//   'auto'                    the level's own pixel budget under dynamic resolution
+//                             (below): the default, and what the game always did
+//   '1080p' | '1440p' | '4k'  that many lines, held. No dynamic resolution, and the
+//                             level's pixel budget does not apply: the player asked.
+// A held resolution is never more than the screen has (a 4K picture needs a 4K screen:
+// on a 1080p panel '4k' renders 1080p, and the menu says so).
+export const RESOLUTION_SETTINGS = Object.freeze(['auto', '1080p', '1440p', '4k']);
+export const RESOLUTION_LINES = Object.freeze({ '1080p': 1080, '1440p': 1440, '4k': 2160 });
+
+export function parseResolutionSetting(value) {
+  const v = String(value ?? '').trim().toLowerCase();
+  if (v === '2160p' || v === 'uhd') return '4k';
+  return RESOLUTION_SETTINGS.includes(v) ? v : 'auto';
+}
+
+// The render pixel ratio that holds `setting`'s lines in a width x height window (CSS
+// px) on a screen of device pixel ratio dpr, or null for 'auto'. The lines are counted
+// on a 16:9 picture, so an ultrawide window gets the same pixel count, not more.
+export function heldPixelRatio({ setting, dpr = 1, width = 0, height = 0 } = {}) {
+  const lines = RESOLUTION_LINES[parseResolutionSetting(setting)];
+  if (!lines || !(width > 0) || !(height > 0)) return null;
+  const native = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
+  const pr = Math.min(native, lines / height, Math.sqrt((lines * lines * 16 / 9) / (width * height)));
+  return Math.max(0.25, Math.round(pr * 100) / 100);
+}
+
+// What the menu says under the setting: the picture actually being drawn, and why it is
+// not what was asked for when it is not. bufferW x bufferH is the renderer's drawing buffer.
+export function resolutionNote({ setting, bufferW = 0, bufferH = 0, dpr = 1, height = 0 } = {}) {
+  const s = parseResolutionSetting(setting);
+  const size = `${Math.round(bufferW)} × ${Math.round(bufferH)}`;
+  if (s === 'auto') return `Rendering ${size} now. Auto trades sharpness for frame rate as it plays.`;
+  const lines = RESOLUTION_LINES[s];
+  const screenLines = Math.round(height * (Number.isFinite(dpr) && dpr > 0 ? dpr : 1));
+  if (screenLines > 0 && screenLines < lines * 0.98) {
+    return `Rendering ${size}: this screen has ${screenLines} lines, so that is all ${s === '4k' ? '4K' : s} can draw here.`;
+  }
+  return `Rendering ${size}, held.`;
 }
 
 // Dynamic resolution: hold 60 fps by scaling the render resolution under the preset's

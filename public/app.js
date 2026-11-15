@@ -9,7 +9,7 @@ import { ConditionsUI } from './conditions-ui.js';
 import { Lineup, CLUBS, clubByLabel, writeAutoClub } from './lineup.js';
 import { LeaguesUI } from './leagues-ui.js';
 import { renderClubPanel } from './club-panel.js';
-import { parseQualitySetting, qualityLabel } from './render/quality.js';
+import { parseQualitySetting, qualityLabel, parseResolutionSetting, resolutionNote } from './render/quality.js';
 import { parseSkySetting, SKY_ORDER, SKY_PRESETS } from './render/sky-presets.js';
 
 const $ = (id) => document.getElementById(id);
@@ -32,7 +32,12 @@ let skySetting = parseSkySetting(query.get('sky') || (visualCaptureEnabled ? 'mi
 const SHOTCAM_KEY = 'open-birdie.shotcam';
 const readShotCam = () => { try { return localStorage.getItem(SHOTCAM_KEY); } catch { return null; } };
 let shotCam = (query.get('shotcam') || readShotCam()) === 'tv' ? 'tv' : 'follow';
-const scene = new GolfScene($('scene'), { quality: gfxSetting, autoQuality: !visualCaptureEnabled, sky: skySetting, shotCam });
+// Render resolution: Auto (dynamic, the default) or a held 1080p / 1440p / 4K
+// (render/quality.js); ?res= overrides the saved one. Visual capture sizes its own frames.
+const RES_KEY = 'open-birdie.resolution';
+const readRes = () => { try { return localStorage.getItem(RES_KEY); } catch { return null; } };
+let resSetting = parseResolutionSetting(query.get('res') || (visualCaptureEnabled ? 'auto' : readRes()));
+const scene = new GolfScene($('scene'), { quality: gfxSetting, autoQuality: !visualCaptureEnabled, sky: skySetting, shotCam, resolution: resSetting });
 const flightView = new FlightView($('flightview'));
 const leaguesUI = new LeaguesUI({
   toast: (main, sub) => showToast(main, sub),
@@ -46,7 +51,9 @@ const leaguesUI = new LeaguesUI({
 // ---------- HUD scale: one layout, zoomed to the window (laptop .. 4K TV) ----------
 function fitHud() {
   const w = window.innerWidth, h = window.innerHeight;
-  const z = w <= 700 ? 1 : Math.max(0.72, Math.min(1.45, Math.min(w / 1680, h / 945)));
+  // up to 2.3: a 3840x2160 window at device scale 1 (a 4K projector or TV) gets the HUD
+  // at the share of the screen it has at 1080p, not two thirds of it
+  const z = w <= 700 ? 1 : Math.max(0.72, Math.min(2.3, Math.min(w / 1680, h / 945)));
   $('hud').style.zoom = z.toFixed(3);
 }
 fitHud();
@@ -77,6 +84,16 @@ segmented($('seg-gfx'), [['auto', 'Auto'], ['ultra', 'Ultra'], ['high', 'High'],
 });
 scene.onQualityChange = showGfx;
 showGfx(scene.quality);
+// the resolution, and under it the picture really being drawn (it moves under Auto)
+const showRes = (info) => { $('res-now').textContent = resolutionNote(info); };
+segmented($('seg-res'), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']], resSetting, (v) => {
+  resSetting = parseResolutionSetting(v);
+  try { localStorage.setItem(RES_KEY, resSetting); } catch { /* private mode */ }
+  showRes(scene.setResolution(resSetting));
+  markSeg($('seg-res'), resSetting);
+});
+scene.onRenderSize = showRes;
+showRes(scene.renderSize());
 segmented($('seg-shotcam'), [['follow', 'Follow the ball'], ['tv', 'TV']], shotCam, (v) => {
   shotCam = v === 'tv' ? 'tv' : 'follow';
   try { localStorage.setItem(SHOTCAM_KEY, shotCam); } catch { /* private mode */ }

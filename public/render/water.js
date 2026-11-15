@@ -107,8 +107,8 @@ const POND_FRAG = /* glsl */`
   }`;
 
 function mirrorPond(geom, shared, skip, only) {
-  // 512 px: the ripple field distorts the reflection by more than a texel anyway, and a
-  // 1024 mirror filled 4x the pixels re-rendering the course every other frame
+  // 512 px to start with: the scene sizes every mirror to the picture as soon as the
+  // water is built and on every resize (setMirrorSize below, quality.js waterMirrorSize)
   const refl = new Reflector(geom, {
     textureWidth: 512, textureHeight: 512, clipBias: 0.003, color: 0xc4d0cc,
     shader: {
@@ -432,6 +432,16 @@ export function buildWater(ponds, sunDir, depth, sea = null, seaCenter = null) {
     // the sun's glitter on the water, as bright as the sun is: none to speak of under cloud
     setSunGlint: (k) => shared.uSunColor.value.setRGB(1.0, 0.95, 0.84).multiplyScalar(Math.max(0, k)),
     setSky: (tex) => { shared.uSky.value = tex; },
+    // every live mirror's texture, resized to suit the picture; each redraws at once
+    setMirrorSize: (width, height) => {
+      if (!reflect) return;
+      for (const r of meshes) {
+        const rt = r.getRenderTarget?.();
+        if (!rt || (rt.width === width && rt.height === height)) continue;
+        rt.setSize(width, height);
+        r.userData.live = false;   // empty until redrawn: updateMirrors refreshes a newly live mirror first
+      }
+    },
     updateMirrors,
     setFoamDepth,
     setMirrorSkip: (objects, only = []) => {
